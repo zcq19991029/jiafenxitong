@@ -28,6 +28,11 @@ def build(destination):
         sha = subprocess.check_output(['git', 'rev-parse', 'HEAD'], cwd=ROOT, text=True).strip()
     except (OSError, subprocess.CalledProcessError):
         sha = 'local-check'
+    html = (out / 'index.html').read_text(encoding='utf-8')
+    for name in ('styles.css', 'data.js', 'cloud.js', 'app.js'):
+        html = html.replace('"' + name + '"', '"' + name + '?v=' + sha + '"')
+    html = html.replace('</head>', '<meta name="build-commit" content="' + sha + '">\n</head>')
+    (out / 'index.html').write_text(html, encoding='utf-8', newline='\n')
     (out / 'version.json').write_text(json.dumps({'commit': sha, 'name': '夜夜加分助手'}, ensure_ascii=False), encoding='utf-8')
     print('Pages package:', out)
 
