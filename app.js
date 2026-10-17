@@ -381,14 +381,34 @@ function removeMemberAt(cls, g, j) {
     S.operationLog.push({at:new Date().toISOString(),kind:kind,detail:detail});
     if(S.operationLog.length>500) S.operationLog.splice(0,S.operationLog.length-500);
   }
+  function canUndoAt(index) {
+    var op=(S.undo||[])[index]; if(!op || !getLesson(op.lessonId))return false;
+    return !S.undo.slice(index+1).some(function(later){
+      return later.lessonId===op.lessonId && later.gno===op.gno &&
+        (op.reset || later.reset || (op.i!=null ? later.i===op.i : later.i==null && later.f===op.f));
+    });
+  }
   function renderOperationLog() {
     var list=$('#operationLogList'); if(!list) return;
     var entries=(S.operationLog || []).slice().reverse();
-    var legacy=(S.undo || []).filter(function(op){return !op.at;}).slice().reverse();
-    list.innerHTML=(entries.length ? entries.map(function(e){return '<article class="operation-row"><small>'+esc(new Date(e.at).toLocaleString())+' · '+esc(e.kind)+'</small><div>'+esc(e.detail)+'</div></article>';}).join('') : '<p class="note">本版本启用后暂无新操作。</p>') +
-      (legacy.length ? '<h4>历史撤销记录（时间、操作来源未记录）</h4>'+legacy.map(function(op){return '<article class="operation-row"><small>历史记分 · 以下为撤销时将恢复的数值</small><div>'+esc(undoLabel(op))+'</div></article>';}).join('') : '');
+    var pending=(S.undo||[]).map(function(op,i){return {op:op,index:i};}).reverse();
+    list.innerHTML='<h4>可撤销的记分</h4>'+(pending.length ? pending.map(function(row){
+      var op=row.op, allowed=canUndoAt(row.index);
+      return '<article class="operation-row"><div><small>'+esc(op.at?new Date(op.at).toLocaleString():'历史记录：时间、来源未记录')+'</small><div>'+esc(undoLabel(op))+'</div></div><button class="btn log-undo" data-undo-index="'+row.index+'" '+(!allowed?'disabled':'')+' title="'+(allowed?'撤销此项记分':'同一分数有后续修改，请先撤销较新的相关记录')+'">↶ 撤销</button></article>';
+    }).join('') : '<p class="note">暂无可撤销记分。</p>')+
+      '<h4>已撤销 · 可恢复</h4>'+((S.redo||[]).length ? S.redo.map(function(entry,index){return '<article class="operation-row"><div><small>已撤销</small><div>'+esc(undoLabel(entry.op))+'</div></div><button class="btn log-restore" data-redo-index="'+index+'" '+(index!==S.redo.length-1?'disabled title="请先恢复最近撤销的一项"':'')+'>↷ 恢复</button></article>';}).reverse().join(''):'<p class="note">暂无待恢复记录。</p>')+
+      '<details><summary>完整操作流水（仅核对）</summary>'+entries.map(function(e){return '<article class="operation-row"><div><small>'+esc(new Date(e.at).toLocaleString())+' · '+esc(e.kind)+'</small><div>'+esc(e.detail)+'</div></div></article>';}).join('')+'</details>';
     var entry=(S.redo || []).slice(-1)[0];
     $('#redoDetail').textContent=entry ? '下一步重做：'+undoLabel(Object.assign({},entry.op,{old:entry.op.neu,neu:entry.op.old})) : '暂无可重做操作';
+  }
+
+  function fadeLogRow(row) {
+    if(!row || window.matchMedia('(prefers-reduced-motion: reduce)').matches)return;
+    var rect=row.getBoundingClientRect(), ghost=row.cloneNode(true);
+    ghost.classList.add('log-row-ghost'); ghost.setAttribute('aria-hidden','true');
+    ghost.style.cssText='position:fixed;left:'+rect.left+'px;top:'+rect.top+'px;width:'+rect.width+'px;height:'+rect.height+'px;z-index:5;pointer-events:none;';
+    $('#dlgOperationLog').appendChild(ghost);
+    setTimeout(function(){ghost.remove();},220);
   }
 
   function renderUndoBtn() {
@@ -1781,6 +1801,16 @@ function removeMemberAt(cls, g, j) {
   $('#btnRedo').addEventListener('click', redo);
   $('#btnOperationLog').addEventListener('click',function(){renderUndoBtn();openDlg($('#dlgOperationLog'));});
   $('#closeOperationLog').addEventListener('click',function(){$('#dlgOperationLog').close();});
+  $('#operationLogList').addEventListener('click',function(event){
+    var button=event.target.closest('button[data-undo-index],button[data-redo-index]');
+    if(!button || button.disabled)return;
+    if(button.dataset.undoIndex!=null){
+      var index=+button.dataset.undoIndex; if(!canUndoAt(index))return;
+      fadeLogRow(button.closest('.operation-row'));
+      var op=S.undo.splice(index,1)[0]; S.undo.push(op); undo();
+    } else {fadeLogRow(button.closest('.operation-row'));redo();}
+  });
+
 
   document.addEventListener('keydown', function (e) {
     if (!(e.ctrlKey || e.metaKey)) return;

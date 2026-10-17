@@ -1198,3 +1198,10 @@ table.sheet td.c-sum .c { font-size: 13px; color: var(--text); }
 .semester-score b {font-size:16px;font-variant-numeric:tabular-nums;}
 .member-name .semester-score {display:inline-block;margin-left:6px;}
 .semester-summary {font-size:16px;font-weight:600;padding:14px;}
+
+.operation-row {display:flex;align-items:center;justify-content:space-between;gap:16px;}
+.operation-row > div {min-width:0;flex:1;}
+.operation-row button {flex-shrink:0;min-height:40px;}
+.log-row-ghost {background:var(--panel);animation:log-row-out 200ms ease-out forwards;}
+@keyframes log-row-out {to {opacity:0;transform:translateX(16px);}}
+@media(prefers-reduced-motion:reduce){.log-row-ghost {animation:none;display:none;}}
