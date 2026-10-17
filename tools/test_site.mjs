@@ -1,0 +1,71 @@
+/* Tests the real packaged single-origin Worker, not a separate frontend/mock SDK. */
+import fs from 'node:fs';
+import assert from 'node:assert/strict';
+import { createRequire } from 'node:module';
+import { pathToFileURL } from 'node:url';
+import { environment, initialAdmin, PASSWORD } from './lib/test-d1.mjs';
+const { default: site } = await import(pathToFileURL(process.cwd() + '/dist/server/index.js').href);
+const require = createRequire(new URL('./test-runtime/', import.meta.url));
+const { JSDOM, VirtualConsole } = require('jsdom');
+const origin = 'https://formal-site.example.test';
+const env = environment();
+const admin = await initialAdmin(env);
+let passed = 0;
+function check(name, condition) { assert.ok(condition, name); passed++; console.log('PASS', name); }
+const get = pathname => site.fetch(new Request(origin + pathname), env);
+const root = await get('/');
+const html = await root.text();
+check('one Worker serves the real application homepage', root.status === 200 && html.includes('btnAccountLogin'));
+check('frontend scripts are all same-origin', !/<script[^>]+src="https?:/i.test(html));
+check('scripts use build-specific cache versions', html.includes('app.js?v=') && html.includes('config.js?v='));
+check('HTML prevents embedding and executable inline injection', root.headers.get('x-frame-options') === 'DENY'
+  && root.headers.get('content-security-policy').includes("script-src 'self'"));
+check('private source materials are not served', (await get('/教学材料/名单.xlsx')).status === 404);
+check('backend source is not served', (await get('/backend/worker.mjs')).status === 404);
+const publicSeed = JSON.parse((await (await get('/data.js')).text()).split('window.SEED_DATA =')[1].trim().replace(/;$/, ''));
+check('static seed contains no real or example student rosters', publicSeed.classes.every(c => c.roster.length === 0 && c.groups.every(g => !g.members.length)));
+check('API is protected on the very same hostname', (await get('/api/state')).status === 401);
+check('same-origin access needs no extra CORS configuration', (await site.fetch(new Request(origin + '/api/health', { headers: { Origin: origin } }),
+  { ...env, ALLOWED_ORIGINS: '' })).status === 200);
+const vc = new VirtualConsole();
+const errors = [];
+vc.on('jsdomError', e => { if (!/Not implemented.*(navigation|HTMLDialogElement)/i.test(e.message)) errors.push(e.message); });
+const dom = new JSDOM(html.replace(/<script[^>]*>[\s\S]*?<\/script>/g, ''), { url: origin + '/', runScripts: 'outside-only', virtualConsole: vc });
+const w = dom.window;
+w.fetch = async (url, options) => site.fetch(new Request(new URL(url, origin), { ...options, headers: { ...options.headers, Origin: origin } }), env);
+w.confirm = () => true; w.alert = () => {}; w.print = () => {};
+for (const [, src] of html.matchAll(/<script src="([^"]+)"/g)) w.eval(await (await get('/' + src)).text());
+const q = selector => w.document.querySelector(selector);
+async function until(fn) { for (let i = 0; i < 200; i++) { if (fn()) return; await new Promise(r => setTimeout(r, 10)); } throw Error('UI timeout'); }
+check('cloud adapter resolves an empty apiBase to its own origin', q('#gateMsg').textContent.indexOf('尚未配置') < 0);
+q('#loginUsername').value = 'admin-test'; q('#loginPassword').value = PASSWORD; q('#btnAccountLogin').click();
+await until(() => q('#gate').hidden);
+await w.JFDT_CLOUD.flush();
+check('same-origin account login reaches the application', !w.document.body.classList.contains('gated'));
+check('new account gets an explicit roster import entry', !q('#rosterSetupHint').hidden);
+q('#btnRosterSetup').click();
+check('roster setup button opens the data page', !q('#view-data').hidden);
+const className = publicSeed.classes[0].name;
+const csv = '班级,姓名,学号,小组,班内序号\n' + className + ',测试同名,26000000301,1,1\n' + className + ',测试同名,26000000302,,2\n';
+Object.defineProperty(q('#fileRoster'), 'files', { configurable: true, value: [new w.File([csv], 'test.csv', { type: 'text/csv' })] });
+q('#fileRoster').dispatchEvent(new w.Event('change'));
+await until(() => q('#rosterImportStatus').textContent.includes('2 名学生'));
+await w.JFDT_CLOUD.flush();
+check('the actual CSV file-input flow imports students', JSON.parse(w.localStorage.getItem('jfdt.v1')).classes[0].roster.length === 2);
+w.document.querySelector('#tabs [data-view="score"]').click();
+check('import removes the empty-roster hint', q('#rosterSetupHint').hidden);
+w.document.querySelector('#tabs [data-view="pool"]').click();
+check('same-name students with different identifiers remain separately assigned', q('#poolList tbody tr').textContent.includes('26000000302')
+  && q('#poolList tbody').children.length === 1);
+w.document.querySelector('#tabs [data-view="score"]').click();
+q('#btnNewLesson').click();
+for (const [key, value] of Object.entries({ nlSeq: '1', nlDate: '2026-10-17', nlTopic: '同站验收', nlDuty: '1' })) q('#' + key).value = value;
+q('#dlgLesson').returnValue = 'ok'; q('#dlgLesson').dispatchEvent(new w.Event('close'));
+q('[data-card="1"] button[data-f="group"][data-act="i"]').click();
+await w.JFDT_CLOUD.flush();
+check('same-origin score edits are saved in D1', (await (await site.fetch(new Request(origin + '/api/state', { headers: { Authorization: 'Bearer ' + admin.token } }), env)).json()).data.lessons[0].scores['1'].group === 1);
+const stillPublic = await (await get('/data.js')).text();
+check('imported students never become public static assets', !stillPublic.includes('测试同名') && !stillPublic.includes('26000000301'));
+check('packaged application has no unexpected exceptions', errors.length === 0);
+dom.window.close(); env.sqlite.close();
+console.log(`Packaged single-site integration: ${passed} passed, 0 failed`);

@@ -233,21 +233,25 @@ function removeMemberAt(cls, g, j) {
 
   /** 姓名 / 学号 → 所在组号 */
   function placedMap(cls) {
-    var byName = {}, bySid = {};
+    var byName = Object.create(null), bySid = Object.create(null), legacyByName = Object.create(null), nameCounts = Object.create(null);
+    rosterOf(cls).forEach(function (r) { nameCounts[r.name] = (nameCounts[r.name] || 0) + 1; });
     cls.groups.forEach(function (g) {
       g.members.forEach(function (m) {
         if (!m.name) return;
         byName[m.name] = g.no;
         if (m.sid) bySid[m.sid] = g.no;
+        if (!m.sid || String(m.sid).length < 8) legacyByName[m.name] = g.no;
       });
     });
-    return { byName: byName, bySid: bySid };
+    return { byName: byName, bySid: bySid, legacyByName: legacyByName, nameCounts: nameCounts };
   }
 
   /** 该生在哪个组；未分配返回 null。优先按学号匹配，再退回姓名。 */
   function groupOfStudent(cls, r, map) {
     map = map || placedMap(cls);
     if (r.sid && map.bySid[r.sid] !== undefined) return map.bySid[r.sid];
+    if ((map.nameCounts[r.name] || 0) > 1) return null;
+    if (r.sid && String(r.sid).length >= 8) return map.legacyByName[r.name] === undefined ? null : map.legacyByName[r.name];
     if (map.byName[r.name] !== undefined) return map.byName[r.name];
     return null;
   }
@@ -402,7 +406,7 @@ function removeMemberAt(cls, g, j) {
   }
 
   /** 顶栏那句小字兼做提示条 */
-  function flash(msg) {
+  function flash(msg, quiet) {
     var el = $('#saveState');
     el.textContent = msg;
     el.classList.add('flash');
@@ -413,7 +417,7 @@ function removeMemberAt(cls, g, j) {
       el.textContent = '已自动保存到本机 ' + d.getHours() + ':' + ('0' + d.getMinutes()).slice(-2);
     }, 2600);
 
-    toast(msg);
+    if (!quiet) toast(msg);
   }
 
   /* ---------------- 保存成功的动效 ---------------- */
@@ -513,6 +517,7 @@ function removeMemberAt(cls, g, j) {
     $('#poolClassSel').value = cls.id;
     renderPoolBanner(cls);
     updatePoolBadge();
+    $('#rosterSetupHint').hidden = !!(rosterOf(cls).length || cls.groups.some(function (g) { return memberCount(g) > 0; }));
 
     var ls = lessonsOf(cls.id);
     var sel = $('#lessonSel');
@@ -1454,6 +1459,31 @@ function removeMemberAt(cls, g, j) {
   });
 
   $('#btnRestore').addEventListener('click', function () { $('#fileRestore').click(); });
+  $('#btnRosterSetup').addEventListener('click', function () { switchView('data'); });
+  $('#btnRosterTemplate').addEventListener('click', function () {
+    download('名单导入模板.csv', '\uFEFF班级,姓名,学号,小组,班内序号\r\n示例班,张三,26000000001,1,1\r\n示例班,李四,26000000002,1,2\r\n', 'text/csv;charset=utf-8');
+  });
+  $('#btnImportRoster').addEventListener('click', function () { $('#fileRoster').click(); });
+  $('#fileRoster').addEventListener('change', function () {
+    var file = this.files && this.files[0];
+    this.value = '';
+    if (!file) return;
+    if (file.size > 1000000) { alert('名单文件不能超过 1MB。'); return; }
+    var reader = new FileReader();
+    reader.onload = function () {
+      try {
+        var p = CLOUD && CLOUD.profile();
+        var result = window.JFDT_ROSTER.apply(S, window.JFDT_ROSTER.parse(reader.result), p ? p.displayName : '');
+        if (!confirm('导入 ' + result.classes + ' 个班、' + result.students + ' 名学生？同名班级的空白名单将被替换。')) return;
+        S = result.state;
+        save(); fillClassSelects(); renderData(); renderUndoBtn();
+        $('#rosterImportStatus').textContent = '已导入 ' + result.classes + ' 个班、' + result.students + ' 名学生。';
+        flash('名单已导入，正在同步');
+      } catch (e) { alert('导入失败：' + e.message); }
+    };
+    reader.onerror = function () { alert('名单文件读取失败。'); };
+    reader.readAsText(file, 'UTF-8');
+  });
 
   $('#fileRestore').addEventListener('change', function () {
     var f = this.files && this.files[0];
@@ -1747,7 +1777,7 @@ function removeMemberAt(cls, g, j) {
   }
 
   function setGateBusy(busy) {
-    ['#btnWxLogin', '#btnWbLogin', '#btnRedeem', '#btnLocalOnly'].forEach(function (sel) {
+    ['#btnAccountLogin', '#btnRedeem', '#btnLocalOnly'].forEach(function (sel) {
       var el = $(sel);
       if (el) el.disabled = !!busy;
     });
@@ -1755,14 +1785,17 @@ function removeMemberAt(cls, g, j) {
 
   /* Returning from an OAuth error page may restore disabled controls from bfcache. */
   window.addEventListener('pageshow', function () { setGateBusy(false); });
-  if (window.location.hostname.slice(-10) === '.github.io') {
-    $('#pagesCloudNotice').hidden = false;
-  }
 
-  function doOauth(provider) {
+  function doLogin() {
+    var username = $('#loginUsername').value.trim();
+    var password = $('#loginPassword').value;
+    if (!username || !password) { gateShow('login', '请填写账号和密码。'); return; }
     setGateBusy(true);
     gateShow('login', null);
-    CLOUD.oauthLogin(provider).catch(function (e) {
+    CLOUD.login(username, password).then(function () {
+      $('#loginPassword').value = '';
+      setGateBusy(false);
+    }).catch(function (e) {
       setGateBusy(false);
       gateShow('login', '登录没能进行下去：' + (e && e.message ? e.message : e));
     });
@@ -1781,12 +1814,13 @@ function removeMemberAt(cls, g, j) {
       av.textContent = nm.slice(0, 1);
     }
     /* 管理员在名字后面挂一块 VIP 金牌 —— 和「管理」页一致的身份提示 */
+    box.classList.toggle('is-admin', !!p.isAdmin);
     var vip = $('#userVip');
     if (vip) vip.hidden = !p.isAdmin;
     $('#tabAdmin').hidden = !p.isAdmin;
   }
 
-  /* ---------------- 个人信息（微信登录拿不到昵称，让老师自己填一次） ---------------- */
+  /* ---------------- 个人信息 ---------------- */
 
   var dlgMe = $('#dlgMe');
   var meNudged = false;              // 「还没填名字」只提示一次
@@ -1800,6 +1834,9 @@ function removeMemberAt(cls, g, j) {
   function openMe() {
     var p = (CLOUD && CLOUD.profile && CLOUD.profile()) || null;
     if (!p) return;
+    $('#meAvatar').textContent = (p.displayName || p.name || '老师').slice(0, 1);
+    $('#mePreviewName').textContent = p.displayName || p.name || '未命名老师';
+    $('#meRole').textContent = p.isAdmin ? '👑 管理员 VIP' : '教师账号';
     $('#meName').value = p.displayName || p.name || '';
     $('#meReal').value = p.realName || '';
     $('#meMsg').hidden = true;
@@ -1823,7 +1860,14 @@ function removeMemberAt(cls, g, j) {
     $('#btnMeSave').disabled = true;
     CLOUD.updateProfile(name, real).then(function (p) {
       renderUserBox(p);
-      flash('名字已保存');
+      flash('个人信息已保存', true);
+      document.querySelectorAll('.profile-save-feedback').forEach(function (old) { old.remove(); });
+      var feedback = document.createElement('div');
+      feedback.className = 'profile-save-feedback';
+      feedback.setAttribute('role', 'status');
+      feedback.innerHTML = '<span class="profile-save-check" aria-hidden="true">✓</span><span>个人信息已保存</span>';
+      document.body.appendChild(feedback);
+      setTimeout(function () { feedback.remove(); }, 1700);
     }).catch(function (e) {
       $('#btnMeSave').disabled = false;
       msg.textContent = '没能保存：' + (e && e.message ? e.message : e);
@@ -1835,7 +1879,7 @@ function removeMemberAt(cls, g, j) {
 
   function renderCloudStatus(st) {
     st = st || (CLOUD && CLOUD.status()) || { mode: 'idle', text: '' };
-    var map = { ok: 'ok', saving: 'saving', connecting: 'saving', offline: 'offline', error: 'error' };
+    var map = { ok: 'ok', saving: 'saving', connecting: 'saving', offline: 'offline', error: 'error', conflict: 'error' };
     var cls = map[st.mode] || '';
     var text = st.mode === 'idle' ? '未连接云端' : st.text;
 
@@ -1853,10 +1897,11 @@ function removeMemberAt(cls, g, j) {
     /* 进了应用但云端没连上：在页面顶部挂一条明确的提示，别让人以为已经在同步 */
     var warn = $('#localWarn');
     if (warn) {
-      var bad = !CLOUD_ON && st.mode !== 'connecting';
+      var bad = !!S && (!CLOUD_ON || /^(offline|error|conflict)$/.test(st.mode)) && st.mode !== 'connecting';
       warn.hidden = !bad;
       if (bad) {
-        warn.innerHTML = '<b>现在没连上云端</b> —— 这节课的记录只存在这台设备上，网络恢复后会自动补传。' +
+        warn.innerHTML = (st.mode === 'conflict' ? '<b>同步冲突，本机记录已保留</b> —— 请先下载备份，再选择从云端覆盖本机或把本机覆盖云端。' :
+          '<b>记录尚未同步</b> —— 这节课的改动保存在当前浏览器；请检查连接与账号状态。') +
           (offlineWhy ? '<span class="why">（' + esc(offlineWhy) + '）</span>' : '') +
           ' <button class="linkbtn" id="btnRetryCloud">重试连接</button>';
         var rb = $('#btnRetryCloud');
@@ -1876,9 +1921,11 @@ function removeMemberAt(cls, g, j) {
       var cAt = Date.parse(rec.updated_at || '') || 0;
       var lAt = S.updatedAt ? Date.parse(S.updatedAt) : 0;
       if (cAt > lAt) {
+        if (CLOUD.hasConflict && CLOUD.hasConflict(rec, S)) { CLOUD.reportConflict(); return; }
+        var keep = JSON.parse(JSON.stringify(S.ui || {}));
         S = migrate(JSON.parse(JSON.stringify(rec.data)));
+        if (CLOUD.acceptRemote) CLOUD.acceptRemote(rec);
         if (!S.ui) S.ui = {};
-        var keep = cloudUiBackup;
         if (keep) { S.ui.classId = keep.classId; S.ui.lessonId = keep.lessonId; S.ui.scoreLayout = keep.scoreLayout; }
         writeLocal();
         fillClassSelects();
@@ -2004,6 +2051,10 @@ function removeMemberAt(cls, g, j) {
       try {
         var ownerKey = 'jfdt.owner.v1';
         var owner = localStorage.getItem(ownerKey);
+        if (!owner && CLOUD && CLOUD.generation === 2 && localStorage.getItem(LS_KEY)) {
+          localStorage.setItem('jfdt.legacy.' + Date.now(), localStorage.getItem(LS_KEY));
+          localStorage.removeItem(LS_KEY);
+        }
         if (owner && owner !== profile.uid) {
           var previous = localStorage.getItem(LS_KEY);
           if (previous) localStorage.setItem('jfdt.account.' + owner, previous);
@@ -2032,9 +2083,11 @@ function removeMemberAt(cls, g, j) {
     var cloudData = rec && rec.data;
     var localAt = S.updatedAt ? Date.parse(S.updatedAt) : 0;
     var cloudAt = rec && rec.updated_at ? Date.parse(rec.updated_at) : 0;
+    var syncConflict = !!(hadLocalState && CLOUD && CLOUD.hasConflict && CLOUD.hasConflict(rec, S));
 
-    if (cloudData && cloudData.classes && (!hadLocalState || cloudAt > localAt)) {
+    if (!syncConflict && cloudData && cloudData.classes && (!hadLocalState || cloudAt > localAt)) {
       S = migrate(JSON.parse(JSON.stringify(cloudData)));   // 云端更新 → 以云端为准
+      if (CLOUD.acceptRemote) CLOUD.acceptRemote(rec);
       writeLocal();
     }
 
@@ -2042,13 +2095,14 @@ function removeMemberAt(cls, g, j) {
     if (!S.undo) S.undo = [];
     if (!S.ui.classId && S.classes[0]) S.ui.classId = S.classes[0].id;
     cloudUiBackup = { classId: S.ui.classId, lessonId: S.ui.lessonId, scoreLayout: S.ui.scoreLayout };
+    writeLocal();
 
     initLayout();
     fillClassSelects();
     renderUndoBtn();
     renderUserBox(profile);
 
-    /* 微信不给昵称，第一次进来先请老师把名字填上，免得管理员那边一列都是「未命名老师」。
+    /* 兼容缺少显示名的旧存档，首次进入时请老师补全姓名。
        只在本次启动提示一次，关掉了就不再烦人。 */
     if (profile && !profile.displayName && !meNudged) {
       meNudged = true;
@@ -2057,10 +2111,11 @@ function removeMemberAt(cls, g, j) {
     gateHide();
 
     /* 本机比云端新（含"第一次登录，把本机旧记录搬上云"）→ 推上去 */
-    if (CLOUD_ON && (!cloudData || (hadLocalState && localAt > cloudAt))) {
+    if (!syncConflict && CLOUD_ON && (!cloudData || (hadLocalState && localAt > cloudAt))) {
       CLOUD.touch(function () { return S; });
     }
     renderCloudStatus();
+    if (syncConflict) CLOUD.reportConflict();
     renderPoolBanner(curClass());
     switchView('score');
   }
@@ -2071,24 +2126,22 @@ function removeMemberAt(cls, g, j) {
   if (CLOUD) CLOUD.onStatus(renderCloudStatus);
 
   /* 闸门上的按钮 */
-  $('#btnWxLogin').addEventListener('click', function () { doOauth('wechat'); });
-  $('#btnWbLogin').addEventListener('click', function () { doOauth('workbuddy'); });
-  $('#btnGateSignOut').addEventListener('click', function () {
-    if (CLOUD) CLOUD.signOut();
-  });
+  $('#btnAccountLogin').addEventListener('click', doLogin);
+  $('#loginPassword').addEventListener('keydown', function (e) { if (e.key === 'Enter') doLogin(); });
+  $('#btnShowRegister').addEventListener('click', function () { gateShow('invite'); });
+  $('#btnShowLogin').addEventListener('click', function () { gateShow('login'); });
   $('#btnLocalOnly').addEventListener('click', function () {
     startApp(null, null);   // 明确进入"仅本机"模式，界面上会一直挂着未同步提示
   });
   $('#btnRedeem').addEventListener('click', function () {
     var code = $('#inviteCode').value.trim();
     if (!code) { gateShow('invite', '请先填写邀请码。', true); return; }
+    var password = $('#regPassword').value;
+    if (password.length < 10 || password !== $('#regConfirm').value) { gateShow('invite', '密码至少 10 位，且两次输入须一致。'); return; }
     setGateBusy(true);
-    CLOUD.redeem(code).then(function (p) {
+    CLOUD.register($('#regUsername').value.trim(), password, $('#regName').value.trim(), code).then(function () {
       setGateBusy(false);
-      return CLOUD.pull().then(function (rec) {
-        renderUserBox(p);
-        startApp(p, rec);
-      });
+      $('#regPassword').value = ''; $('#regConfirm').value = ''; $('#inviteCode').value = '';
     }).catch(function (e) {
       setGateBusy(false);
       gateShow('invite', e && e.message ? e.message : String(e));
@@ -2117,6 +2170,7 @@ function removeMemberAt(cls, g, j) {
       if (S.updatedAt !== pullStartedAt) { alert('拉取期间记录已改变，本次未覆盖，请重试。'); return; }
       if (!rec || !rec.data || !rec.data.classes) { alert('云端还没有这个账号的记录。'); return; }
       S = migrate(JSON.parse(JSON.stringify(rec.data)));
+      if (CLOUD.acceptRemote) CLOUD.acceptRemote(rec);
       if (!S.ui) S.ui = {};
       if (cloudUiBackup) { S.ui.classId = cloudUiBackup.classId; S.ui.lessonId = cloudUiBackup.lessonId; S.ui.scoreLayout = cloudUiBackup.scoreLayout; }
       if (!S.ui.classId && S.classes[0]) S.ui.classId = S.classes[0].id;
@@ -2134,13 +2188,13 @@ function removeMemberAt(cls, g, j) {
   $('#btnPushCloud').addEventListener('click', function () {
     if (!CLOUD_ON || !CLOUD || !CLOUD.profile()) { alert('请先登录后再上传。'); return; }
     if (!confirm('把这台设备上的记录传到云端，覆盖云端那一份？')) return;
-    CLOUD.touch(function () { return S; });
-    CLOUD.flush().then(function () { alert('已经上传到云端。'); }).catch(function (e) {
+    var upload = CLOUD.forcePush ? CLOUD.forcePush(function () { return S; }) : (CLOUD.touch(function () { return S; }), CLOUD.flush());
+    upload.then(function () { alert('已经上传到云端。'); }).catch(function (e) {
       alert('上传失败，记录仍保存在当前设备：' + (e && e.message ? e.message : e));
     });
   });
   $('#btnSignOut').addEventListener('click', function () {
-    if (!confirm('退出登录？\n\n本机的记录不会被删除；下次用同一个微信登录，记录还会同步回来。')) return;
+    if (!confirm('退出登录？\n\n未同步的记录仅保存在当前浏览器，建议先确认同步成功或下载备份。下次用同一教师账号登录可继续。')) return;
     CLOUD.signOut();
   });
   $('#btnMe').addEventListener('click', openMe);
@@ -2176,18 +2230,13 @@ function removeMemberAt(cls, g, j) {
   /* 进入应用：有云端就走云端，没有就降级成本机模式（页面顶部会写明） */
   function bootCloud() {
     if (!CLOUD) { startApp(null, null); return; }
+    gateShow('login', '正在连接账号服务…', true);
     CLOUD.boot({
       onReady: function (profile, rec) { renderUserBox(profile); startApp(profile, rec); },
       onNeedLogin: function (msg) {
         document.body.classList.add('gated');
         renderUserBox(null);
         gateShow('login', msg ? ('登录没能完成：' + msg) : null);
-      },
-      onNeedInvite: function (p) {
-        document.body.classList.add('gated');
-        renderUserBox(p);
-        $('#gateWho').textContent = p.name ? ('（' + p.name + '）') : '';
-        gateShow('invite', null);
       },
       onOffline: function (why) {
         offlineWhy = why;

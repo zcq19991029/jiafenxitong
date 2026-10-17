@@ -1,133 +1,158 @@
-/* Public regression tests: synthetic data only; never call the real cloud. */
+/* Native account frontend integration against the real Worker and SQLite schema. */
 import fs from 'node:fs';
 import assert from 'node:assert/strict';
 import { createRequire } from 'node:module';
+import { api, environment, initialAdmin, PASSWORD, ORIGIN, worker } from './lib/test-d1.mjs';
 const require = createRequire(new URL('./test-runtime/', import.meta.url));
-const { JSDOM } = require('jsdom');
+const { JSDOM, VirtualConsole } = require('jsdom');
 const seed = JSON.parse(fs.readFileSync('data.example.js', 'utf8').split('window.SEED_DATA =')[1].trim().replace(/;$/, ''));
-const clone = x => JSON.parse(JSON.stringify(x));
-const tick = () => new Promise(r => setTimeout(r, 25));
+seed.classes = seed.classes.slice(0, 2);
 let passed = 0;
-function check(name, value) { assert.ok(value, name); passed++; console.log('PASS', name); }
-
-function client(options = {}) {
-  const calls = { writes: [], oauth: [] };
-  const sdk = {
-    auth: {
-      getSession: async () => ({ data: { user: { id: options.userId || 'test-teacher' } } }),
-      signInWithOAuth: async p => { calls.oauth.push(p); return { error: new Error('navigation stopped in test') }; },
-      signOut: async () => ({ data: null })
-    },
-    database: { rpc: async (name, params) => {
-      if (name === 'my_profile') return { data: { display_name: '示例教师' } };
-      if (name === 'my_state') return { data: options.record || null };
-      if (name === 'save_my_state') {
-        calls.writes.push(clone(params.p_data));
-        if (options.write) return options.write(params);
-        return { data: { ok: true } };
-      }
-      return { data: null };
-    } }
+const doms = [];
+const errors = [];
+function check(name, condition) { assert.ok(condition, name); passed++; console.log('PASS', name); }
+async function until(fn) {
+  for (let i = 0; i < 150; i++) { if (fn()) return; await new Promise(r => setTimeout(r, 10)); }
+  throw new Error('Timed out waiting for UI condition');
+}
+const env = environment();
+const admin = await initialAdmin(env);
+function page(storage = {}) {
+  const vc = new VirtualConsole();
+  vc.on('jsdomError', e => { if (!/Not implemented.*(navigation|HTMLDialogElement)/i.test(e.message)) errors.push(e.message); });
+  const dom = new JSDOM(fs.readFileSync('index.html', 'utf8').replace(/<script[^>]*>[\s\S]*?<\/script>/g, ''), {
+    url: ORIGIN + '/ye-ye-score-helper/', runScripts: 'outside-only', pretendToBeVisual: true, virtualConsole: vc });
+  const w = dom.window;
+  w.JFDT_CONFIG = { apiBase: 'https://api.example.test' };
+  w.SEED_DATA = structuredClone(seed);
+  Object.entries(storage).forEach(([key, value]) => w.localStorage.setItem(key, value));
+  const network = { offline: false, writes: 0, hold: null, alerts: [] };
+  w.fetch = async (url, options) => {
+    if (network.offline) throw new TypeError('Failed to fetch');
+    if (options.method === 'PUT' && String(url).endsWith('/api/state')) {
+      network.writes++;
+      if (network.hold) { const wait = network.hold; network.hold = null; await wait; }
+    }
+    return worker.fetch(new Request(url, { ...options, headers: { ...options.headers, Origin: ORIGIN, 'CF-Connecting-IP': '127.0.0.3' } }), env);
   };
-  return { sdk, calls };
+  w.confirm = () => true; w.alert = message => network.alerts.push(message); w.print = () => {};
+  for (const file of ['roster-import.js', 'cloud.js', 'app.js']) w.eval(fs.readFileSync(file, 'utf8'));
+  dom.network = network; doms.push(dom);
+  return dom;
 }
-
-async function cloudOnly(fake) {
-  const dom = new JSDOM('', { url: 'https://example.github.io/ye-ye-score-helper/', runScripts: 'outside-only' });
-  dom.window.WorkBuddyCloud = { createWorkBuddyCloud: () => fake.sdk };
-  dom.window.eval(fs.readFileSync('cloud.js', 'utf8'));
-  const api = dom.window.JFDT_CLOUD;
-  await new Promise((resolve, reject) => api.boot({ onReady: resolve, onNeedLogin: reject, onOffline: reject }));
-  return { dom, api };
+const q = (dom, selector) => dom.window.document.querySelector(selector);
+const state = dom => JSON.parse(dom.window.localStorage.getItem('jfdt.v1'));
+const text = (dom, selector) => q(dom, selector).textContent;
+const storage = dom => Object.fromEntries(Array.from({ length: dom.window.localStorage.length }, (_, i) => {
+  const key = dom.window.localStorage.key(i); return [key, dom.window.localStorage.getItem(key)];
+}));
+async function login(dom, username) {
+  q(dom, '#loginUsername').value = username; q(dom, '#loginPassword').value = PASSWORD;
+  q(dom, '#btnAccountLogin').click();
+  await until(() => q(dom, '#gate').hidden);
 }
-
-{
-  let release;
-  const fake = client({ write: () => fake.calls.writes.length === 1
-    ? new Promise(r => { release = r; }) : Promise.resolve({ data: { ok: true } }) });
-  const { dom, api } = await cloudOnly(fake);
-  const state = { classes: [], lessons: [], updatedAt: '2026-01-01T00:00:00Z', value: 1 };
-  api.touch(() => state);
-  const pending = api.flush();
-  await tick();
-  state.lessons.push({ id: 'second-edit' });
-  api.touch(() => state);
-  check('concurrent flush waits for the same in-flight work', api.flush() === pending);
-  check('pull cannot cancel an upload already in flight', api.cancelPending() === false);
-  release({ data: { ok: true } });
-  await pending;
-  check('edits during upload are sent in a second request', fake.calls.writes.length === 2);
-  check('first request is an immutable snapshot', fake.calls.writes[0].lessons.length === 0);
-  check('second request includes the latest edit', fake.calls.writes[1].lessons[0].id === 'second-edit');
-  api.touch(() => state);
-  check('queued upload can be cancelled before a deliberate cloud restore', api.cancelPending() === true);
-  dom.window.close();
-}
-{
-  const fake = client({ write: async () => ({ error: { message: 'Failed to fetch', kind: 'network' } }) });
-  const { dom, api } = await cloudOnly(fake);
-  api.touch(() => ({ classes: [], lessons: [] }));
-  await assert.rejects(api.flush());
-  check('upload failure is surfaced to the caller', api.status().mode === 'offline');
-  dom.window.close();
-}
-{
-  const fake = client();
-  const { dom, api } = await cloudOnly(fake);
-  await assert.rejects(api.oauthLogin('wechat'));
-  check('OAuth preserves the Pages project subdirectory',
-    fake.calls.oauth[0].redirectTo === 'https://example.github.io/ye-ye-score-helper/');
-  dom.window.close();
-}
-{
-  const data = { version: 1, classes: clone(seed.classes).slice(0, 1), lessons: [], undo: [],
-    updatedAt: '2025-01-01T00:00:00Z', ui: {} };
-  data.classes[0].name = '云端测试班';
-  const fake = client({ record: { data, updated_at: data.updatedAt } });
-  const dom = new JSDOM(fs.readFileSync('index.html', 'utf8').replace(/<script[^>]*>[\s\S]*?<\/script>/g, ''),
-    { url: 'https://example.github.io/ye-ye-score-helper/', runScripts: 'outside-only', pretendToBeVisual: true });
-  dom.window.alert = () => {};
-  dom.window.WorkBuddyCloud = { createWorkBuddyCloud: () => fake.sdk };
-  dom.window.SEED_DATA = clone(seed);
-  dom.window.eval(fs.readFileSync('cloud.js', 'utf8'));
-  dom.window.eval(fs.readFileSync('app.js', 'utf8'));
-  await tick();
-  check('a fresh device loads older cloud records instead of new seed timestamps',
-    dom.window.document.querySelector('#classSel').textContent.includes('云端测试班'));
-  const saved = JSON.parse(dom.window.localStorage.getItem('jfdt.v1'));
-  check('cloud records are persisted locally on first login', saved.classes[0].name === '云端测试班');
-  check('fresh seed is never scheduled to overwrite existing cloud records',
-    dom.window.JFDT_CLOUD.status().mode !== 'saving' && fake.calls.writes.length === 0);
-  dom.window.document.querySelector('#btnWxLogin').disabled = true;
-  dom.window.dispatchEvent(new dom.window.Event('pageshow'));
-  check('returning from OAuth restores the login controls', !dom.window.document.querySelector('#btnWxLogin').disabled);
-  check('Pages warns users that real account integration is not yet accepted',
-    !dom.window.document.querySelector('#pagesCloudNotice').hidden);
-  dom.window.close();
-}
-{
-  const previous = { version: 1, classes: clone(seed.classes).slice(0, 1), lessons: [], ui: {}, undo: [],
-    updatedAt: '2099-01-01T00:00:00Z' };
-  previous.classes[0].name = '账号甲的私有测试班';
-  const fake = client({ userId: 'test-teacher-b' });
-  const dom = new JSDOM(fs.readFileSync('index.html', 'utf8').replace(/<script[^>]*>[\s\S]*?<\/script>/g, ''),
-    { url: 'https://example.github.io/ye-ye-score-helper/', runScripts: 'outside-only', pretendToBeVisual: true });
-  dom.window.localStorage.setItem('jfdt.v1', JSON.stringify(previous));
-  dom.window.localStorage.setItem('jfdt.owner.v1', 'test-teacher-a');
-  dom.window.WorkBuddyCloud = { createWorkBuddyCloud: () => fake.sdk };
-  dom.window.SEED_DATA = clone(seed);
-  dom.window.eval(fs.readFileSync('cloud.js', 'utf8'));
-  dom.window.eval(fs.readFileSync('app.js', 'utf8'));
-  await tick();
-  check('switching teachers does not render the previous teacher records',
-    !dom.window.document.querySelector('#classSel').textContent.includes('账号甲的私有测试班'));
-  check('previous teacher records are archived without deletion',
-    JSON.parse(dom.window.localStorage.getItem('jfdt.account.test-teacher-a')).classes[0].name === '账号甲的私有测试班');
-  check('active local storage owner matches the signed-in teacher',
-    dom.window.localStorage.getItem('jfdt.owner.v1') === 'test-teacher-b');
-  await dom.window.JFDT_CLOUD.flush();
-  check('previous teacher records are never uploaded to the new teacher account',
-    !fake.calls.writes.some(d => d.classes.some(c => c.name === '账号甲的私有测试班')));
-  dom.window.close();
-}
-console.log(`Online regression: ${passed} passed, 0 failed`);
+const a = page();
+check('account login appears before private records', !q(a, '#gateLogin').hidden && a.window.document.body.classList.contains('gated'));
+await login(a, 'admin-test');
+check('native login opens the scoring page', q(a, '#gate').hidden && q(a, '#classSel').options.length === 2);
+check('password is not persisted in browser storage', !JSON.stringify(storage(a)).includes(PASSWORD));
+check('administrator sees the management tab', !q(a, '#tabAdmin').hidden);
+q(a, '#btnMe').click();
+check('profile dialog reflects administrator crown', text(a, '#meRole').includes('👑'));
+q(a, '#meName').value = '资料验收教师';
+q(a, '#meReal').value = '测试工号';
+q(a, '#dlgMe').returnValue = 'ok';
+q(a, '#dlgMe').dispatchEvent(new a.window.Event('close'));
+await until(() => text(a, '#userName') === '资料验收教师');
+check('profile save refreshes avatar and retains administrator crown', text(a, '#userAvatar') === '资' && !q(a, '#userVip').hidden && q(a, '#userBox').classList.contains('is-admin'));
+check('profile save displays the centered success feedback', !!q(a, '.profile-save-feedback[role=status]'));
+check('profile changes are persisted by the backend', (await api(env, '/api/auth/me', 'GET', undefined, admin.token)).data.user.displayName === '资料验收教师');
+await a.window.JFDT_CLOUD.flush();
+q(a, '#btnNewLesson').click();
+for (const [id, value] of Object.entries({ nlSeq: '1', nlDate: '2026-10-17', nlTopic: '独立服务记分验收', nlDuty: '1' })) q(a, '#' + id).value = value;
+q(a, '#dlgLesson').returnValue = 'ok';
+q(a, '#dlgLesson').dispatchEvent(new a.window.Event('close'));
+q(a, '#dlgLesson').removeAttribute('open');
+check('a real new-lesson UI action creates a lesson', state(a).lessons.length === 1);
+const add = dom => q(dom, '[data-card="1"] button[data-f="group"][data-act="i"]').click();
+for (let i = 0; i < 3; i++) add(a);
+check('group scoring updates immediately', text(a, '[data-total="1"]') === '+3');
+q(a, '[data-card="1"] .pchip[data-i="0"]').click();
+check('personal deductions do not reduce group points', text(a, '[data-total="1"]') === '+3' && state(a).lessons[0].scores['1'].personal['0'] === 1);
+q(a, '#btnUndo').click();
+check('undo remains functional after native login', !state(a).lessons[0].scores['1'].personal['0']);
+await a.window.JFDT_CLOUD.flush();
+check('scores are stored by the independent database', (await api(env, '/api/state', 'GET', undefined, admin.token)).data.data.lessons[0].scores['1'].group === 3);
+q(a, '#btnPrintLesson').click();
+check('print output contains the current class and lesson', text(a, '#printArea').includes('独立服务记分验收') && text(a, '#printArea').includes(seed.classes[0].name));
+const download = { text: null };
+a.window.URL.createObjectURL = () => 'blob:test'; a.window.URL.revokeObjectURL = () => {};
+a.window.Blob = function (parts) { download.text = String(parts[0]); };
+a.window.HTMLAnchorElement.prototype.click = function () {};
+q(a, '#btnBackup').click();
+check('JSON backup contains the actual score record', JSON.parse(download.text).lessons[0].scores['1'].group === 3);
+const b = page();
+await login(b, 'admin-test');
+check('new browser recovers existing cloud lessons', state(b).lessons.length === 1 && text(b, '[data-total="1"]') === '+3');
+check('fresh device does not push new seed over cloud data', b.network.writes === 0);
+await new Promise(r => setTimeout(r, 20));
+add(a);
+for (let i = 0; i < 2; i++) add(b);
+await b.window.JFDT_CLOUD.flush();
+await assert.rejects(a.window.JFDT_CLOUD.flush());
+check('concurrent device edits show a conflict instead of overwriting', a.window.JFDT_CLOUD.status().mode === 'conflict');
+check('conflicting local edits are retained', state(a).lessons[0].scores['1'].group === 4);
+check('conflict does not overwrite the other device record', (await api(env, '/api/state', 'GET', undefined, admin.token)).data.data.lessons[0].scores['1'].group === 5);
+const restarted = page(storage(a));
+await until(() => q(restarted, '#gate').hidden);
+check('restart preserves an unsynced conflict rather than silently pulling over it', restarted.window.JFDT_CLOUD.status().mode === 'conflict'
+  && state(restarted).lessons[0].scores['1'].group === 4);
+await a.window.JFDT_CLOUD.forcePush(() => state(a));
+check('explicitly confirmed overwrite uses the current server revision', (await api(env, '/api/state', 'GET', undefined, admin.token)).data.data.lessons[0].scores['1'].group === 4);
+const baseWrites = a.network.writes;
+let release;
+a.network.hold = new Promise(resolve => { release = resolve; });
+add(a); const uploading = a.window.JFDT_CLOUD.flush();
+await until(() => a.network.hold === null);
+add(a); release(); await uploading;
+check('editing during upload sends a second immutable snapshot', a.network.writes === baseWrites + 2
+  && (await api(env, '/api/state', 'GET', undefined, admin.token)).data.data.lessons[0].scores['1'].group === 6);
+a.network.offline = true;
+add(a); await assert.rejects(a.window.JFDT_CLOUD.flush());
+check('network failure leaves scores in browser storage', state(a).lessons[0].scores['1'].group === 7 && a.window.JFDT_CLOUD.status().mode === 'offline');
+a.network.offline = false;
+a.window.dispatchEvent(new a.window.Event('online'));
+await until(() => a.window.JFDT_CLOUD.status().mode === 'ok');
+check('restoring the network retries the pending score', (await api(env, '/api/state', 'GET', undefined, admin.token)).data.data.lessons[0].scores['1'].group === 7);
+const rosterText = '\uFEFF班级,姓名,学号,小组,班内序号\r\n导入测试班,王五,26000000101,1,1\r\n导入测试班,王五,26000000102,,2\r\n';
+const imported = a.window.JFDT_ROSTER.apply(state(a), a.window.JFDT_ROSTER.parse(rosterText), '示例教师');
+check('CSV keeps same-name students distinct by student identifier', imported.students === 2 && imported.state.classes.at(-1).roster.length === 2);
+check('blank group is retained as unassigned', imported.state.classes.at(-1).groups[0].members.length === 1);
+assert.throws(() => a.window.JFDT_ROSTER.apply(state(a), a.window.JFDT_ROSTER.parse(rosterText.replace('26000000102', '26000000101')), '示例教师'));
+check('duplicate student identifiers are rejected atomically', state(a).classes.length === 2);
+assert.throws(() => a.window.JFDT_ROSTER.apply(state(a), a.window.JFDT_ROSTER.parse(rosterText.replaceAll('导入测试班', seed.classes[0].name)), '示例教师'));
+check('roster replacement cannot reshuffle a class with score history', state(a).lessons[0].scores['1'].group === 7);
+const invite = await api(env, '/api/admin/invites', 'POST', { count: 1 }, admin.token);
+const teacherPage = page();
+q(teacherPage, '#btnShowRegister').click();
+for (const [id, value] of Object.entries({ regUsername: 'teacher-ui', regName: '教师界面示例', regPassword: PASSWORD, regConfirm: PASSWORD, inviteCode: invite.data.codes[0] })) q(teacherPage, '#' + id).value = value;
+q(teacherPage, '#btnRedeem').click();
+await until(() => q(teacherPage, '#gate').hidden);
+check('registration UI consumes an invite and opens the app', teacherPage.window.JFDT_CLOUD.profile().username === 'teacher-ui');
+check('ordinary teachers never see administrator controls', q(teacherPage, '#tabAdmin').hidden);
+await teacherPage.window.JFDT_CLOUD.flush();
+check('teacher starts with a separate record instead of administrator lessons', state(teacherPage).lessons.length === 0);
+const previousStorage = storage(a); delete previousStorage['jfdt.session.v2'];
+const switched = page(previousStorage); await login(switched, 'teacher-ui');
+check('account switching does not render another teacher records', state(switched).lessons.length === 0);
+check('previous account records are archived on account switching', JSON.parse(switched.window.localStorage.getItem('jfdt.account.' + admin.user.uid)).lessons.length === 1);
+q(a, '#classSel').value = seed.classes[1].id;
+q(a, '#classSel').dispatchEvent(new a.window.Event('change'));
+await a.window.JFDT_CLOUD.flush();
+env.sqlite.prepare('UPDATE score_states SET updated_at=? WHERE owner_id=?').run('2099-01-01T00:00:00Z', admin.user.uid);
+q(a, '#btnSyncNow').click();
+await new Promise(resolve => setTimeout(resolve, 30));
+check('refreshing cloud data preserves the currently selected class', q(a, '#classSel').value === seed.classes[1].id);
+check('no unexpected frontend exceptions', errors.length === 0);
+doms.forEach(dom => dom.window.close()); env.sqlite.close();
+console.log(`Frontend and Worker integration: ${passed} passed, 0 failed`);

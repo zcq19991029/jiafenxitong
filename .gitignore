@@ -22,3 +22,10 @@ tools/test-runtime/node_modules/
 /WorkBuddy原始README.md
 /tools/test_app.mjs
 /pages-dist/
+/dist/
+/回Codex-关于GitHubPages.md
+/迁移到Pages-方案.md
+/微信扫码登录-代价清单.md
+.env
+.env.*
+!.env.example

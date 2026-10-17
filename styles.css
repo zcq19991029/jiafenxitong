@@ -58,50 +58,7 @@
   --xl-input-bg: #ffffff;
 }
 
-@media (prefers-color-scheme: dark) {
-  :root {
-    --bg: #171315;
-    --panel: #211b1e;
-    --panel-soft: #2a2226;
-    --panel-tint: #2d2326;
-    --line: #342a2e;
-    --line-strong: #453840;
-    --text: #f2eaec;
-    --muted: #a89ea5;
-    --faint: #7d737a;
-    --accent: #ff5860;
-    --accent-hi: #ff6b72;
-    --accent-strong: #e8232e;
-    --accent-bg: #3a1f22;
-    --accent-line: #5d3034;
-    --accent-glow: rgba(255, 88, 96, .3);
-    --raise: #3d3237;
-    --vip: #f1c25a;
-    --vip-bg: #3a2f18;
-    --vip-line: #6b5729;
-    --good: #4ec97a;
-    --good-bg: #17291d;
-    --bad: #f07167;
-    --bad-bg: #2c1a19;
-    --warn: #e3b341;
-    --warn-bg: #2c2513;
-    --shadow: none;
-    --shadow-lift: none;
 
-    /* 深色下把纸质配色压暗，保留同一套色相标识 */
-    --xl-no: #24405e;
-    --xl-mem: #1d2a3a;
-    --xl-ded: #3b2a22;
-    --xl-first: #3a3524;
-    --xl-phone: #3b2424;
-    --xl-duty: #23331f;
-    --xl-sum: #3a3320;
-    --xl-line: #39414c;
-    --xl-line-strong: #5c6673;
-    --xl-ink: #e8eaed;
-    --xl-input-bg: #14171b;
-  }
-}
 
 * { box-sizing: border-box; }
 
@@ -144,17 +101,7 @@ body::before {
   background-size: min(78vmin, 760px) auto;
 }
 
-@media (prefers-color-scheme: dark) {
-  /* 深色底下那张淡淡的红印会看不见，换成实心版再把整体压到很低的不透明度 */
-  body::after {
-    background-image: radial-gradient(56vmin 44vmin at 50% 24%,
-                      rgba(255, 88, 96, .11), rgba(255, 88, 96, 0) 72%);
-  }
-  body::before {
-    background-image: url('assets/school-logo-mark.png');
-    opacity: .14;
-  }
-}
+
 
 h1, h2, h3 { margin: 0; font-weight: 600; }
 
@@ -167,9 +114,7 @@ h1, h2, h3 { margin: 0; font-weight: 600; }
   border-bottom: 1px solid var(--line);
   padding: 9px 16px 0;
 }
-@media (prefers-color-scheme: dark) {
-  .topbar { background: rgba(33, 27, 30, .9); }
-}
+
 @media (prefers-reduced-transparency: reduce), (prefers-contrast: more) {
   .topbar { background: var(--panel); backdrop-filter: none; }
 }
@@ -681,9 +626,7 @@ body.gated .topbar, body.gated main { display: none !important; }
   background: linear-gradient(135deg, #fffaf0, var(--panel) 46%);
   border-color: var(--vip-line);
 }
-@media (prefers-color-scheme: dark) {
-  .card.admin-hero { background: linear-gradient(135deg, #2b2317, var(--panel) 46%); }
-}
+
 .admin-hero .sec-title { display: flex; align-items: center; gap: 7px; }
 .admin-hero .btnrow { margin-top: 6px; }
 .inv-fresh {
@@ -957,3 +900,21 @@ dialog::backdrop {
   .sheetwrap { margin: 0 -10px; }
   .gate-card { padding: 24px 20px; }
 }
+
+/* Excel 原色不随系统主题改变；个人资料反馈沿用课堂气泡界面。 */
+:root { color-scheme: light; }
+.profile-preview { display: flex; align-items: center; gap: 12px; padding: 12px; border: 1px solid var(--line); border-radius: 14px; background: var(--panel-soft); }
+.profile-preview .avatar { width: 54px; height: 54px; font-size: 23px; }
+.profile-preview .note { margin: 2px 0 0; color: var(--vip); }
+.gctl > div { padding: 9px; border-radius: 10px; background: var(--xl-first); }
+.gctl > div:nth-child(3) { background: var(--xl-phone); }
+.gctl > div:nth-child(4) { background: var(--xl-duty); }
+.gctl .lbl { color: #534b45; }
+.gsum { background: var(--xl-sum); border-radius: 12px; padding: 8px 10px; }
+input[type=password], input:not([type]) { font: inherit; color: var(--text); background: var(--panel); border: 1px solid var(--line-strong); border-radius: var(--radius-sm); padding: 7px 11px; min-width: 0; }
+.userbox.is-admin .avatar { box-shadow: 0 0 0 2px #f1c25a, 0 3px 12px rgba(182,129,31,.22); }
+.profile-save-feedback { position: fixed; left: 50%; top: 50%; z-index: 800; display: flex; align-items: center; gap: 10px; padding: 15px 24px; border: 1px solid rgba(73,184,117,.28); border-radius: 18px; background: rgba(246,255,249,.98); color: #237849; font-size: 17px; font-weight: 800; box-shadow: 0 16px 42px rgba(35,122,73,.2); pointer-events: none; animation: profileSaveInOut 1.6s both; }
+.profile-save-check { display: grid; place-items: center; width: 28px; height: 28px; border-radius: 50%; background: #35b96b; color: white; }
+@keyframes profileSaveInOut { 0% { opacity: 0; transform: translate(-50%,-42%) scale(.9); } 14%,75% { opacity: 1; transform: translate(-50%,-50%) scale(1); } 100% { opacity: 0; transform: translate(-50%,-58%) scale(.98); } }
+@media (prefers-reduced-motion: reduce) { *, *::before, *::after { animation-duration: .01ms !important; transition-duration: .01ms !important; } .profile-save-feedback { animation: none !important; transform: translate(-50%,-50%); } .toast .ic path { stroke-dashoffset: 0; } }
+@media print { .profile-save-feedback { display: none !important; } }

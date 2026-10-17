@@ -1,48 +1,54 @@
 # 夜夜加分助手
 
-《电气接线原理》课堂分组、记分、个人扣分、排行、名单分配与 A4 打印工具，当前版本为夜夜加分助手 v5.2。
+课堂分组、记分、个人扣分、排行、名单管理与 A4 打印工具。
 
-## 线上入口
+## 正式版架构
 
-GitHub Pages：https://zcq19991029.github.io/ye-ye-score-helper/
+单个 Cloudflare Worker 托管网页和接口，D1 保存教师账号、邀请码、名单、课次和记分记录。通过 Sites 发布，GitHub 只保存源码和自动检查，不再使用 GitHub Pages。不依赖 WorkBuddy、微信登录或旧站历史数据。
 
-源码：https://github.com/zcq19991029/ye-ye-score-helper
+已登记站点：`https://ye-ye-score-api.zcq991029.chatgpt.site`。当前正在重构、尚未发布；首次上线及真实账号验收状态以项目交接.md 为准。`.openai/hosting.json` 保存唯一站点 ID，不要重复创建服务。
 
-使用时打开线上网址即可，不需要安装本地程序。Pages 仅发布网页资产和空白班级模板，不发布真实学生名单。原账号记录需要登录后从云端读取；新网址的浏览器存储与原网址相互独立，也可从原应用下载完整 JSON 后在新页面恢复。
+## 教师使用
 
-原 WorkBuddy 云端当前拒绝 GitHub Pages 来源（预检返回 403）。真实浏览器点微信登录后，WorkBuddy 显示“当前地址暂不支持此登录方式”。需要平台支持来源 `https://zcq19991029.github.io` 和 OAuth 回调 `https://zcq19991029.github.io/ye-ye-score-helper/`，若平台不支持外部域名，则需独立云端方案。该项完成前微信登录和云同步验收不通过；Pages 登录页已明确提示，原线上入口保留。
+1. 管理员首次使用服务端设置的一次性启动码注册，自行设置账号和密码。
+2. 管理员在“管理”页生成一次性教师或管理员邀请码。
+3. 教师凭邀请码注册，之后使用自己的账号和密码登录；各账号数据独立。
+4. 在“数据与备份”下载 CSV 模板，将 Excel 名单另存为 UTF-8 CSV 后导入。必填列为班级、姓名、学号；小组和班内序号可选，小组留空为待分配。每组最多 6 人。
+5. 新开课次并记分。记录先写入当前浏览器，再同步 D1；换设备登录同一账号可恢复云端记录。
 
-## 发布
+正式版初次登录只提供空白班级，真实名单登录后导入。已有课次的班级不能直接替换名单，以免个人扣分对应错位；新学期使用新的班级名称。姓名相同但学号不同的学生分别识别。
 
-推送 main 后 GitHub Actions 自动运行 tools/build_pages.py，仅将允许公开的网页文件和空白模板打包到 pages-dist，再部署 GitHub Pages。不要手动将本机 data.js 或教学材料上传到 Pages。version.json 记录实际构建提交。
+本节小组分 = 首个正确 + 小组分 + 值日分 − 手机未入袋人数；个人总分 = 小组累计 − 个人扣分。个人扣分不扣小组分。两套记分布局和打印规则继续保留。
 
-开发回归：先在 tools/test-runtime 运行 npm ci，然后在项目根目录运行 `node tools/test_online.mjs`。公开测试只用虚构数据；原本机完整名单回归脚本仍保留在本地。真实微信授权与跨设备云读写需要另外做账号验收。
+## 同步与备份
 
-- 根目录：静态网页源码、初始名单与校徽素材，无构建步骤。
-- 教学材料/分组：七份分组表、历史备份和生成脚本。
-- 教学材料/组长打分表：七份组长评分表及生成脚本。
-- 教学材料/考勤原表：六份名单来源原件。
-- tools：生成、测试、截图、打印工具；test-runtime 是仅开发使用的 jsdom 依赖。
-- 效果预览：原预览与打印样张；临时截图及辅助页面可由工具重生成。
-- 项目交接.md：当前状态。交接文档.md、WorkBuddy原始README.md：接管前原文。
+云端以账号和版本号确定归属及更新顺序。两台设备发生不同修改时会提示冲突，保留当前浏览器的修改；请先下载 JSON 备份，再明确选择从云端覆盖本机或把本机覆盖云端。不要将“当前浏览器已保存”误认为“云端已同步”。
 
-## 本地打开
+退出登录不删除工作副本，但切换账号会隔离并归档上一账号的本机记录。浏览器数据被清除后，未成功同步的改动只能通过备份恢复。旧 WorkBuddy 本机存档不会自动上传到新账号，用户已决定重新导入名单。
 
-新克隆下来先 cp data.example.js data.js（仓库里不带真实学生名单）。Windows 也可复制 data.example.js 并将副本改名为 data.js。
+## 开发与发布
 
-双击 index.html 可查看本地界面，真实账号登录依赖原服务已登记的域名。文件夹更名不迁移浏览器存档或云端域名。
+前端源文件为 index.html、styles.css、app.js、cloud.js、config.js、roster-import.js。config.js 的 apiBase 留空即使用同站接口，不放入任何凭据。
 
-本地服务：`rtk proxy <Python路径> -m http.server 18765 --bind 127.0.0.1`。
-测试：设置 TEST_URL 为 `http://127.0.0.1:18765/`，运行 `rtk proxy <Node路径> tools/test_app.mjs`。依赖位于 tools/test-runtime，可用其 package-lock.json 恢复。
+后端源文件为 backend/worker.mjs，首次 D1 迁移为 backend/migrations/0001_initial.sql。密码在服务端加盐派生，服务器只保存会话令牌摘要；所有数据接口校验账号，管理接口校验角色。站点公开的是登录页和程序资源，名单与分数只能通过受保护接口访问。
 
-名单生成：`rtk proxy <Python路径> tools/build_data.py`，需要 openpyxl、xlrd。只读取项目内教学材料；运行前备份 data.js，生成会覆盖初始名单，不影响浏览器已有记分。计分、打印和云接口详见原交接。
+首次需要在 tools/test-runtime 目录执行 npm ci 安装开发测试依赖。于项目根目录运行：
 
-长期说明更新 README.md，当前状态更新项目交接.md。
+```text
+rtk proxy <Node路径> tools/test_backend.mjs
+rtk proxy <Node路径> tools/test_online.mjs
+rtk proxy <Node路径> tools/build_site.mjs
+rtk proxy <Node路径> tools/test_site.mjs
+```
 
-## 本地 Git 与隐私检查
+前三类验收分别覆盖真实 SQLite 语句、前后端联动、打包后的同站程序。测试全部使用虚构账号和学生，不操作生产数据库。dist/server/index.js 是含公开网页资源的单个 Worker 模块，dist/.openai 带站点配置和 D1 迁移；发布包不含真实 data.js。构建版本记录在同站 version.json 中。
 
-真实 data.js、教学材料、效果预览、迁移记录不进入 Git。原交接、原 README 和 tools/test_app.mjs 含真实姓名，原样保留在本机并排除提交；因此新克隆不包含这份 299 项私有名单回归脚本。源码注释中的姓名、学号示例已脱敏。
+新服务需要在服务端机密配置中设置 BOOTSTRAP_CODE，首次管理员注册后不可复用。默认同站访问无需 ALLOWED_ORIGINS；只有明确增加外部前端时才配置该项。机密不得进入 config.js、仓库或截图。
 
-先暂存再运行 `rtk proxy <Python路径> tools/check_no_pii.py`，检查实际 Git 索引中的路径及文本。黑名单从本机 data.js 提取完整真实姓名和学号（当前含 11 位学号）。新克隆只有样例名单时，扫描不能宣称覆盖真实名单。
+推送或部署前先暂存，运行 `rtk proxy <Python路径> tools/check_no_pii.py`，检查 Git 索引的禁止路径和真实姓名、完整学号。然后给用户完整文件清单复核。新正式站通过真实账号、名单导入、同步和权限验收后，再关闭原 Pages 入口。
 
-迁移清单、来源证据和本轮测试日志位于迁移记录/；临时 _shots 与两个辅助页面已清理，效果预览保留。
+## 本机私有材料
+
+data.js、教学材料、效果预览、迁移记录、原交接和含真实姓名的旧测试脚本只在本机保留，不进仓库或发布包。原 299 项 WorkBuddy 测试属于历史架构，不能据此宣称新账号体系已验收。新架构的实测与未完成项记录在项目交接.md。
+
+界面配色按原始 Excel 的蓝色成员区、浅杏记分区、粉色手机扣分区、绿色值日区、浅黄合计区呈现，固定浅色主题。教师资料保存成功会显示绿色勾选动效；管理员皇冠由服务器角色决定。

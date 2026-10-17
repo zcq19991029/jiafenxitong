@@ -1,372 +1,210 @@
-/* =========================================================================
-   课堂记分台 · 云端模块（账号 / 邀请码 / 多设备同步 / 管理员）
-   -------------------------------------------------------------------------
-   本文件是「云端能力」的唯一入口，app.js 只通过 window.JFDT_CLOUD 使用它。
-
-   三条设计原则：
-     1. 本机 localStorage 永远是第一现场 —— 教室没网照常记分，云端是同步副本。
-     2. 谁能看谁的数据，由服务端 RLS 决定；前端不做"这行是不是我的"这种判定。
-     3. 云端连不上就降级成"仅本机"，但一定在界面上写明，不偷偷降级。
-
-   账号模型（平台没有"邀请码登录"这种能力，所以邀请码做成准入闸门）：
-     微信扫码登录 = 真实身份（同一个人在任何设备扫码 → 同一个账号 → 记录自动回来）
-     邀请码     = 管理员发的一次性通行证，凭码建立"教师档案"，用掉即失效
-   ========================================================================= */
+/* 独立账号与版本化云同步；不再依赖 WorkBuddy 或微信 SDK。 */
 (function (global) {
   'use strict';
+  var SESSION_KEY = 'jfdt.session.v2';
+  var client = null, profile = null, ready = false, handlers = {};
+  var listeners = [], pendingFn = null, revision = 0, remoteRevision = null;
+  var inFlight = null, pushTimer = null, retryTimer = null, lastPushed = 0;
+  var syncedAt = null, conflicted = false;
+  var st = { mode: 'idle', text: '' };
+  var apiBase = '';
+  try {
+    apiBase = String((global.JFDT_CONFIG || {}).apiBase || global.location.origin || '').replace(/\/+$/, '');
+    if (apiBase) {
+      var url = new URL(apiBase);
+      if (url.protocol !== 'https:' && !(url.protocol === 'http:' && /^(127\.0\.0\.1|localhost)$/.test(url.hostname))) apiBase = '';
+    }
+  } catch (e) { apiBase = ''; }
 
-  /* 这四项就是开通云服务时服务端返回的 publicConfig，是唯一允许写进前端的值。
-     纯静态站点没有构建步骤、也没有自己的后端来下发它，只能固化成常量。
-     publishableKey 只标识"是哪个应用"，本身不带权限；服务端还会校验来源域名。 */
-  var PUBLIC_CONFIG = {
-    endpoint: 'https://class-score-board-17272.app.workbuddy.host',
-    oauthRelayBaseUrl: 'https://www.workbuddy.cn/v2/as/genie-baas/oauth',
-    publishableKey: 'wbpk_2Ekmh0EvpCxKGweIYuuj70_LS2uynZrVFzOmZ4lGh0Cos5NEBQBuw0t'
-  };
-
-  var PUSH_DELAY = 1600;        // 改动后多久推一次云端（合并连续点击）
-  var RETRY_DELAY = 15000;      // 推失败后多久重试
-  var CODE_ALPHABET = 'ABCDEFGHJKMNPQRSTUVWXYZ23456789';   // 去掉 0/O/1/I/L 这类易混字符
-
-  var cloud = null;             // SDK 客户端
-  var ready = false;            // SDK 是否可用
-  var profile = null;           // { uid, name, avatarUrl, displayName, realName, isAdmin }
-  var listeners = [];
-  var st = { mode: 'idle', text: '', at: 0 };
-
-  var pushTimer = null, retryTimer = null, inFlight = null;
-  var revision = 0;
-  var pendingFn = null;         // 取"当前要推的数据"的函数
-  var lastPushedAt = 0;
-
-  /* ---------------- 小工具 ---------------- */
-
-  function setStatus(mode, text) {
+  function status(mode, text) {
     st = { mode: mode, text: text, at: Date.now() };
-    for (var i = 0; i < listeners.length; i++) {
-      try { listeners[i](st); } catch (e) { /* 界面回调不该影响同步 */ }
-    }
+    listeners.forEach(function (cb) { try { cb(st); } catch (e) {} });
   }
-
-  function errText(e) {
-    if (!e) return '未知错误';
-    if (typeof e === 'string') return e;
-    return e.message || e.error_description || '请求失败';
-  }
-
-  /** 网络类错误（断网 / 服务端连不上）与"业务错误"要分开对待 */
-  function isNetwork(e) {
-    if (!e) return false;
-    var k = e.kind || e.code || '';
-    if (k === 'network' || k === 'backend-unavailable' || k === 'unavailable') return true;
-    var m = String(e.message || '');
-    return /Failed to fetch|NetworkError|Load failed|timeout|timed out|连不上|网络/i.test(m);
-  }
-
-  function rpcJson(name, params) {
-    var q = cloud.database.rpc(name, params || {});
-    return Promise.resolve(q).then(function (r) {
-      if (r.error) throw r.error;
-      return r.data;
-    });
-  }
-
-  function genCode() {
-    var buf = new Uint8Array(8);
-    if (global.crypto && global.crypto.getRandomValues) global.crypto.getRandomValues(buf);
-    else for (var j = 0; j < 8; j++) buf[j] = Math.floor(Math.random() * 256);
-    var out = '';
-    for (var i = 0; i < 8; i++) out += CODE_ALPHABET[buf[i] % CODE_ALPHABET.length];
-    return out.slice(0, 4) + '-' + out.slice(4);
-  }
-
-  /* ---------------- SDK 初始化 ---------------- */
-
-  function initSdk() {
-    var W = global.WorkBuddyCloud;
-    if (!W || typeof W.createWorkBuddyCloud !== 'function') return false;
-    cloud = W.createWorkBuddyCloud({
-      endpoint: PUBLIC_CONFIG.endpoint,
-      oauthRelayBaseUrl: PUBLIC_CONFIG.oauthRelayBaseUrl,
-      publishableKey: PUBLIC_CONFIG.publishableKey
-    });
-    return !!(cloud && cloud.auth && cloud.database);
-  }
-
-  /* ---------------- 登录回调（必须早于任何"未登录就跳登录页"的判断） ---------------- */
-
-  function dispatchCallback() {
-    var url = new URL(global.location.href);
-    if (!url.searchParams.has('code') && !url.searchParams.has('error')) return Promise.resolve(null);
-
-    var provider = url.searchParams.get('provider');
-    var fn = provider === 'workbuddy' ? cloud.auth.handleWorkBuddyCallback
-      : provider === 'wechat' ? cloud.auth.handleWechatWebCallback
-        : null;
-    if (typeof fn !== 'function') {
-      return Promise.reject(new Error('这个版本的云端组件不支持该登录方式，请刷新页面重试。'));
-    }
-    return Promise.resolve(fn.call(cloud.auth)).then(function (res) {
-      if (res.error) throw res.error;
-      if (res.data) {
-        /* state 是一次性的，用完必须从地址栏抹掉，否则用户刷新会拿失效的 code 再换一次 */
-        for (var k of ['code', 'state', 'provider']) url.searchParams.delete(k);
-        global.history.replaceState(null, '', url.pathname + url.search + url.hash);
-        return res.data;
-      }
-      return null;   // 空结果 = 不是本应用的登录回调，按普通访问继续
-    });
-  }
-
-  /** 登录入口：微信扫码（主）/ WorkBuddy 账号（备） */
-  function oauthLogin(provider) {
-    if (!ready) return Promise.reject(new Error('云端组件还没加载好，请稍后重试。'));
-    var back = new URL(global.location.href);
-    back.pathname = new URL('.', global.location.href).pathname;
-    for (var k of ['code', 'state', 'provider']) back.searchParams.delete(k);
-    for (var k2 of ['c', 'v', 'lay']) back.searchParams.delete(k2);   // 截图辅助参数不参与回调
-    return Promise.resolve(cloud.auth.signInWithOAuth({
-      provider: provider,
-      redirectTo: back.toString()
-    })).then(function (r) {
-      if (r.error) throw r.error;
-      if (!r.data || !r.data.url) throw new Error('没能生成登录地址，请稍后重试。');
-      global.location.assign(r.data.url);   // 必须同标签页跳转，否则本地的校验凭据会丢
-      return null;
-    });
-  }
-
-  /* ---------------- 会话 / 档案 ---------------- */
-
   function readSession() {
-    return Promise.resolve(cloud.auth.getSession()).then(function (r) {
-      if (r.error) throw r.error;
-      return r.data || null;
+    try { return JSON.parse(global.localStorage.getItem(SESSION_KEY) || 'null'); } catch (e) { return null; }
+  }
+  function storeSession(session) {
+    global.localStorage.setItem(SESSION_KEY, JSON.stringify(session));
+    client = session;
+  }
+  function baseKey() { return 'jfdt.base.v2.' + apiBase + '.' + (profile ? profile.uid : ''); }
+  function storeRevision(value, updatedAt) {
+    remoteRevision = value;
+    if (updatedAt !== undefined) syncedAt = updatedAt;
+    try { global.localStorage.setItem(baseKey(), JSON.stringify({ revision: value, updatedAt: syncedAt })); } catch (e) {}
+  }
+  function acceptRemote(rec) {
+    if (rec && Number.isInteger(rec.revision)) {
+      storeRevision(rec.revision, rec.data ? rec.data.updatedAt : null);
+      conflicted = false;
+    }
+  }
+  function hasConflict(rec, state) {
+    return !!(rec && remoteRevision !== null && rec.revision !== remoteRevision && state.updatedAt !== syncedAt);
+  }
+  function reportConflict() {
+    conflicted = true;
+    status('conflict', '同步冲突：本机已保留，请先备份，再选择拉取或覆盖云端');
+  }
+  function request(path, method, body) {
+    if (!apiBase) return Promise.reject(new Error('云服务尚未配置，请联系维护者。'));
+    var headers = { 'Content-Type': 'application/json' };
+    if (client && client.token) headers.Authorization = 'Bearer ' + client.token;
+    return global.fetch(apiBase + path, { method: method || 'GET', headers: headers,
+      body: body === undefined ? undefined : JSON.stringify(body), cache: 'no-store' }).then(function (response) {
+      return response.json().catch(function () { return {}; }).then(function (data) {
+        if (!response.ok) {
+          var e = new Error(data.error && data.error.message || '请求失败，请稍后重试。');
+          e.code = data.error && data.error.code;
+          e.status = response.status;
+          if (response.status === 401 && path !== '/api/auth/login') {
+            client = null; profile = null;
+            try { global.localStorage.removeItem(SESSION_KEY); } catch (ignored) {}
+            if (handlers.onNeedLogin) handlers.onNeedLogin(e.message);
+          }
+          throw e;
+        }
+        return data;
+      });
     });
   }
-
-  function toProfile(session) {
-    var u = (session && session.user) || {};
-    return {
-      uid: u.id || u.uid || '',
-      name: u.name || '',
-      avatarUrl: u.avatarUrl || '',
-      displayName: '',
-      realName: '',
-      isAdmin: false
-    };
+  function payloadOf(state) {
+    return { version: 1, createdAt: state.createdAt || null, updatedAt: state.updatedAt || null,
+      classes: state.classes || [], lessons: state.lessons || [], undo: state.undo || [] };
   }
-
-  /** 读自己的教师档案；没有档案 = 还没用邀请码激活 */
-  function loadProfile() {
-    return rpcJson('my_profile').then(function (p) {
-      if (!p) return null;
-      profile = profile || {};
-      profile.displayName = p.display_name || profile.name || '';
-      profile.realName = p.real_name || '';
-      profile.isAdmin = !!p.is_admin;
-      profile.joinedAt = p.created_at || null;
-      return profile;
-    });
-  }
-
-  /* ---------------- 数据同步 ---------------- */
-
-  /** 只同步"业务数据"，ui（当前选中的班级/课次、布局）是每台设备自己的偏好 */
-  function payloadOf(S) {
-    return {
-      version: S.version || 1,
-      createdAt: S.createdAt || null,
-      updatedAt: S.updatedAt || null,
-      classes: S.classes || [],
-      lessons: S.lessons || [],
-      undo: S.undo || []
-    };
-  }
-
   function pull() {
-    if (!ready) return Promise.resolve(null);
-    return rpcJson('my_state');
-  }
-
-  function pushNow(S) {
-    if (!ready || !profile) return Promise.reject(new Error('尚未登录，不能上传到云端。'));
-    var name = profile.displayName || profile.name || null;
-    return rpcJson('save_my_state', { p_data: payloadOf(S), p_name: name }).then(function (r) {
-      if (r && r.ok === false) throw new Error(r.error || '保存失败');
-      lastPushedAt = Date.now();
-      setStatus('ok', '已同步到云端 ' + clock(new Date()));
-      return r;
+    return request('/api/state').then(function (record) {
+      if (remoteRevision === null) acceptRemote(record);
+      return record;
     });
   }
-
-  function clock(d) {
-    return d.getHours() + ':' + ('0' + d.getMinutes()).slice(-2);
-  }
-
-  /** 每次本机保存后调一次；连续点击只会推最后一次 */
   function touch(getState) {
     pendingFn = getState;
     revision++;
-    if (!ready || !profile) return;
-    setStatus('saving', '正在同步…');
+    if (!profile) return;
+    if (conflicted) { reportConflict(); return; }
+    status('saving', '正在同步…');
     clearTimeout(pushTimer);
-    pushTimer = setTimeout(function () { flush().catch(function () {}); }, PUSH_DELAY);
+    pushTimer = setTimeout(function () { flush().catch(function () {}); }, 1200);
   }
-
   function flush() {
     clearTimeout(pushTimer);
     if (inFlight) return inFlight;
-    if (!ready || !profile) return Promise.reject(new Error('尚未登录，不能上传到云端。'));
+    if (!profile) return Promise.reject(new Error('请先登录后再同步。'));
+    if (conflicted) return Promise.reject(new Error('存在同步冲突，请先备份并选择拉取或覆盖云端。'));
     if (!pendingFn) return Promise.resolve({ ok: true, unchanged: true });
-    var sentRevision = revision;
-    var snapshot = JSON.parse(JSON.stringify(pendingFn()));
-    inFlight = pushNow(snapshot).then(function (r) {
-      if (revision === sentRevision) pendingFn = null;
-      clearTimeout(retryTimer);
-      return r;
-    }).catch(function (e) {
-      if (isNetwork(e)) setStatus('offline', '云端连不上，先存在本机（会自动重试）');
-      else setStatus('error', '同步失败：' + errText(e));
-      clearTimeout(retryTimer);
-      retryTimer = setTimeout(function () { flush().catch(function () {}); }, RETRY_DELAY);
-      throw e;
-    }).then(function (r) {
-      inFlight = null;
-      if (pendingFn) return flush();
-      return r;
-    }, function (e) {
-      inFlight = null;
-      throw e;
-    });
+    var sent = revision;
+    var snapshot = JSON.parse(JSON.stringify(payloadOf(pendingFn())));
+    inFlight = request('/api/state', 'PUT', { data: snapshot, baseRevision: remoteRevision === null ? 0 : remoteRevision })
+      .then(function (result) {
+        acceptRemote({ revision: result.revision, data: snapshot });
+        if (sent === revision) pendingFn = null;
+        clearTimeout(retryTimer);
+        lastPushed = Date.now();
+        status('ok', '已同步到云端');
+        return result;
+      }).catch(function (e) {
+        clearTimeout(retryTimer);
+        if (e.code === 'version_conflict') {
+          reportConflict();
+        } else if (e.status) {
+          status('error', '同步失败：' + e.message);
+        } else {
+          status('offline', '网络不可用，记录先保存在当前浏览器，稍后自动重试');
+          retryTimer = setTimeout(function () { flush().catch(function () {}); }, 15000);
+        }
+        throw e;
+      }).then(function (result) {
+        inFlight = null;
+        return pendingFn ? flush() : result;
+      }, function (e) { inFlight = null; throw e; });
     return inFlight;
   }
-
   function cancelPending() {
     if (inFlight) return false;
-    clearTimeout(pushTimer);
-    clearTimeout(retryTimer);
-    pendingFn = null;
-    revision++;
+    clearTimeout(pushTimer); clearTimeout(retryTimer);
+    pendingFn = null; revision++;
     return true;
   }
-
-  /* ---------------- 启动 ---------------- */
-
-  /**
-   * handlers:
-   *   onReady(profile, cloudRec)  已登录且已激活 → 可以进应用了
-   *   onNeedLogin(errorText?)     没登录，要出登录页
-   *   onNeedInvite(profile)       登录了但还没激活，要出邀请码页
-   *   onOffline(reason)           云端用不了（组件没加载出来 / 断网）
-   */
-  function boot(handlers) {
-    var h = handlers || {};
-    try { ready = initSdk(); } catch (e) {
-      ready = false;
-      h.onOffline && h.onOffline(errText(e));
+  function forcePush(getState) {
+    if (!cancelPending()) return Promise.reject(new Error('正在同步，请稍后再试。'));
+    return pull().then(function (record) {
+      acceptRemote(record);
+      touch(getState);
+      return flush();
+    });
+  }
+  function completeLogin(session) {
+    storeSession(session);
+    profile = session.user;
+    remoteRevision = null; syncedAt = null; conflicted = false;
+    try {
+      var saved = global.localStorage.getItem(baseKey());
+      if (saved !== null) {
+        var base = JSON.parse(saved);
+        if (typeof base === 'number') remoteRevision = base;
+        else if (base && Number.isInteger(base.revision)) { remoteRevision = base.revision; syncedAt = base.updatedAt; }
+      }
+    } catch (e) {}
+    return pull().then(function (record) {
+      status('ok', '已连接云端');
+      if (handlers.onReady) handlers.onReady(profile, record);
+      return profile;
+    });
+  }
+  function boot(h) {
+    handlers = h || {};
+    ready = !!apiBase;
+    if (!ready) {
+      if (handlers.onNeedLogin) handlers.onNeedLogin('独立云服务尚未配置，正式版正在重构。');
       return;
     }
-    if (!ready) { h.onOffline && h.onOffline('云端组件没能加载（可能是没网或浏览器拦截）'); return; }
-
-    setStatus('connecting', '正在连接云端…');
-    dispatchCallback().then(function () {
-      return readSession();
-    }).then(function (session) {
-      if (!session) { h.onNeedLogin && h.onNeedLogin(null); return; }
-      profile = toProfile(session);
-      return loadProfile().then(function (p) {
-        if (!p) { h.onNeedInvite && h.onNeedInvite(profile); return; }
-        setStatus('ok', '已连接云端');
-        return pull().then(function (rec) {
-          h.onReady && h.onReady(profile, rec);
-        });
-      });
+    client = readSession();
+    if (!client || !client.token) { if (handlers.onNeedLogin) handlers.onNeedLogin(); return; }
+    status('connecting', '正在连接云端…');
+    request('/api/auth/me').then(function (result) {
+      client.user = result.user;
+      return completeLogin(client);
     }).catch(function (e) {
-      if (isNetwork(e)) { h.onOffline && h.onOffline(errText(e)); return; }
-      /* 非网络错误（比如回调里的业务失败）走登录页，并带上原因 */
-      h.onNeedLogin && h.onNeedLogin(errText(e));
+      if (e.status) { if (handlers.onNeedLogin) handlers.onNeedLogin(e.message); }
+      else if (handlers.onOffline) handlers.onOffline(e.message);
     });
   }
-
-  /* ---------------- 邀请码 / 登出 / 档案 ---------------- */
-
-  function redeem(code) {
-    if (!ready) return Promise.reject(new Error('云端组件没加载好'));
-    return rpcJson('redeem_invite', { p_code: String(code || '').trim() }).then(function (r) {
-      if (!r) throw new Error('激活失败，请重试');
-      if (r.ok === false) {
-        var map = {
-          invalid: '这个邀请码不存在，请跟管理员核对一下。',
-          used: '这个邀请码已经被用过了，请找管理员要一个新的。',
-          disabled: '这个邀请码已被管理员停用。',
-          not_signed_in: '登录状态已失效，请重新登录。'
-        };
-        throw new Error(map[r.error] || '激活失败：' + r.error);
-      }
-      return loadProfile();
-    });
+  function login(username, password) {
+    return request('/api/auth/login', 'POST', { username: username, password: password }).then(completeLogin);
   }
-
+  function register(username, password, name, code) {
+    return request('/api/auth/register', 'POST', { username: username, password: password, displayName: name, inviteCode: code }).then(completeLogin);
+  }
   function signOut() {
-    clearTimeout(pushTimer);
-    clearTimeout(retryTimer);
-    pendingFn = null;
-    return Promise.resolve(cloud.auth.signOut()).catch(function () { return null; })
-      .then(function () { global.location.reload(); });
+    clearTimeout(pushTimer); clearTimeout(retryTimer); pendingFn = null;
+    return request('/api/auth/logout', 'POST', {}).catch(function () {}).then(function () {
+      try { global.localStorage.removeItem(SESSION_KEY); } catch (e) {}
+      client = null; profile = null;
+      global.location.reload();
+    });
   }
-
-  function updateProfile(name, realName) {
-    return rpcJson('update_my_profile', {
-      p_display_name: String(name || '').trim(),
-      p_real_name: String(realName || '').trim()
-    }).then(function () { return loadProfile(); });
-  }
-
-  /* ---------------- 管理员 ---------------- */
-
-  var admin = {
-    /** 生成 N 个一次性邀请码（码在浏览器本地随机生成，服务端只负责落库去重） */
-    createInvites: function (count, note, role) {
-      var n = Math.max(1, Math.min(50, parseInt(count, 10) || 1));
-      var codes = [];
-      for (var i = 0; i < n; i++) codes.push(genCode());
-      return rpcJson('admin_create_invites', {
-        p_codes: codes,
-        p_note: String(note || '').trim() || null,
-        p_role: role === 'admin' ? 'admin' : 'teacher'
-      }).then(function (r) {
-        if (!r || r.ok === false) throw new Error(r && r.error === 'forbidden' ? '只有管理员能做这件事。' : '生成失败');
-        return { created: r.created, codes: codes };
+  global.addEventListener('online', function () {
+    if (profile && pendingFn && st.mode !== 'conflict') flush().catch(function () {});
+  });
+  global.JFDT_CLOUD = {
+    generation: 2, boot: boot, login: login, register: register, signOut: signOut,
+    available: function () { return ready; }, profile: function () { return profile; },
+    pull: pull, touch: touch, flush: flush, cancelPending: cancelPending, acceptRemote: acceptRemote, forcePush: forcePush,
+    hasConflict: hasConflict, reportConflict: reportConflict,
+    status: function () { return st; }, lastPushedAt: function () { return lastPushed; },
+    onStatus: function (callback) { listeners.push(callback); callback(st); },
+    updateProfile: function (name, realName) {
+      return request('/api/profile', 'PUT', { displayName: name, realName: realName }).then(function (r) {
+        profile = r.user; return profile;
       });
     },
-
-    listInvites: function () { return rpcJson('admin_list_invites'); },
-    listTeachers: function () { return rpcJson('admin_list_teachers'); },
-    getState: function (uid) { return rpcJson('admin_get_state', { p_uid: uid }); }
-  };
-
-  /* ---------------- 对外接口 ---------------- */
-
-  global.JFDT_CLOUD = {
-    available: function () { return ready; },
-    boot: boot,
-    pull: pull,
-    touch: touch,
-    flush: flush,
-    cancelPending: cancelPending,
-    status: function () { return st; },
-    onStatus: function (cb) { listeners.push(cb); cb(st); },
-    profile: function () { return profile; },
-    oauthLogin: oauthLogin,
-    redeem: redeem,
-    signOut: signOut,
-    updateProfile: updateProfile,
-    lastPushedAt: function () { return lastPushedAt; },
-    admin: admin,
-    /* 仅供测试注入假 SDK 用 */
-    _initWith: function (client) { cloud = client; ready = !!client; },
+    admin: {
+      createInvites: function (count, note, role) { return request('/api/admin/invites', 'POST', { count: count, note: note, role: role }); },
+      listInvites: function () { return request('/api/admin/invites'); },
+      listTeachers: function () { return request('/api/admin/teachers'); },
+      getState: function (uid) { return request('/api/admin/teachers/' + encodeURIComponent(uid)); }
+    },
     _payloadOf: payloadOf
   };
-
 })(typeof window !== 'undefined' ? window : this);
