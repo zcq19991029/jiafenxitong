@@ -158,6 +158,7 @@ const invalidInput=q(a,'[data-member][data-item="0"]'); invalidInput.value=6; in
 check('individual scoring rejects values outside zero to five', invalidInput.value==='5');
 await a.window.JFDT_CLOUD.flush();
 const leaderState=(await api(env,'/api/state','GET',undefined,admin.token)).data;
+check('operation log survives a cloud round trip',Array.isArray(leaderState.data.operationLog) && leaderState.data.operationLog.some(e=>e.kind==='个人项目评分'));
 check('custom projects and individual marks persist in the database',leaderState.data.lessons[0].leaderScores['1'].projects[0]==='协作' && Object.values(leaderState.data.lessons[0].leaderScores['1'].members)[0][1]===4);
 q(a,'#tabs button[data-view="rank"]').click();
 check('personal ranking includes the saved project marks',text(a,'#memberRank').includes('个人项目分') && text(a,'#memberRank').includes('全组累计加分 + 个人项目累计分'));

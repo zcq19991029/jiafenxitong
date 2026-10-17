@@ -74,7 +74,8 @@
   }
   function payloadOf(state) {
     return { version: 1, createdAt: state.createdAt || null, updatedAt: state.updatedAt || null,
-      classes: state.classes || [], lessons: state.lessons || [], undo: state.undo || [] };
+      classes: state.classes || [], lessons: state.lessons || [], undo: state.undo || [],
+      redo: state.redo || [], operationLog: state.operationLog || [] };
   }
   function pull() {
     return request('/api/state').then(function (record) {
