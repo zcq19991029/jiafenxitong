@@ -1083,9 +1083,10 @@ input[type=password], input:not([type]) { font: inherit; color: var(--text); bac
   .groups .gcard .personal-control .pchip { flex: 1; }
   .groups .gcard .personal-refund, .groups .gcard .personal-reset { min-height: 44px; min-width: 44px; }
   .groups .gcard .pchip { gap: 6px; }
-  table.sheet .personal-control { flex-wrap: wrap; justify-content: center; gap: 2px; }
-  table.sheet .personal-control .pchip { width: 100%; justify-content: center; }
-  table.sheet .personal-refund, table.sheet .personal-reset { min-height: 26px; font-size: 11px; padding: 2px 4px; }
+  table.sheet .personal-control { flex-wrap: nowrap; justify-content: center; gap: 3px; }
+  table.sheet .personal-control .pchip { width: auto; flex: 1; justify-content: center; flex-direction: row-reverse; gap: 6px; }
+  table.sheet .personal-refund { min-height: 36px; min-width: 30px; font-size: 18px; padding: 2px 4px; }
+  table.sheet .personal-reset { display: none; }
   body.sidebar-layout .topbar { position: fixed; left: 0; top: 0; bottom: 0; width: 310px; padding: 16px; border: 0; border-right: 1px solid var(--line); overflow-y: auto; }
   body.sidebar-layout .topbar-main { gap: 8px; }
   body.sidebar-layout .brandtext { flex: 1; }

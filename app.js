@@ -632,8 +632,8 @@ function removeMemberAt(cls, g, j) {
   function ctlPersonal(gno, m, i, n, fullName) {
     var attrs = ' data-g="' + gno + '" data-i="' + i + '"';
     return '<span class="personal-control"><button class="pchip' + (n ? ' hit' : '') + '"' + attrs + ' data-act="p" title="' + esc(m.name) + '：点击扣1分">' +
-      (fullName ? '<span class="pname">' + esc(m.name) + '</span>' : '') + '<span class="n">' + n + '</span><span class="deduct-action">扣1</span></button>' +
-      '<button class="personal-refund"' + attrs + ' data-act="pr" title="' + esc(m.name) + '：返还1分">返1</button>' +
+      (fullName ? '<span class="pname">' + esc(m.name) + '</span>' : '') + '<span class="n">' + n + '</span><span class="deduct-action" aria-hidden="true">−</span></button>' +
+      '<button class="personal-refund"' + attrs + ' data-act="pr" title="' + esc(m.name) + '：返还1分">+</button>' +
       '<button class="personal-reset"' + attrs + ' data-act="pz" title="' + esc(m.name) + '：清空个人扣分">清零</button></span>';
   }
 
