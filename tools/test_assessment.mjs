@@ -54,4 +54,13 @@ check('explicit task maximum uses a teacher benchmark rather than class maximum'
 const snapshot=JSON.stringify({cls,lesson,raw});A.rows(cls,[lesson],raw);
 check('grade computation never rewrites source scores or records',JSON.stringify({cls,lesson,raw})===snapshot);
 check('custom attendance deductions remain supported',A.deduction('custom_x',{customRules:[{id:'custom_x',name:'自定义',loss:2}]})===2);
+const autoClass={...cls,assessmentSettings:{taskTarget:0}},autoRaw=structuredClone(raw);
+const autoLesson=structuredClone(allExcellent);
+let autoRow=A.rows(autoClass,[autoLesson,structuredClone(autoLesson)],autoRaw).find(m=>m.sid==='991');
+check('named project columns across lessons automatically accumulate five points each',autoRow.task.maximum===20&&autoRow.task.earned===20);
+autoRaw[1].groupScore=0;
+const targetBefore=A.rows(autoClass,[lesson],autoRaw).find(m=>m.sid==='992');
+autoRaw[1].groupScore=1;
+const targetAfter=A.rows(autoClass,[lesson],autoRaw).find(m=>m.sid==='992');
+check('an additional reward increases regular grades and lowers the required exam score before the cap',targetAfter.regular>targetBefore.regular&&targetAfter.needed<targetBefore.needed);
 console.log(`Criterion assessment formulas: ${passed} passed, 0 failed`);
