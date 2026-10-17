@@ -127,6 +127,7 @@
         <button data-l="card" title="手机上点起来更舒服">卡片式</button>
       </div>
       <button id="btnUndo" class="btn" disabled title="撤销上一次改动（快捷键 Ctrl+Z）">↶ 撤销</button>
+      <button id="btnRedo" class="btn" disabled title="恢复刚撤销的操作（Ctrl+Shift+Z）">↷ 重做</button><p id="undoDetail" class="note" role="status"></p>
     </div>
 
     <div class="lesson-meta" id="lessonMeta"></div>
@@ -165,7 +166,7 @@
     <h2 class="sec-title">小组累计排行</h2>
     <div class="card tablewrap" id="groupRank"></div>
 
-    <h2 class="sec-title">个人总分排行 <span class="hint">组得分 − 个人扣分，按分数动态排序</span></h2>
+    <h2 class="sec-title">个人总分排行 <span class="hint">全组加分 + 个人项目分 − 个人扣分</span></h2>
     <div class="card tablewrap" id="memberRank"></div>
 
     <h2 class="sec-title">逐节得分明细</h2>
@@ -273,7 +274,7 @@
         <li><b>上课中</b>：哪个小组达标就点对应的加减按钮，本节合计和累计会自动重算。</li>
         <li><b>记错了要改</b>：
           <ul>
-            <li>数字框可以直接点进去改成任意值（小组分 0-10、值日分 0-5、手机未入袋 0-本组人数）；</li>
+            <li>数字框可以直接点进去改成任意值（小组分 0-5、值日分 0-5、手机未入袋 0-本组人数）；</li>
             <li>按「↶ 撤销」（或 <b>Ctrl+Z</b>）可以逐步退回，最多 60 步，跨课次也能退；</li>
             <li>某一组整节课记乱了，点该组的「↺ 清零」重来（也能撤销）；</li>
             <li>个人扣分：点姓名扣1分，点“返1”返还1分，点“清零”清空扣分；不再双击清零。</li>
@@ -285,8 +286,8 @@
           JSON 备份仍然保留，作为清理浏览器数据／迁移应用时的保险绳。</li>
       </ol>
       <p class="formula">
-        本节合计 ＝ 首个正确(0/1) ＋ 小组分(0-10) ＋ 值日分(0-5) − 手机未入袋人数<br>
-        个人总分 ＝ 所在小组累计本节合计 − 本人累计个人扣分
+        本节合计 ＝ 首个正确(0/1) ＋ 小组分(0-5) ＋ 值日分(0-5) − 手机未入袋人数<br>
+        个人总分 ＝ 全组累计加分 ＋ 个人项目累计分 − 本人累计个人扣分
       </p>
     </div>
   </section>

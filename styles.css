@@ -1168,3 +1168,6 @@ input[type=password], input:not([type]) { font: inherit; color: var(--text); bac
   @media(min-width:1240px) { .groups { grid-template-columns: repeat(3,minmax(0,1fr)); } }
   @media(max-width:799px) { .groups { grid-template-columns: minmax(0,1fr); } .groups .gcard { padding: 14px; } }
 }
+
+.member-score-detail {display:block;font-size:12px;font-weight:400;color:var(--text);margin-top:3px;}
+#undoDetail {flex-basis:100%;font-size:13px;color:var(--text);line-height:1.5;margin:4px 0;}

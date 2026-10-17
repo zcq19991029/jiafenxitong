@@ -12,7 +12,7 @@
     var cls=state.classes.find(function (c) { return c.id===state.ui.classId; }) || state.classes[0];
     var lessons=state.lessons.filter(function (l) { return cls && l.classId===cls.id; }).sort(function (a,b) { return b.seq-a.seq; });
     var lesson=lessons.find(function (l) { return l.id===state.ui.lessonId; }) || lessons[0];
-    root.innerHTML='<h2 class="sec-title">组内个人评分</h2><p class="note">参考组长评分表：填写项目名称，每项0–5分，最多10项；小计单独保存，不自动并入课堂小组分或个人扣分。</p>'+
+    root.innerHTML='<h2 class="sec-title">组内个人评分</h2><p class="note">参考组长评分表：填写项目名称，每项0–5分，最多10项；个人项目分自动汇入个人总分，与全组加分相加后减去个人扣分。</p>'+
       '<div class="card lesson-bar"><label class="field"><span>班级</span><select id="leaderClassSel">'+state.classes.map(function(c){return '<option value="'+esc(c.id)+'"'+(cls&&c.id===cls.id?' selected':'')+'>'+esc(c.name)+'</option>';}).join('')+'</select></label>'+
       '<label class="field"><span>课次</span><select id="leaderLessonSel"'+(!lessons.length?' disabled':'')+'>'+lessons.map(function(l){return '<option value="'+esc(l.id)+'"'+(lesson&&l.id===lesson.id?' selected':'')+'>第'+l.seq+'次 · '+esc(l.date)+'</option>';}).join('')+'</select></label></div><div id="leaderSheet"></div>';
     root.querySelector('#leaderClassSel').onchange=function(){context.select(this.value,null);};
