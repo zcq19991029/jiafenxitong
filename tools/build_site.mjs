@@ -31,12 +31,11 @@ for (const name of ['index.html', 'styles.css', 'app.js', 'cloud.js', 'config.js
   }
   assets['/' + name] = { type: types[path.extname(name)], data: bytes.toString('base64') };
 }
-const blank = JSON.parse(fs.readFileSync(path.join(root, 'data.example.js'), 'utf8').split('window.SEED_DATA =')[1].trim().replace(/;$/, ''));
-blank.source = '正式版空白班级；真实名单由教师登录后导入，保存在 D1。';
-for (const cls of blank.classes) {
-  cls.teacher = ''; cls.roster = [];
-  cls.groups = Array.from({ length: 13 }, (_, i) => ({ no: i + 1, members: [] }));
-}
+const blank = {
+  source: '新账号空白模板；教师自行导入班级与名单，保存在个人账号的 D1 记录中。',
+  classes: [{ id: 'my-class', name: '我的班级', teacher: '', roster: [],
+    groups: Array.from({ length: 13 }, (_, i) => ({ no: i + 1, members: [] })) }]
+};
 assets['/data.js'] = { type: types['.js'], data: Buffer.from('window.SEED_DATA = ' + JSON.stringify(blank) + ';\n').toString('base64') };
 assets['/version.json'] = { type: types['.json'], data: Buffer.from(JSON.stringify({ commit, dirty, mode: 'worker-d1' })).toString('base64') };
 let source = fs.readFileSync(path.join(root, 'backend/worker.mjs'), 'utf8');
