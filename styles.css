@@ -1171,3 +1171,8 @@ input[type=password], input:not([type]) { font: inherit; color: var(--text); bac
 
 .member-score-detail {display:block;font-size:12px;font-weight:400;color:var(--text);margin-top:3px;}
 #undoDetail {flex-basis:100%;font-size:13px;color:var(--text);line-height:1.5;margin:4px 0;}
+
+#dlgOperationLog {width:min(760px,94vw);max-height:90dvh;}
+#operationLogList {max-height:48dvh;overflow:auto;margin-top:12px;}
+.operation-row {padding:12px 0;border-bottom:1px solid var(--line);line-height:1.5;}
+.operation-row small {color:var(--muted);}

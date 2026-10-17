@@ -344,6 +344,8 @@ function removeMemberAt(cls, g, j) {
         {lessonId, gno, reset:true, old}      整组清零（old 是该组原 scores 的副本） */
   function pushUndo(op) {
     if (!S.undo) S.undo = [];
+    op.at = new Date().toISOString();
+    addOperationLog('记分', undoLabel(Object.assign({},op,{old:op.neu,neu:op.old})));
     S.redo = [];
     S.undo.push(op);
     if (S.undo.length > UNDO_MAX) S.undo.shift();
@@ -374,6 +376,21 @@ function removeMemberAt(cls, g, j) {
     return String(v);
   }
 
+  function addOperationLog(kind, detail) {
+    if (!S.operationLog) S.operationLog=[];
+    S.operationLog.push({at:new Date().toISOString(),kind:kind,detail:detail});
+    if(S.operationLog.length>500) S.operationLog.splice(0,S.operationLog.length-500);
+  }
+  function renderOperationLog() {
+    var list=$('#operationLogList'); if(!list) return;
+    var entries=(S.operationLog || []).slice().reverse();
+    var legacy=(S.undo || []).filter(function(op){return !op.at;}).slice().reverse();
+    list.innerHTML=(entries.length ? entries.map(function(e){return '<article class="operation-row"><small>'+esc(new Date(e.at).toLocaleString())+' · '+esc(e.kind)+'</small><div>'+esc(e.detail)+'</div></article>';}).join('') : '<p class="note">本版本启用后暂无新操作。</p>') +
+      (legacy.length ? '<h4>历史撤销记录（时间、操作来源未记录）</h4>'+legacy.map(function(op){return '<article class="operation-row"><small>历史记分 · 以下为撤销时将恢复的数值</small><div>'+esc(undoLabel(op))+'</div></article>';}).join('') : '');
+    var entry=(S.redo || []).slice(-1)[0];
+    $('#redoDetail').textContent=entry ? '下一步重做：'+undoLabel(Object.assign({},entry.op,{old:entry.op.neu,neu:entry.op.old})) : '暂无可重做操作';
+  }
+
   function renderUndoBtn() {
     var b = $('#btnUndo');
     if (!b) return;
@@ -386,6 +403,7 @@ function removeMemberAt(cls, g, j) {
     var detail = $('#undoDetail');
     if (detail) detail.textContent = n ? '下一步撤销：' + undoLabel(S.undo[n-1]) : '暂无可撤销操作';
     var rb = $('#btnRedo'); if(rb) rb.disabled = !(S.redo || []).length;
+    renderOperationLog();
     b.title = n
       ? '撤销：' + undoLabel(S.undo[n - 1]) + '　（快捷键 Ctrl+Z）'
       : '还没有可撤销的改动';
@@ -422,6 +440,7 @@ function removeMemberAt(cls, g, j) {
     var cls = getClass(l.classId);
     var sameView = cls && S.ui.classId === l.classId && S.ui.lessonId === l.id;
     if (cls) { S.ui.classId = l.classId; S.ui.lessonId = l.id; }
+    addOperationLog('撤销',undoLabel(op));
     save(false);
     renderUndoBtn();
 
@@ -522,6 +541,7 @@ function removeMemberAt(cls, g, j) {
     if (window.JFDT_LEADER_RENDER) window.JFDT_LEADER_RENDER({
       root: $('#view-leader'), state: S,
       save: function () { save(); },
+      log: function(detail) { addOperationLog('个人项目评分',detail); },
       select: function (classId, lessonId) {
         S.ui.classId = classId; S.ui.lessonId = lessonId;
         fillClassSelects(); save(false); renderLeader();
@@ -1747,9 +1767,12 @@ function removeMemberAt(cls, g, j) {
     var l = getLesson(entry.op.lessonId); if(!l) {renderUndoBtn();return false;}
     l.scores[String(entry.op.gno)] = entry.scores;
     S.undo.push(entry.op); S.ui.classId=l.classId; S.ui.lessonId=l.id;
+    addOperationLog('重做',undoLabel(Object.assign({},entry.op,{old:entry.op.neu,neu:entry.op.old})));
     save(false); renderScore(); renderUndoBtn(); flash('已重做：' + undoLabel(entry.op)); return true;
   }
   $('#btnRedo').addEventListener('click', redo);
+  $('#btnOperationLog').addEventListener('click',function(){renderUndoBtn();openDlg($('#dlgOperationLog'));});
+  $('#closeOperationLog').addEventListener('click',function(){$('#dlgOperationLog').close();});
 
   document.addEventListener('keydown', function (e) {
     if (!(e.ctrlKey || e.metaKey)) return;

@@ -126,8 +126,7 @@
         <button data-l="table" class="on" title="和纸质记录表一样的表格">表格式</button>
         <button data-l="card" title="手机上点起来更舒服">卡片式</button>
       </div>
-      <button id="btnUndo" class="btn" disabled title="撤销上一次改动（快捷键 Ctrl+Z）">↶ 撤销</button>
-      <button id="btnRedo" class="btn" disabled title="恢复刚撤销的操作（Ctrl+Shift+Z）">↷ 重做</button><p id="undoDetail" class="note" role="status"></p>
+      <button id="btnOperationLog" class="btn" title="查看记分操作及撤销、重做">操作日志</button>
     </div>
 
     <div class="lesson-meta" id="lessonMeta"></div>
@@ -445,6 +444,8 @@
 </dialog>
 <script src="leader-scoring.js"></script>
 <script src="ui-feedback.js"></script>
+<dialog id="dlgOperationLog"><div class="dlg"><div class="dlg-head"><h3>操作日志</h3><button type="button" id="closeOperationLog" class="dlg-x" aria-label="关闭操作日志">✕</button></div><div class="dlg-body"><p class="note">本账号的记分记录，跨班级、跨课次按操作顺序排列。旧记录无法确认操作人和时间，不等于你刚才的操作。个人项目评分从本版本起记录日志；更早的填写记录请到评分表核对。</p>      <button id="btnUndo" class="btn" disabled title="撤销上一次改动（快捷键 Ctrl+Z）">↶ 撤销</button>
+      <button id="btnRedo" class="btn" disabled title="恢复刚撤销的操作（Ctrl+Shift+Z）">↷ 重做</button><p id="undoDetail" class="note" role="status"></p><p id="redoDetail" class="note"></p><div id="operationLogList"></div><p class="note">仅撤销最近的课堂记分操作；个人项目日志用于核对，修改请到原评分表。日志保留最近500条。新记分后，原重做分支失效。</p></div></div></dialog>
 <script src="app.js"></script>
 <script src="password-ui.js"></script>
 </body>

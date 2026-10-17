@@ -25,18 +25,21 @@
     var record=lesson.leaderScores&&lesson.leaderScores[String(group.no)];
     if(!record) record={projects:Array(10).fill(''),members:{},signedBy:'',note:''};
     function persist() { if(!lesson.leaderScores) lesson.leaderScores={};lesson.leaderScores[String(group.no)]=record;context.save(); }
+    function log(detail) { if(context.log) context.log(cls.name+' · 第'+lesson.seq+'次课 · 第'+group.no+'组 · '+detail); }
     function scores(member) { return record.members[key(member)] || Array(10).fill(null); }
     var members=group.members.filter(function(m){return m.name;});
     var head='<tr><th>序号</th><th>成员 / 完整学号</th>'+record.projects.map(function(p,i){return '<th><input class="leader-project" data-project="'+i+'" aria-label="评分项目'+(i+1)+'" maxlength="80" placeholder="项目'+(i+1)+'" value="'+esc(p)+'"></th>';}).join('')+'<th>小计</th></tr>';
     var body=members.map(function(m,row){var values=scores(m);return '<tr><td>'+(row+1)+'</td><td class="leader-member">'+esc(m.name)+'<small>'+esc(m.sid||'未填写学号')+'</small></td>'+values.map(function(n,col){return '<td><input type="number" class="leader-number" data-member="'+esc(key(m))+'" data-item="'+col+'" aria-label="'+esc(m.name)+' 项目'+(col+1)+'" min="0" max="5" step="1" value="'+(n==null?'':n)+'"></td>';}).join('')+'<td class="leader-total" data-total-key="'+esc(key(m))+'">'+total(values)+'</td></tr>';}).join('');
     sheet.innerHTML='<div class="card"><div class="btnrow"><label class="field"><span>小组</span><select id="leaderGroupSel">'+cls.groups.map(function(g){return '<option value="'+g.no+'"'+(g.no===group.no?' selected':'')+'>第'+g.no+'组（'+g.members.filter(function(m){return m.name;}).length+'人）</option>';}).join('')+'</select></label><button class="btn" id="leaderPrint">打印本组评分表</button><button class="btn" id="leaderExport">导出本组CSV</button></div><p class="note">课次：第'+lesson.seq+'次 · '+esc(lesson.date)+'　任务：'+esc(lesson.topic)+'</p><div class="tablewrap"><table class="leader-table"><thead>'+head+'</thead><tbody>'+body+'</tbody></table></div>'+(!members.length?'<p class="note">本组暂无成员。已确定名单和分组后，成员会出现在这里。</p>':'')+'<label class="field"><span>组长 / 复核人</span><input id="leaderSignedBy" maxlength="100" value="'+esc(record.signedBy)+'"></label><label class="field col"><span>备注</span><textarea id="leaderNote" maxlength="500">'+esc(record.note)+'</textarea></label><p id="leaderFeedback" class="note" role="status">填写后自动保存，随教师账号同步。</p></div>';
     sheet.querySelector('#leaderGroupSel').onchange=function(){selectedGroup=+this.value;window.JFDT_LEADER_RENDER(context);};
-    sheet.querySelectorAll('[data-project]').forEach(function(input){input.onchange=function(){record.projects[+input.dataset.project]=input.value.trim();persist();};});
+    sheet.querySelectorAll('[data-project]').forEach(function(input){input.onchange=function(){var old=record.projects[+input.dataset.project], next=input.value.trim(); if(old===next)return; record.projects[+input.dataset.project]=next; log('项目'+(+input.dataset.project+1)+'名称：'+(old||'空')+' → '+(next||'空'));persist();};});
     sheet.querySelectorAll('[data-member]').forEach(function(input){input.onchange=function(){
       var value=input.value===''?null:Number(input.value), id=input.dataset.member, index=+input.dataset.item;
       if(value!==null&&(!Number.isInteger(value)||value<0||value>5)){input.value=(record.members[id]||[])[index]??'';sheet.querySelector('#leaderFeedback').textContent='每项请填写0–5的整数，或留空。';return;}
       if(!record.members[id])record.members[id]=Array(10).fill(null);
-      record.members[id][index]=value;persist();
+      var old=record.members[id][index]; if(old===value)return;
+      record.members[id][index]=value; var member=members.find(function(m){return key(m)===id;});
+      log((member?member.name:'成员')+' · '+(record.projects[index]||('项目'+(index+1)))+'：'+(old==null?'未填':old)+' → '+(value==null?'未填':value));persist();
       sheet.querySelectorAll('[data-total-key]').forEach(function(td){if(td.dataset.totalKey===id)td.textContent=total(record.members[id]);});
       sheet.querySelector('#leaderFeedback').textContent='已保存，正在随账号同步。';
     };});
