@@ -48,7 +48,7 @@
   --xl-no: #bdd7ee;
   --xl-mem: #eaf2fb;
   --xl-ded: var(--xl-phone);
-  --xl-first: #fdf3e3;
+  --xl-first: var(--xl-duty);
   --xl-phone: #fbe5e5;
   --xl-duty: #e2efda;
   --xl-sum: #fff2cc;
@@ -847,7 +847,7 @@ dialog::backdrop {
   #printArea .sheet-tb .c-no { background: #bdd7ee; font-size: 9pt; font-weight: 700; }
   #printArea .sheet-tb .c-mem { background: #eaf2fb; font-weight: 700; white-space: nowrap; }
   #printArea .sheet-tb tr.gded .c-mem { background: #fce4d6; font-weight: 400; font-size: 8pt; color: #b03a2e; }
-  #printArea .sheet-tb .c-first, #printArea .sheet-tb .c-grp { background: #fdf3e3; }
+  #printArea .sheet-tb .c-first, #printArea .sheet-tb .c-grp { background: #e2efda; }
   #printArea .sheet-tb .c-phone { background: #fbe5e5; }
   #printArea .sheet-tb .c-duty { background: #e2efda; }
   #printArea .sheet-tb .c-sum { background: #fff2cc; font-size: 9.5pt; font-weight: 700; }
@@ -1175,3 +1175,21 @@ input[type=password], input:not([type]) { font: inherit; color: var(--text); bac
 #operationLogList {max-height:48dvh;overflow:auto;margin-top:12px;}
 .operation-row {padding:12px 0;border-bottom:1px solid var(--line);line-height:1.5;}
 .operation-row small {color:var(--muted);}
+
+/* A single readable scale for classroom scoring; preserve sum yellow. */
+table.sheet { --score-font: 16px; }
+table.sheet thead th, table.sheet td.c-mem, table.sheet td.c-no,
+table.sheet .toggle, table.sheet .pchip, table.sheet .pchip .n,
+table.sheet .pchip.hit .n, table.sheet .step .num,
+body.sidebar-layout table.sheet .pchip, body.sidebar-layout table.sheet .step .num {
+  font-size: var(--score-font); line-height: 1.35; color: var(--xl-ink); font-weight: 600;
+}
+table.sheet thead th { padding: 7px 4px; }
+table.sheet .pchip .n { min-width: 22px; }
+table.sheet .personal-control .pchip { gap: 8px; }
+table.sheet .step button, table.sheet .personal-refund, table.sheet .deduct-action {
+  font-size: 20px; min-width: 32px; min-height: 36px;
+}
+table.sheet .pchip.hit .n { color: var(--bad); }
+table.sheet .toggle.on { color: var(--good); }
+table.sheet td.c-sum .c { font-size: 13px; color: var(--text); }

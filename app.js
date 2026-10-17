@@ -737,7 +737,7 @@ function removeMemberAt(cls, g, j) {
   function groupsTable(cls, lesson) {
     var cols = '<col class="w-no">';
     for (var c = 0; c < GROUP_CAP; c++) cols += '<col class="w-mem">';
-    cols += '<col class="w-first"><col class="w-grp"><col class="w-phone">' +
+    cols += '<col class="w-phone"><col class="w-first"><col class="w-grp">' +
       '<col class="w-duty"><col class="w-sum">';
 
     var sub = '';
@@ -747,9 +747,9 @@ function removeMemberAt(cls, g, j) {
       '<tr>' +
         '<th class="c-no" rowspan="2">组<br>号</th>' +
         '<th class="c-mem" colspan="' + GROUP_CAP + '">小组成员姓名 / 个人扣分（-1/次）</th>' +
+        '<th class="c-phone" rowspan="2">全组·手机未入袋<br>（-1/人）</th>' +
         '<th class="c-first" rowspan="2">全组·首个正确<br>(+1)</th>' +
         '<th class="c-grp" rowspan="2">全组·小组分<br>(0-5)</th>' +
-        '<th class="c-phone" rowspan="2">全组·手机未入袋<br>（-1/人）</th>' +
         '<th class="c-duty" rowspan="2">全组·值日分<br>(0-5)</th>' +
         '<th class="c-sum" rowspan="2">本节<br>合计</th>' +
       '</tr><tr>' + sub + '</tr>' +
@@ -774,9 +774,9 @@ function removeMemberAt(cls, g, j) {
         '<tr class="gname">' +
           '<td class="c-no" rowspan="2">' + g.no + '</td>' +
           names +
+          '<td class="c-phone" rowspan="2">' + ctlStep(g.no, 'phone', s, maxPhone, '手机未入袋') + '</td>' +
           '<td class="c-first" rowspan="2">' + ctlFirst(g.no, s) + '</td>' +
           '<td class="c-grp" rowspan="2">' + ctlStep(g.no, 'group', s, maxOf('group', maxPhone), '小组分') + '</td>' +
-          '<td class="c-phone" rowspan="2">' + ctlStep(g.no, 'phone', s, maxPhone, '手机未入袋') + '</td>' +
           '<td class="c-duty" rowspan="2">' + ctlStep(g.no, 'duty', s, maxOf('duty', maxPhone), '值日分') + '</td>' +
           '<td class="c-sum" rowspan="2">' + ctlSum(g.no, groupTotal(lesson, g.no), groupCum(cls, g.no)) +
             ctlClear(g.no, true) + '</td>' +
@@ -1622,7 +1622,7 @@ function removeMemberAt(cls, g, j) {
 
     var cols = '<col class="w-no">';
     for (var c = 0; c < GROUP_CAP; c++) cols += '<col class="w-mem">';
-    cols += '<col class="w-first"><col class="w-grp"><col class="w-phone">' +
+    cols += '<col class="w-phone"><col class="w-first"><col class="w-grp">' +
       '<col class="w-duty"><col class="w-sum">';
 
     var subHead = '';
@@ -1631,9 +1631,9 @@ function removeMemberAt(cls, g, j) {
     var head = '<thead><tr>' +
       '<th class="c-no" rowspan="2">组<br>号</th>' +
       '<th class="c-mem" colspan="' + GROUP_CAP + '">小组成员姓名 / 个人扣分（-1/次）</th>' +
+      '<th class="c-phone" rowspan="2">全组·手机未入袋<br>（-1/人）</th>' +
       '<th class="c-first" rowspan="2">全组·首个正确<br>(+1)</th>' +
       '<th class="c-grp" rowspan="2">全组·小组分<br>(0-5)</th>' +
-      '<th class="c-phone" rowspan="2">全组·手机未入袋<br>（-1/人）</th>' +
       '<th class="c-duty" rowspan="2">全组·值日分<br>(0-5)</th>' +
       '<th class="c-sum" rowspan="2">本节<br>合计</th>' +
       '</tr><tr>' + subHead + '</tr></thead>';
@@ -1653,9 +1653,9 @@ function removeMemberAt(cls, g, j) {
         '<tr class="gname">' +
           '<td class="c-no' + (isDuty ? ' duty' : '') + '" rowspan="2">' + g.no + '</td>' +
           names +
+          '<td class="c-phone" rowspan="2">' + (+s.phone || '') + '</td>' +
           '<td class="c-first" rowspan="2">' + (s.first ? 1 : '') + '</td>' +
           '<td class="c-grp" rowspan="2">' + (+s.group || '') + '</td>' +
-          '<td class="c-phone" rowspan="2">' + (+s.phone || '') + '</td>' +
           '<td class="c-duty" rowspan="2">' + (+s.duty || '') + '</td>' +
           '<td class="c-sum" rowspan="2">' +
             (touched(lesson, g.no) ? fmt(groupTotal(lesson, g.no)) : '') + '</td>' +
