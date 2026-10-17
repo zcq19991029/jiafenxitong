@@ -1929,7 +1929,7 @@ function removeMemberAt(cls, g, j) {
         if (keep) { S.ui.classId = keep.classId; S.ui.lessonId = keep.lessonId; S.ui.scoreLayout = keep.scoreLayout; }
         writeLocal();
         fillClassSelects();
-        renderScore();
+        switchView(view);
         flash('已从云端拉取最新记录');
       } else if (lAt > cAt) {
         CLOUD.touch(function () { return S; });

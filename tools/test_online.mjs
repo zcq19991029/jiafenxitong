@@ -155,6 +155,13 @@ env.sqlite.prepare('UPDATE score_states SET updated_at=? WHERE owner_id=?').run(
 q(a, '#btnSyncNow').click();
 await new Promise(resolve => setTimeout(resolve, 30));
 check('refreshing cloud data preserves the currently selected class', q(a, '#classSel').value === seed.classes[1].id);
+const remoteForRoster = await api(env,'/api/state','GET',undefined,admin.token);
+remoteForRoster.data.data.classes.push({...structuredClone(seed.classes[0]),id:'remote-roster-class',name:'云端导入验收班'});
+await api(env,'/api/state','PUT',{baseRevision:remoteForRoster.data.revision,data:remoteForRoster.data.data},admin.token);
+q(a,'#tabs button[data-view="data"]').click();
+q(a,'#btnSyncNow').click();
+await until(()=>Array.from(q(a,'#rosterSel').options).some(option=>option.value==='remote-roster-class'));
+check('cloud pull refreshes the visible roster selector without switching pages',Array.from(q(a,'#rosterSel').options).some(option=>option.value==='remote-roster-class'));
 q(teacherPage, '#btnMe').click(); q(teacherPage, '#btnChangePassword').click();
 check('change password dialog opens from profile', q(teacherPage, '#dlgPassword').open);
 q(teacherPage, '#oldPassword').value = PASSWORD;
