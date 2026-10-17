@@ -1768,7 +1768,7 @@ function removeMemberAt(cls, g, j) {
 
   /* 撤销：按钮 + Ctrl/Cmd+Z */
   $('#btnUndo').addEventListener('click', function () {
-    if ((S.undo || []).length && confirm('确认撤销这项操作？\n' + undoLabel(S.undo[S.undo.length-1]) + '\n撤销后可以点击重做恢复。')) undo();
+    undo();
   });
   function redo() {
     var entry = (S.redo || []).pop(); if(!entry) return false;
