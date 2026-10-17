@@ -1,0 +1,23 @@
+# 截图 / 打印预览用的演示页（由 tools/make_shot.py 生成，不要提交）
+_shot.html
+
+__pycache__/
+*.pyc
+
+# 云端闸门 / 管理页的预览页
+_shot_cloud.html
+
+# tools/shots.mjs 出图的临时目录（成品在 效果预览/）
+_shots/
+_closeup/
+
+tools/test-runtime/node_modules/
+
+# 私有材料与历史证据仅保存在本机
+/data.js
+/教学材料/
+/效果预览/
+/迁移记录/
+/交接文档.md
+/WorkBuddy原始README.md
+/tools/test_app.mjs

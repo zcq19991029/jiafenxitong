@@ -1,0 +1,389 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="theme-color" content="#e8232e">
+<title>夜夜加分助手 · 《电气接线原理》</title>
+<link rel="stylesheet" href="styles.css">
+</head>
+<body>
+
+<header class="topbar" id="topbar">
+  <div class="topbar-main">
+    <span class="brandmark" aria-hidden="true">⚡</span>
+    <div class="brandtext">
+      <h1>夜夜加分助手</h1>
+      <span class="sub" id="saveState">已自动保存到本机</span>
+    </div>
+    <span class="chip" id="cloudChip" hidden></span>
+    <span class="spacer"></span>
+    <span class="userbox" id="userBox" hidden>
+      <button class="userchip" id="btnMe" title="个人信息">
+        <span class="avatar" id="userAvatar"></span>
+        <span class="uname" id="userName"></span>
+        <span class="vip" id="userVip" hidden>👑 管理员 VIP</span>
+      </button>
+      <button class="iconbtn" id="btnUserMenu" title="账号与同步（在「数据与备份」页）">⚙</button>
+    </span>
+  </div>
+  <nav class="tabs" id="tabs">
+    <button data-view="score" class="on">上课记分</button>
+    <button data-view="rank">排行总览</button>
+    <button data-view="pool">待分配名单<em id="tabPoolBadge" hidden></em></button>
+    <button data-view="data">数据与备份</button>
+    <button data-view="admin" id="tabAdmin" hidden>管理</button>
+  </nav>
+</header>
+
+<div class="local-warn" id="localWarn" hidden></div>
+
+<!-- ========== 登录 / 邀请码闸门 ========== -->
+<section class="gate" id="gate" hidden>
+  <div class="gate-card">
+    <div class="gate-logo">
+      <img src="assets/school-logo-mark.png" alt="广州华夏职业学院">
+      <span class="school">广州华夏职业学院</span>
+    </div>
+    <h2>夜夜加分助手</h2>
+    <p class="gate-sub">《电气接线原理》课堂记分 · 老师专用</p>
+
+    <div id="gateMsg" class="gate-msg" hidden></div>
+
+    <!-- 第一步：登录 -->
+    <div id="gateLogin">
+      <p class="gate-lead">用微信登录，就能把自己的班级和记录存到云端。换手机、换电脑，记录自动跟着回来。</p>
+      <button class="btn primary wx" id="btnWxLogin">微信登录</button>
+      <p class="gate-tip">手机上点一下直接授权；电脑上会出现二维码，用微信扫一下就行。</p>
+      <button class="btn ghost small" id="btnWbLogin">用 WorkBuddy 账号登录</button>
+    </div>
+
+    <!-- 第二步：邀请码 -->
+    <div id="gateInvite" hidden>
+      <p class="gate-lead">
+        已登录<span class="gate-who" id="gateWho"></span>。<br>
+        这个应用是内部使用的，需要<b>管理员发的一次性邀请码</b>才能开通账号。
+      </p>
+      <label class="field col">
+        <span>邀请码</span>
+        <input id="inviteCode" placeholder="例如 ABCD-2345" autocapitalize="characters" autocomplete="off">
+      </label>
+      <button class="btn primary" id="btnRedeem">激活账号</button>
+      <p class="gate-foot">
+        没有邀请码？找教研组的管理员（赵老师）要一个。<br>
+        <button class="linkbtn" id="btnGateSignOut">换个账号登录</button>
+      </p>
+    </div>
+
+    <!-- 云端连不上时的降级入口 -->
+    <div id="gateOffline" hidden>
+      <p class="gate-lead">
+        现在连不上云端（<span id="offlineWhy"></span>）。<br>
+        如果这台设备之前已经登录过，可以先<b>用本机记录接着上课</b>，等网络恢复后会自动补传。
+      </p>
+      <button class="btn primary" id="btnLocalOnly">先用本机记录继续</button>
+      <p class="gate-foot">还没登录过的设备必须联网登录一次才能用。</p>
+    </div>
+  </div>
+</section>
+
+<main id="main">
+
+  <!-- ========== 上课记分 ========== -->
+  <section id="view-score" class="view">
+    <div id="poolBanner" class="pool-banner" hidden></div>
+
+    <div class="lesson-bar">
+      <label class="field">
+        <span>班级</span>
+        <select id="classSel"></select>
+      </label>
+      <label class="field">
+        <span>课次</span>
+        <select id="lessonSel"></select>
+      </label>
+      <button id="btnNewLesson" class="btn primary">＋ 新开一课</button>
+      <span class="spacer"></span>
+      <div class="seg" id="layoutSeg">
+        <button data-l="table" class="on" title="和纸质记录表一样的表格">表格式</button>
+        <button data-l="card" title="手机上点起来更舒服">卡片式</button>
+      </div>
+      <button id="btnUndo" class="btn" disabled title="撤销上一次改动（快捷键 Ctrl+Z）">↶ 撤销</button>
+    </div>
+
+    <div class="lesson-meta" id="lessonMeta"></div>
+
+    <div class="metrics" id="scoreMetrics"></div>
+
+    <p class="hint-line" id="scoreHint">
+      <b>＋ / −</b> 记分 · 数字框<b>可以直接点进去改成任意值</b> ·
+      加错了按右上角<b>「↶ 撤销」</b>（最多 60 步，快捷键 <b>Ctrl+Z</b>）或该组卡片的<b>「↺ 清零」</b> ·
+      个人扣分：<b>点 = +1</b>，<b>右键 / 手机长按 = −1</b>，<b>双击 = 归零</b>
+    </p>
+
+    <div id="groupList"></div>
+
+    <p class="empty-hint" id="noLessonHint" hidden>
+      这个班还没有课次。点右上角「新开一课」开始记录第一节课。
+    </p>
+  </section>
+
+  <!-- ========== 排行总览 ========== -->
+  <section id="view-rank" class="view" hidden>
+    <div class="lesson-bar">
+      <label class="field">
+        <span>班级</span>
+        <select id="rankClassSel"></select>
+      </label>
+      <div class="spacer"></div>
+      <button id="btnPrintRank" class="btn">打印 / 导出 PDF</button>
+    </div>
+
+    <h2 class="sec-title">小组累计排行</h2>
+    <div class="card tablewrap" id="groupRank"></div>
+
+    <h2 class="sec-title">个人总分排行 <span class="hint">组得分 − 个人扣分，按分数动态排序</span></h2>
+    <div class="card tablewrap" id="memberRank"></div>
+
+    <h2 class="sec-title">逐节得分明细</h2>
+    <div class="card tablewrap" id="lessonMatrix"></div>
+  </section>
+
+  <!-- ========== 待分配名单 ========== -->
+  <section id="view-pool" class="view" hidden>
+    <div class="lesson-bar">
+      <label class="field">
+        <span>班级</span>
+        <select id="poolClassSel"></select>
+      </label>
+      <div class="spacer"></div>
+      <button id="btnPoolAuto" class="btn">均匀分配待分配学生</button>
+      <button id="btnPoolAdd" class="btn primary">＋ 添加学生</button>
+    </div>
+
+    <div class="metrics" id="poolMetrics"></div>
+
+    <div class="card">
+      <div class="pool-toolbar">
+        <div class="seg" id="poolFilter">
+          <button data-f="pending" class="on">仅待分配</button>
+          <button data-f="all">全部</button>
+          <button data-f="assigned">仅已分配</button>
+        </div>
+        <input type="text" id="poolSearch" placeholder="搜索姓名 / 学号 / 序号">
+      </div>
+      <div class="tablewrap" id="poolList"></div>
+      <p class="rank-note">
+        「班内序号」来自考勤表，和纸质记录表上的短号一致；「学号」是教务系统的完整学号。
+        把待分配学生分配到小组后，他/她就会出现在「上课记分」页对应的组里。
+      </p>
+    </div>
+  </section>
+
+  <!-- ========== 数据与备份 ========== -->
+  <section id="view-data" class="view" hidden>
+
+    <h2 class="sec-title">课次记录</h2>
+    <div class="card tablewrap" id="lessonListCard"></div>
+
+    <h2 class="sec-title">班级与成员名单</h2>
+    <div class="card tablewrap" id="rosterCard"></div>
+
+    <h2 class="sec-title">云端同步</h2>
+    <div class="card">
+      <div class="sync-row">
+        <span class="sync-dot" id="syncDot"></span>
+        <b id="syncText">正在连接…</b>
+        <span class="spacer"></span>
+        <button class="btn" id="btnSyncNow">立即同步</button>
+      </div>
+      <div class="btnrow">
+        <button class="btn" id="btnPullCloud">从云端覆盖本机</button>
+        <button class="btn" id="btnPushCloud">把本机覆盖云端</button>
+      </div>
+      <p class="note">
+        本机记录永远先存着（教室没网也能记），联网后会自动传到云端。
+        换设备时用同一个微信扫码登录，记录会自动回来，<b>不用再手动导 JSON</b>。
+      </p>
+      <div class="btnrow">
+        <button class="btn danger" id="btnSignOut">退出登录</button>
+      </div>
+    </div>
+
+    <h2 class="sec-title">导出 / 备份</h2>
+    <div class="card">
+      <div class="btnrow">
+        <button class="btn" data-export="lesson">导出本课明细 CSV</button>
+        <button class="btn" data-export="cumulative">导出累计总表 CSV</button>
+        <button class="btn" data-export="member">导出个人总分 CSV</button>
+      </div>
+      <div class="btnrow">
+        <button class="btn" id="btnBackup">下载完整备份 JSON</button>
+        <button class="btn" id="btnRestore">从 JSON 恢复</button>
+        <input type="file" id="fileRestore" accept=".json,application/json" hidden>
+      </div>
+      <p class="note">
+        JSON 备份是<b>保险绳</b>：万一浏览器数据被清、或者要换到另一个应用上，靠它兜底。
+        平时换设备直接用「云端同步」就够了。
+      </p>
+      <div class="btnrow">
+        <button class="btn danger" id="btnWipe">清空全部数据</button>
+      </div>
+    </div>
+
+    <h2 class="sec-title">使用说明</h2>
+    <div class="card prose">
+      <ol>
+        <li><b>上课前</b>：在「上课记分」页选好班级 → 点「新开一课」，填日期、本节任务、本节值日组。</li>
+        <li><b>上课中</b>：哪个小组达标就点对应的加减按钮，本节合计和累计会自动重算。</li>
+        <li><b>记错了要改</b>：
+          <ul>
+            <li>数字框可以直接点进去改成任意值（小组分 0-10、值日分 0-5、手机未入袋 0-本组人数）；</li>
+            <li>按「↶ 撤销」（或 <b>Ctrl+Z</b>）可以逐步退回，最多 60 步，跨课次也能退；</li>
+            <li>某一组整节课记乱了，点该组的「↺ 清零」重来（也能撤销）；</li>
+            <li>个人扣分：点一次 +1，右键（手机长按）−1，双击归零。</li>
+          </ul>
+        </li>
+        <li><b>两种记分界面</b>：「表格式」和纸质记录表长得一样，一眼对着找组；「卡片式」手机上点起来更舒服。选择会被记住。</li>
+        <li><b>课后</b>：点「打印本课」出一张和纸质记录表同款的 A4 纵向记录单，可以打出来归档；数据同时自动存在本机，不用点保存。</li>
+        <li><b>换设备</b>：在新设备用<b>同一个微信扫码登录</b>，记录自动同步回来（本机也能离线记，联网后自动补传）。
+          JSON 备份仍然保留，作为清理浏览器数据／迁移应用时的保险绳。</li>
+      </ol>
+      <p class="formula">
+        本节合计 ＝ 首个正确(0/1) ＋ 小组分(0-10) ＋ 值日分(0-5) − 手机未入袋人数<br>
+        个人总分 ＝ 所在小组累计本节合计 − 本人累计个人扣分
+      </p>
+    </div>
+  </section>
+
+  <!-- ========== 管理（仅管理员可见） ========== -->
+  <section id="view-admin" class="view" hidden>
+
+    <div class="card admin-hero">
+      <h2 class="sec-title" style="margin-top:0">👑 教师账号管理 <span class="hint">只有管理员看得到这一页</span></h2>
+      <p class="note" id="adminIntro">
+        给新老师发一个<b>一次性邀请码</b>：他微信扫码登录后输入这个码，就开通了自己的账号，
+        账号之间互相看不见对方的班级和数据；同一账号在任何设备登录，记录会自动同步回来。
+        码用掉即失效，作废的码可以再生成。
+      </p>
+      <div class="btnrow">
+        <label class="field">
+          <span>生成数量</span>
+          <select id="invCount">
+            <option value="1">1 个</option>
+            <option value="3" selected>3 个</option>
+            <option value="5">5 个</option>
+            <option value="10">10 个</option>
+          </select>
+        </label>
+        <label class="field grow">
+          <span>备注（发给谁，自己看得懂就行）</span>
+          <input id="invNote" placeholder="例如：李老师 / 电气教研组">
+        </label>
+        <label class="field">
+          <span>类型</span>
+          <select id="invRole">
+            <option value="teacher">普通老师</option>
+            <option value="admin">管理员</option>
+          </select>
+        </label>
+        <button class="btn primary" id="btnGenInvite">生成邀请码</button>
+      </div>
+      <div id="invFresh" class="inv-fresh" hidden></div>
+    </div>
+
+    <h2 class="sec-title">邀请码</h2>
+    <div class="card tablewrap" id="inviteList"></div>
+
+    <h2 class="sec-title">老师与数据</h2>
+    <div class="card tablewrap" id="teacherList"></div>
+
+    <dialog id="dlgTeacher" class="wide">
+      <form method="dialog" class="dlg">
+        <div class="dlg-head">
+          <h3 id="dtTitle">老师的数据</h3>
+          <button class="dlg-x" value="cancel" formnovalidate title="关闭（Esc）" aria-label="关闭">✕</button>
+        </div>
+        <div id="dtBody" class="dt-body dlg-body"></div>
+        <div class="dlg-btns">
+          <button value="cancel" class="btn">关闭</button>
+        </div>
+      </form>
+    </dialog>
+
+  </section>
+</main>
+
+<!-- 打印区（仅打印时可见） -->
+<div id="printArea" aria-hidden="true"></div>
+
+<!-- 新开课次弹窗 -->
+<dialog id="dlgLesson">
+  <form method="dialog" class="dlg">
+    <div class="dlg-head">
+      <h3>新开一课</h3>
+      <button class="dlg-x" value="cancel" formnovalidate title="关闭（Esc）" aria-label="关闭">✕</button>
+    </div>
+    <div class="dlg-body">
+      <label class="field col"><span>班级</span><input id="nlClass" readonly></label>
+      <label class="field col"><span>课次</span><input id="nlSeq" type="number" min="1" step="1"></label>
+      <label class="field col"><span>日期</span><input id="nlDate" type="date"></label>
+      <label class="field col"><span>本节任务</span><input id="nlTopic" placeholder="例如：三相异步电动机正反转接线"></label>
+      <label class="field col"><span>本节值日组</span><input id="nlDuty" type="number" min="0" step="1" placeholder="留空表示无"></label>
+    </div>
+    <div class="dlg-btns">
+      <button value="cancel" class="btn">取消</button>
+      <button value="ok" class="btn primary">开始记录</button>
+    </div>
+  </form>
+</dialog>
+
+<!-- 添加学生弹窗 -->
+<dialog id="dlgStudent">
+  <form method="dialog" class="dlg">
+    <div class="dlg-head">
+      <h3>添加学生</h3>
+      <button class="dlg-x" value="cancel" formnovalidate title="关闭（Esc）" aria-label="关闭">✕</button>
+    </div>
+    <div class="dlg-body">
+      <label class="field col"><span>姓名</span><input id="stName" placeholder="例如：张三"></label>
+      <label class="field col"><span>班内序号</span><input id="stNo" size="1" inputmode="numeric" placeholder="可留空"></label>
+      <label class="field col"><span>完整学号</span><input id="stSid" placeholder="可留空，例如 26303100150"></label>
+    </div>
+    <div class="dlg-btns">
+      <button value="cancel" class="btn">取消</button>
+      <button value="ok" class="btn primary">加入全班名单</button>
+    </div>
+  </form>
+</dialog>
+
+<!-- 个人信息弹窗（点顶栏自己的名字打开） -->
+<dialog id="dlgMe">
+  <form method="dialog" class="dlg">
+    <div class="dlg-head">
+      <h3>个人信息</h3>
+      <button class="dlg-x" value="cancel" formnovalidate title="关闭（Esc）" aria-label="关闭">✕</button>
+    </div>
+    <div class="dlg-body">
+      <p class="note">微信登录拿不到你的昵称，所以这里自己填一次。名字会同步到云端，管理员在「老师与数据」里看到的就是它。</p>
+      <label class="field col"><span>姓名 / 昵称</span>
+        <input id="meName" placeholder="例如：赵成乾" maxlength="24" autocomplete="off">
+      </label>
+      <label class="field col"><span>工号 / 备注（可留空）</span>
+        <input id="meReal" placeholder="例如：11445" maxlength="24" autocomplete="off">
+      </label>
+    </div>
+    <div class="gate-msg" id="meMsg" hidden></div>
+    <div class="dlg-btns">
+      <button value="cancel" class="btn">取消</button>
+      <button value="ok" class="btn primary" id="btnMeSave">保存资料</button>
+    </div>
+  </form>
+</dialog>
+
+<script src="data.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/@tencent-ai/workbuddy-cloud-sdk@dev/lib/index.global.js"></script>
+<script src="cloud.js"></script>
+<script src="app.js"></script>
+</body>
+</html>
