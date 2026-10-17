@@ -1753,6 +1753,12 @@ function removeMemberAt(cls, g, j) {
     });
   }
 
+  /* Returning from an OAuth error page may restore disabled controls from bfcache. */
+  window.addEventListener('pageshow', function () { setGateBusy(false); });
+  if (window.location.hostname.slice(-10) === '.github.io') {
+    $('#pagesCloudNotice').hidden = false;
+  }
+
   function doOauth(provider) {
     setGateBusy(true);
     gateShow('login', null);
@@ -1993,6 +1999,25 @@ function removeMemberAt(cls, g, j) {
     CLOUD_ON = !!(CLOUD && profile);
     cloudRec = rec || null;
 
+    /* Keep the historical data key, but archive it by account before switching teachers. */
+    if (profile && profile.uid) {
+      try {
+        var ownerKey = 'jfdt.owner.v1';
+        var owner = localStorage.getItem(ownerKey);
+        if (owner && owner !== profile.uid) {
+          var previous = localStorage.getItem(LS_KEY);
+          if (previous) localStorage.setItem('jfdt.account.' + owner, previous);
+          var ownState = localStorage.getItem('jfdt.account.' + profile.uid);
+          if (ownState) localStorage.setItem(LS_KEY, ownState);
+          else localStorage.removeItem(LS_KEY);
+        }
+        localStorage.setItem(ownerKey, profile.uid);
+      } catch (e) {
+        gateShow('login', '无法安全切换账号：浏览器存储不可用，请先备份原账号记录。');
+        return;
+      }
+    }
+
     var hadLocalState = false;
     try { hadLocalState = !!localStorage.getItem(LS_KEY); } catch (e) {}
     S = load();
@@ -2083,8 +2108,13 @@ function removeMemberAt(cls, g, j) {
   $('#btnPullCloud').addEventListener('click', function () {
     if (!CLOUD_ON || !CLOUD || !CLOUD.profile()) { alert('请先登录后再拉取。'); return; }
     if (!confirm('用云端的记录覆盖这台设备上的记录？\n\n本机现在的分数会被替换掉（云端记录是同一账号在别的设备上存的那份）。')) return;
+    if (CLOUD.cancelPending && !CLOUD.cancelPending()) {
+      alert('正在上传记录，请等待同步结束后再拉取。'); return;
+    }
+    var pullStartedAt = S.updatedAt;
     cloudUiBackup = { classId: S.ui.classId, lessonId: S.ui.lessonId, scoreLayout: S.ui.scoreLayout };
     CLOUD.pull().then(function (rec) {
+      if (S.updatedAt !== pullStartedAt) { alert('拉取期间记录已改变，本次未覆盖，请重试。'); return; }
       if (!rec || !rec.data || !rec.data.classes) { alert('云端还没有这个账号的记录。'); return; }
       S = migrate(JSON.parse(JSON.stringify(rec.data)));
       if (!S.ui) S.ui = {};

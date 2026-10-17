@@ -10,7 +10,7 @@ GitHub Pages：https://zcq19991029.github.io/ye-ye-score-helper/
 
 使用时打开线上网址即可，不需要安装本地程序。Pages 仅发布网页资产和空白班级模板，不发布真实学生名单。原账号记录需要登录后从云端读取；新网址的浏览器存储与原网址相互独立，也可从原应用下载完整 JSON 后在新页面恢复。
 
-原 WorkBuddy 云端当前拒绝 GitHub Pages 来源（预检返回 403）。在原应用配置中需放行来源 `https://zcq19991029.github.io`，以及 OAuth 回调 `https://zcq19991029.github.io/ye-ye-score-helper/`。该项完成前不能将微信登录和云同步列为验收通过；原线上入口保留，不更换后端或清空数据。
+原 WorkBuddy 云端当前拒绝 GitHub Pages 来源（预检返回 403）。真实浏览器点微信登录后，WorkBuddy 显示“当前地址暂不支持此登录方式”。需要平台支持来源 `https://zcq19991029.github.io` 和 OAuth 回调 `https://zcq19991029.github.io/ye-ye-score-helper/`，若平台不支持外部域名，则需独立云端方案。该项完成前微信登录和云同步验收不通过；Pages 登录页已明确提示，原线上入口保留。
 
 ## 发布
 

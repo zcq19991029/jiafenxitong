@@ -242,6 +242,15 @@
     return inFlight;
   }
 
+  function cancelPending() {
+    if (inFlight) return false;
+    clearTimeout(pushTimer);
+    clearTimeout(retryTimer);
+    pendingFn = null;
+    revision++;
+    return true;
+  }
+
   /* ---------------- 启动 ---------------- */
 
   /**
@@ -345,6 +354,7 @@
     pull: pull,
     touch: touch,
     flush: flush,
+    cancelPending: cancelPending,
     status: function () { return st; },
     onStatus: function (cb) { listeners.push(cb); cb(st); },
     profile: function () { return profile; },
