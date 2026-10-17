@@ -18,12 +18,12 @@ const version = commit + (dirty ? '-dirty' : '');
 const types = { '.html': 'text/html; charset=utf-8', '.js': 'application/javascript; charset=utf-8',
   '.css': 'text/css; charset=utf-8', '.png': 'image/png', '.json': 'application/json; charset=utf-8' };
 const assets = {};
-for (const name of ['index.html', 'styles.css', 'app.js', 'cloud.js', 'config.js', 'roster-import.js', 'password-ui.js',
+for (const name of ['index.html', 'styles.css', 'app.js', 'cloud.js', 'config.js', 'roster-import.js', 'password-ui.js', 'leader-scoring.js',
   'assets/school-logo.png', 'assets/school-logo-mark.png']) {
   let bytes = fs.readFileSync(path.join(root, name));
   if (name === 'index.html') {
     let html = bytes.toString('utf8');
-    for (const asset of ['styles.css', 'data.js', 'config.js', 'roster-import.js', 'cloud.js', 'app.js', 'password-ui.js']) {
+    for (const asset of ['styles.css', 'data.js', 'config.js', 'roster-import.js', 'cloud.js', 'app.js', 'password-ui.js', 'leader-scoring.js']) {
       html = html.replace('"' + asset + '"', '"' + asset + '?v=' + version + '"');
     }
     html = html.replace('</head>', '<meta name="build-commit" content="' + version + '">\n</head>');

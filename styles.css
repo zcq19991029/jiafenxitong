@@ -903,6 +903,17 @@ dialog::backdrop {
 
 /* Excel 原色不随系统主题改变；个人资料反馈沿用课堂气泡界面。 */
 :root { color-scheme: light; }
+.leader-table { width: 100%; min-width: 1080px; border-collapse: collapse; margin: 14px 0; color: var(--xl-ink); }
+.leader-table th, .leader-table td { border: 1px solid var(--xl-line); padding: 8px 5px; text-align: center; }
+.leader-table th { background: #d9e2f3; font-size: 12px; }
+.leader-table td { background: var(--xl-duty); }
+.leader-table td:first-child, .leader-table .leader-member { background: var(--xl-mem); }
+.leader-table .leader-member { min-width: 130px; font-weight: 700; }
+.leader-member small { display: block; font-size: 11px; font-weight: 400; color: var(--muted); }
+.leader-table .leader-total { background: var(--xl-sum); font-weight: 800; font-size: 18px; min-width: 50px; }
+.leader-project { width: 76px; min-width: 0; font: inherit; padding: 7px 3px; border: 1px solid var(--xl-line); border-radius: 6px; background: white; }
+.leader-number { width: 58px; min-width: 0; text-align: center; }
+@media print { .leader-table { min-width: 0; table-layout: fixed; font-size: 9pt; } .leader-table th, .leader-table td { padding: 7pt 2pt; -webkit-print-color-adjust: exact; print-color-adjust: exact; } .leader-table th:nth-child(2) { width: 18%; } .leader-print h2 { text-align: center; font-size: 16pt; } .leader-print p { font-size: 10pt; } }
 .profile-preview { display: flex; align-items: center; gap: 12px; padding: 12px; border: 1px solid var(--line); border-radius: 14px; background: var(--panel-soft); }
 .profile-preview .avatar { width: 54px; height: 54px; font-size: 23px; }
 .profile-preview .note { margin: 2px 0 0; color: var(--vip); }

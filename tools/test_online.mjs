@@ -38,7 +38,7 @@ function page(storage = {}) {
     return worker.fetch(new Request(url, { ...options, headers: { ...options.headers, Origin: ORIGIN, 'CF-Connecting-IP': '127.0.0.3' } }), env);
   };
   w.confirm = () => true; w.alert = message => network.alerts.push(message); w.print = () => {};
-  for (const file of ['roster-import.js', 'cloud.js', 'app.js', 'password-ui.js']) w.eval(fs.readFileSync(file, 'utf8'));
+  for (const file of ['roster-import.js', 'cloud.js', 'leader-scoring.js', 'app.js', 'password-ui.js']) w.eval(fs.readFileSync(file, 'utf8'));
   dom.network = network; doms.push(dom);
   return dom;
 }
@@ -85,6 +85,21 @@ q(a, '#btnUndo').click();
 check('undo remains functional after native login', !state(a).lessons[0].scores['1'].personal['0']);
 await a.window.JFDT_CLOUD.flush();
 check('scores are stored by the independent database', (await api(env, '/api/state', 'GET', undefined, admin.token)).data.data.lessons[0].scores['1'].group === 3);
+q(a,'#tabs button[data-view="leader"]').click();
+check('group individual scoring is accessible as a dedicated view', !q(a,'#view-leader').hidden && !!q(a,'.leader-table'));
+q(a,'[data-project="0"]').value='协作'; q(a,'[data-project="0"]').dispatchEvent(new a.window.Event('change'));
+for(const [item,value] of [[0,5],[1,4]]) { const input=q(a,'[data-member][data-item="'+item+'"]'); input.value=value; input.dispatchEvent(new a.window.Event('change')); }
+check('individual scoring computes a separate subtotal', text(a,'[data-total-key]')==='9' && state(a).lessons[0].scores['1'].group===3);
+const invalidInput=q(a,'[data-member][data-item="0"]'); invalidInput.value=6; invalidInput.dispatchEvent(new a.window.Event('change'));
+check('individual scoring rejects values outside zero to five', invalidInput.value==='5');
+await a.window.JFDT_CLOUD.flush();
+const leaderState=(await api(env,'/api/state','GET',undefined,admin.token)).data;
+check('custom projects and individual marks persist in the database',leaderState.data.lessons[0].leaderScores['1'].projects[0]==='协作' && Object.values(leaderState.data.lessons[0].leaderScores['1'].members)[0][1]===4);
+q(a,'#leaderPrint').click();
+check('leader sheet printing includes projects and the subtotal',text(a,'#printArea').includes('协作') && text(a,'#printArea').includes('小计'));
+const invalidLeader=structuredClone(leaderState.data); Object.values(invalidLeader.lessons[0].leaderScores['1'].members)[0][0]=9;
+check('backend rejects invalid individual scores',(await api(env,'/api/state','PUT',{data:invalidLeader,baseRevision:leaderState.revision},admin.token)).status===400);
+q(a,'#tabs button[data-view="score"]').click();
 q(a, '#btnPrintLesson').click();
 check('print output contains the current class and lesson', text(a, '#printArea').includes('独立服务记分验收') && text(a, '#printArea').includes(seed.classes[0].name));
 const download = { text: null };

@@ -67,6 +67,23 @@ function validateState(data) {
         || typeof lesson.topic !== 'string' || typeof lesson.date !== 'string'
         || !lesson.scores || Array.isArray(lesson.scores) || typeof lesson.scores !== 'object') fail(400, '课次数据格式不正确。');
     lessonIds.add(lesson.id);
+    if (lesson.leaderScores !== undefined) {
+      if (!lesson.leaderScores || typeof lesson.leaderScores !== 'object' || Array.isArray(lesson.leaderScores)
+          || Object.keys(lesson.leaderScores).length > 100) fail(400, '组内个人评分格式不正确。');
+      for (const [number, record] of Object.entries(lesson.leaderScores)) {
+        if (!/^[1-9]\d{0,2}$/.test(number) || !record || typeof record !== 'object'
+            || !Array.isArray(record.projects) || record.projects.length !== 10
+            || record.projects.some(p => typeof p !== 'string' || p.length > 80)
+            || !record.members || typeof record.members !== 'object' || Array.isArray(record.members)
+            || Object.keys(record.members).length > 1000
+            || typeof record.signedBy !== 'string' || record.signedBy.length > 100
+            || typeof record.note !== 'string' || record.note.length > 500) fail(400, '组内个人评分格式不正确。');
+        for (const [member, scores] of Object.entries(record.members)) {
+          if (!/^[a-zA-Z0-9_:-]{1,128}$/.test(member) || !Array.isArray(scores) || scores.length !== 10
+              || scores.some(n => n !== null && (!Number.isInteger(n) || n < 0 || n > 5))) fail(400, '个人评分每项须为0–5的整数或留空。');
+        }
+      }
+    }
     for (const score of Object.values(lesson.scores)) {
       if (!score || typeof score !== 'object' || Array.isArray(score)) fail(400, '记分数据格式不正确。');
       for (const field of ['first', 'group', 'phone', 'duty']) {

@@ -470,7 +470,7 @@ function removeMemberAt(cls, g, j) {
   function switchView(v) {
     if (v === 'admin' && !(CLOUD && CLOUD.profile() && CLOUD.profile().isAdmin)) v = 'score';
     view = v;
-    ['score', 'rank', 'pool', 'data', 'admin'].forEach(function (k) {
+    ['score', 'leader', 'rank', 'pool', 'data', 'admin'].forEach(function (k) {
       var el = $('#view-' + k);
       if (el) el.hidden = (k !== v);
     });
@@ -480,6 +480,24 @@ function removeMemberAt(cls, g, j) {
     if (v === 'data') renderData();
     if (v === 'admin') renderAdmin();
     if (v === 'score') renderScore();
+    if (v === 'leader') renderLeader();
+  }
+
+  function renderLeader() {
+    if (!$('#view-leader')) {
+      var section = document.createElement('section');
+      section.id = 'view-leader'; section.className = 'view';
+      $('#main').appendChild(section);
+    }
+    if (window.JFDT_LEADER_RENDER) window.JFDT_LEADER_RENDER({
+      root: $('#view-leader'), state: S,
+      save: function () { save(); },
+      select: function (classId, lessonId) {
+        S.ui.classId = classId; S.ui.lessonId = lessonId;
+        fillClassSelects(); save(false); renderLeader();
+      },
+      openScore: function () { switchView('score'); }
+    });
   }
 
   /* ================= 上课记分视图 ================= */
