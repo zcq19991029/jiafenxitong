@@ -765,7 +765,7 @@ function removeMemberAt(cls, g, j) {
       for (var i = 0; i < GROUP_CAP; i++) {
         var m = g.members[i];
         names += '<td class="c-mem">' + ((m && m.name)
-          ? esc(m.name) + (m.no == null ? '' : ' ' + two(m.no)) + '<small class="member-score-detail">项目 ' + projectScore(lesson,g.no,m) + ' · 全组 ' + fmt(groupTotal(lesson,g.no)) + ' · 本节个人 ' + fmt(projectScore(lesson,g.no,m)+groupTotal(lesson,g.no)-(+s.personal[String(i)]||0)) + '</small>' : '') + '</td>';
+          ? esc(m.name) + (m.no == null ? '' : ' ' + two(m.no)) : '') + '</td>';
         deds += '<td class="c-ded">' + (i < cnt ? ctlPersonal(g.no, m, i, +s.personal[String(i)] || 0) : '') + '</td>';
       }
 

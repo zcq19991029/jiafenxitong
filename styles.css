@@ -47,7 +47,7 @@
   /* 纸质记录表的七个配色（取自 Excel：BDD7EE / EAF2FB / FCE4D6 / FDF3E3 / FBE5E5 / E2EFDA / FFF2CC） */
   --xl-no: #bdd7ee;
   --xl-mem: #eaf2fb;
-  --xl-ded: #fce4d6;
+  --xl-ded: var(--xl-phone);
   --xl-first: #fdf3e3;
   --xl-phone: #fbe5e5;
   --xl-duty: #e2efda;
@@ -853,7 +853,7 @@ dialog::backdrop {
   #printArea .sheet-tb .c-sum { background: #fff2cc; font-size: 9.5pt; font-weight: 700; }
   #printArea .sheet-tb .c-no.duty { color: #1a7f37; }
   #printArea .sheet-tb tbody.is-duty .c-no { color: #1a7f37; }
-  #printArea .sheet-tb .c-ded { background: #fce4d6; color: #b03a2e; font-size: 8pt; }
+  #printArea .sheet-tb .c-ded { background: #fbe5e5; color: #b03a2e; font-size: 8pt; }
 
   /* 组高固定成 mm，13~14 组正好一页 */
   #printArea .sheet-tb tr.gname { height: 8mm; }
@@ -1169,7 +1169,6 @@ input[type=password], input:not([type]) { font: inherit; color: var(--text); bac
   @media(max-width:799px) { .groups { grid-template-columns: minmax(0,1fr); } .groups .gcard { padding: 14px; } }
 }
 
-.member-score-detail {display:block;font-size:12px;font-weight:400;color:var(--text);margin-top:3px;}
 #undoDetail {flex-basis:100%;font-size:13px;color:var(--text);line-height:1.5;margin:4px 0;}
 
 #dlgOperationLog {width:min(760px,94vw);max-height:90dvh;}
