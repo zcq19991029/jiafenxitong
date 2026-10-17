@@ -491,6 +491,7 @@ function removeMemberAt(cls, g, j) {
       if (el) el.hidden = (k !== v);
     });
     $$('#tabs button').forEach(function (b) { b.classList.toggle('on', b.dataset.view === v); });
+    if (UI) UI.setView(v);
     if (v === 'rank') renderRank();
     if (v === 'pool') renderPool();
     if (v === 'data') renderData();
@@ -629,9 +630,11 @@ function removeMemberAt(cls, g, j) {
 
   /** 个人扣分格：点一次 +1；右键 / 长按 −1 */
   function ctlPersonal(gno, m, i, n, fullName) {
-    return '<button class="pchip' + (n ? ' hit' : '') + '" data-g="' + gno + '" data-act="p" data-i="' + i +
-      '" title="' + esc(m.name) + ' 个人扣分次数（点一次扣1分，右键/长按返还1分，双击归零）">' +
-      '<span class="pname">' + esc(fullName ? m.name : m.name.slice(0, 1)) + '</span><span class="n">' + n + '</span></button>';
+    var attrs = ' data-g="' + gno + '" data-i="' + i + '"';
+    return '<span class="personal-control"><button class="pchip' + (n ? ' hit' : '') + '"' + attrs + ' data-act="p" title="' + esc(m.name) + '：点击扣1分">' +
+      '<span class="pname">' + esc(fullName ? m.name : m.name.slice(0, 1)) + '</span><span class="n">' + n + '</span><span class="deduct-action">扣1</span></button>' +
+      '<button class="personal-refund"' + attrs + ' data-act="pr" title="' + esc(m.name) + '：返还1分">返1</button>' +
+      '<button class="personal-reset"' + attrs + ' data-act="pz" title="' + esc(m.name) + '：清空个人扣分">清零</button></span>';
   }
 
   function ctlClear(gno, compact) {
@@ -815,6 +818,12 @@ function removeMemberAt(cls, g, j) {
     var gno = +btn.dataset.g;
     var s = sc(lesson, gno);
     var act = btn.dataset.act;
+    if (act === 'pr' || act === 'pz') {
+      var chip = btn.parentElement.querySelector('.pchip');
+      if (act === 'pr') bumpPersonal(cls, lesson, chip, -1);
+      else setPersonal(cls, lesson, chip, 0);
+      return;
+    }
 
     if (act === 'first') {
       var oldF = s.first ? 1 : 0, newF = oldF ? 0 : 1;
@@ -936,15 +945,7 @@ function removeMemberAt(cls, g, j) {
     $('#groupList').addEventListener(t, lpStop, { passive: true });
   });
 
-  /* 个人扣分：双击归零 */
-  $('#groupList').addEventListener('dblclick', function (e) {
-    var chip = e.target.closest('.pchip');
-    if (!chip) return;
-    var cls = curClass(), lesson = curLesson(cls);
-    if (!cls || !lesson) return;
-    setPersonal(cls, lesson, chip, 0);
-    flash('已把 ' + memberName(cls, +chip.dataset.g, +chip.dataset.i) + ' 的个人扣分归零');
-  });
+  /* 清零使用明确按钮，避免连续两次扣分被浏览器dblclick误判为清零。 */
 
   $('#groupList').addEventListener('change', function (e) {
     var inp = e.target.closest('input.num');

@@ -30,11 +30,11 @@
     var el = target(gno, field, index);
     if (!el || (!undo && !delta)) return;
     clearTimeout(timers.get(el)); el.classList.add('score-feedback-target');
-    animate(el, [{transform:'scale(1)'},{transform:'scale(1.045)',offset:.4},{transform:'scale(1)'}], 180);
-    timers.set(el, setTimeout(function () { el.classList.remove('score-feedback-target'); }, 650));
+    timers.set(el, setTimeout(function () { el.classList.remove('score-feedback-target'); }, 1000));
     var live = document.getElementById('scoreFeedbackStatus');
-    if (!live) { live = document.createElement('div'); live.id = 'scoreFeedbackStatus'; live.className = 'sr-feedback'; live.setAttribute('role','status'); live.setAttribute('aria-live','polite'); document.body.appendChild(live); }
+    if (!live) { live = document.createElement('div'); live.id = 'scoreFeedbackStatus'; live.className = 'score-readout'; live.setAttribute('role','status'); live.setAttribute('aria-live','polite'); document.getElementById('scoreTools').prepend(live); }
     live.textContent = label;
+    if (!el.closest('.gcard')) return;
     var bubble = document.createElement('span'); bubble.className = 'score-delta';
     bubble.textContent = undo ? '已撤销' : ((delta > 0 ? '+' : '−') + Math.abs(delta));
     bubble.setAttribute('aria-hidden','true');
@@ -52,8 +52,8 @@
     bubble.style.top = Math.max(8,r.top - 23) + 'px';
     var bubbles = document.querySelectorAll('.score-delta'); if (bubbles.length >= 8) bubbles[0].remove();
     document.body.appendChild(bubble);
-    animate(bubble,[{opacity:1,translate:'0 0'},{opacity:0,translate:feedbackLane ? '0 0' : '0 -16px'}],500);
-    setTimeout(function () { bubble.remove(); }, 520);
+    animate(bubble,[{opacity:1,offset:0},{opacity:1,offset:.95},{opacity:0,offset:1}],900);
+    setTimeout(function () { bubble.remove(); }, 940);
   }
   function pill() {
     var seg = document.getElementById('layoutSeg'), on = seg && seg.querySelector('button.on');
@@ -73,6 +73,21 @@
     window.scrollTo(x,y); pill();
     animate(host,[{opacity:.65},{opacity:1}],160);
   }
-  window.addEventListener('resize',pill);
-  window.JFDT_UI = {feedback:feedback, clear:clear, pill:pill, layout:layout, reduced:reduced};
+  var tools = document.getElementById('scoreTools'), anchor = document.createComment('score tools home');
+  if (tools) tools.before(anchor);
+  var view = 'score';
+  function setView(v) { view = v; if (tools) tools.hidden = v !== 'score'; }
+  function sidebar() {
+    var wide = window.matchMedia && window.matchMedia('(min-width: 1100px)').matches;
+    document.body.classList.toggle('sidebar-layout',!!wide);
+    if (tools) {
+      if (wide) document.getElementById('topbar').appendChild(tools);
+      else anchor.after(tools);
+      setView(view);
+    }
+    pill();
+  }
+  window.addEventListener('resize',sidebar);
+  sidebar();
+  window.JFDT_UI = {feedback:feedback, clear:clear, pill:pill, layout:layout, reduced:reduced,setView:setView};
 })();

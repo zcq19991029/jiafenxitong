@@ -1073,6 +1073,51 @@ input[type=password], input:not([type]) { font: inherit; color: var(--text); bac
 }
 @media print { .score-delta, .sr-feedback { display: none !important; } }
 
+@media screen {
+  .score-tools { display: flex; flex-direction: column; gap: 10px; }
+  .personal-control { display: flex; gap: 4px; align-items: center; min-width: 0; }
+  .personal-refund, .personal-reset { font: inherit; border: 0; border-radius: 5px; background: var(--panel-soft); color: var(--text); cursor: pointer; padding: 4px 6px; white-space: nowrap; }
+  .personal-refund { color: var(--good); }
+  .deduct-action { color: var(--bad); font-size: 12px; white-space: nowrap; }
+  .groups .gcard .personals { grid-template-columns: 1fr; }
+  .groups .gcard .personal-control .pchip { flex: 1; }
+  .groups .gcard .personal-refund, .groups .gcard .personal-reset { min-height: 44px; min-width: 44px; }
+  .groups .gcard .pchip { gap: 6px; }
+  table.sheet .personal-control { flex-wrap: wrap; justify-content: center; gap: 2px; }
+  table.sheet .personal-control .pchip { width: 100%; justify-content: center; }
+  table.sheet .personal-refund, table.sheet .personal-reset { min-height: 26px; font-size: 11px; padding: 2px 4px; }
+  body.sidebar-layout .topbar { position: fixed; left: 0; top: 0; bottom: 0; width: 310px; padding: 16px; border: 0; border-right: 1px solid var(--line); overflow-y: auto; }
+  body.sidebar-layout .topbar-main { gap: 8px; }
+  body.sidebar-layout .brandtext { flex: 1; }
+  body.sidebar-layout .topbar-main > .spacer { display: none; }
+  body.sidebar-layout .userbox { width: 100%; margin: 4px 0; }
+  body.sidebar-layout .tabs { flex-direction: column; gap: 2px; margin: 12px 0; padding: 0; }
+  body.sidebar-layout .tabs button { text-align: left; padding: 7px 10px; min-height: 32px; }
+  body.sidebar-layout main { margin: 0 0 0 310px; max-width: none; padding: 20px 24px 40px; }
+  body.sidebar-layout .score-tools .lesson-bar { flex-wrap: wrap; gap: 8px; }
+  body.sidebar-layout .score-tools .lesson-bar .field { flex: 1 1 100%; }
+  body.sidebar-layout .score-tools .lesson-bar .field select { flex: 1; width: 0; }
+  body.sidebar-layout .score-tools .spacer { display: none; }
+  body.sidebar-layout #layoutSeg { margin-left: auto; }
+  body.sidebar-layout .score-tools .lesson-meta { gap: 8px; }
+  body.sidebar-layout .score-tools .lesson-meta .field { flex: 1 1 100%; }
+  body.sidebar-layout .score-tools .lesson-meta .field input, body.sidebar-layout .score-tools .lesson-meta .field select { min-width: 0; width: 0; flex: 1; }
+  body.sidebar-layout .score-tools .lesson-meta input.topic { min-width: 0; }
+  body.sidebar-layout #scoreMetrics { grid-template-columns: repeat(2,minmax(0,1fr)); gap: 6px; }
+  body.sidebar-layout #scoreMetrics .metric { padding: 8px; }
+  body.sidebar-layout #scoreMetrics .v { font-size: 18px; }
+  body.sidebar-layout .score-help summary span { display: none; }
+  body.sidebar-layout .pool-banner { flex-wrap: wrap; font-size: 13px; }
+  body.sidebar-layout .pool-banner .btn { margin: 0; }
+  body.sidebar-layout table.sheet { min-width: 1400px; font-size: 14px; }
+  body.sidebar-layout table.sheet .step button { width: 32px; height: 36px; font-size: 18px; }
+  body.sidebar-layout table.sheet .step .num { height: 36px; font-size: 16px; }
+  body.sidebar-layout table.sheet .pchip { min-height: 30px; font-size: 13px; }
+  .score-readout { padding: 8px 10px; border-left: 3px solid var(--accent); background: var(--accent-bg); color: var(--text); font-size: 13px; line-height: 1.6; }
+  body.sidebar-layout .groups { grid-template-columns: repeat(auto-fill,minmax(360px,1fr)); }
+  body.sidebar-layout .local-warn { margin-left: 310px; }
+}
+
 /* Card layout: verified on the first group, shared by all groups. */
 @media screen {
   .groups { grid-template-columns: repeat(2,minmax(0,1fr)); gap: 16px; align-items: stretch; }
@@ -1098,7 +1143,7 @@ input[type=password], input:not([type]) { font: inherit; color: var(--text); bac
   .groups .gcard .step .num { height: 44px; flex: 1 1 44px; width: 44px; padding: 0; border-radius: 6px; background: var(--raise); border-color: var(--line-strong); font-size: 18px; }
   .groups .gcard .toggle { min-height: 44px; padding: 0 8px; border-radius: 6px; border: 0; background: var(--panel-soft); font-size: 14px; }
   .groups .gcard .toggle.on { background: var(--accent-bg); }
-  .groups .gcard .personals { display: grid; grid-template-columns: repeat(2,minmax(0,1fr)); gap: 6px; border-top: 1px solid var(--line); padding-top: 12px; margin-top: 2px; }
+  .groups .gcard .personals { display: grid; grid-template-columns: 1fr; gap: 6px; border-top: 1px solid var(--line); padding-top: 12px; margin-top: 2px; }
   .groups .gcard .plabel { grid-column: 1/-1; color: var(--muted); font-size: 13px; margin-bottom: 2px; padding-right: 48px; }
   .card-feedback-space { min-width: 48px; min-height: 22px; }
   .score-delta.in-card { border: 0; padding: 0; background: transparent; font-size: 13px; }

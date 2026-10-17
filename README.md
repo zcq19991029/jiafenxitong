@@ -1,6 +1,6 @@
 # 夜夜加分助手
 
-面向课堂的分组记分工具：完整姓名卡片、纸质风格表格、个人扣分、项目评价、排行、名单分组、A4打印，以及教师账号间隔离的云端记录。
+面向课堂的分组记分工具：宽屏侧栏、完整姓名卡片、纸质风格表格、个人扣分、项目评价、排行、名单分组、A4打印，以及教师账号间隔离的云端记录。
 
 **[打开正式应用](https://ye-ye-score-api.zcq991029.chatgpt.site/) · [完整图文使用指南](docs/使用指南.md) · [问题反馈](https://github.com/zcq19991029/ye-ye-score-helper/issues)**
 
@@ -68,7 +68,7 @@
 
 界面参考本机 open-claude-ui 的 AGENTS.md、cds-theme.css、CdsButton.tsx、SegmentedControl.tsx 与 ClaudeMotionPresets.ts：采用暖灰表面、陶土强调、轻边框、分段控件和 CSS 缓动，继续使用原生网页，无需引入 React。Excel 计分色与打印样式独立保留。名单导航角标统计全部班级，页内指标统计当前班级并明确标注。
 
-ui-feedback.js仅负责记分高亮、实际增减浮字、撤销定位与布局切换反馈，不保存业务数据。常规微动效160–180ms，浮字500ms；减少动态效果时保留静态反馈。弹窗和操作说明继续使用原生dialog/details的键盘与焦点行为。
+ui-feedback.js仅负责记分高亮、实际增减浮字、撤销定位与布局切换反馈，不保存业务数据。布局微动效160–180ms，记分使用约1秒静态高亮和约0.9秒反馈，不缩放数字；减少动态效果时保留静态反馈。弹窗和操作说明继续使用原生dialog/details的键盘与焦点行为。
 
 前端源文件为 index.html、styles.css、app.js、cloud.js、config.js、roster-import.js、leader-scoring.js、password-ui.js、ui-feedback.js。config.js 的 apiBase 留空即使用同站接口，不放入任何凭据。
 
