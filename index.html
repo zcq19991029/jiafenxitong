@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
-<meta name="theme-color" content="#e8232e">
+<meta name="theme-color" content="#fcfcfb">
 <title>夜夜加分助手 · 《电气接线原理》</title>
 <link rel="stylesheet" href="styles.css">
 </head>
@@ -132,11 +132,14 @@
 
     <div class="metrics" id="scoreMetrics"></div>
 
-    <p class="hint-line" id="scoreHint">
+    <details class="hint-line score-help" id="scoreHint">
+      <summary>操作说明 <span>加减分 · 个人扣分 · 撤销快捷键</span></summary>
+      <p>
       <b>＋ / −</b> 记分 · 数字框<b>可以直接点进去改成任意值</b> ·
       加错了按右上角<b>「↶ 撤销」</b>（最多 60 步，快捷键 <b>Ctrl+Z</b>）或该组卡片的<b>「↺ 清零」</b> ·
       个人扣分：<b>点 = +1</b>，<b>右键 / 手机长按 = −1</b>，<b>双击 = 归零</b>
-    </p>
+      </p>
+    </details>
 
     <div id="groupList"></div>
 
@@ -178,6 +181,7 @@
       <button id="btnPoolAdd" class="btn primary">＋ 添加学生</button>
     </div>
 
+    <p class="pool-scope note">以下只统计当前所选班级；顶部角标统计全部班级的待分配总人数。</p>
     <div class="metrics" id="poolMetrics"></div>
 
     <div class="card">
@@ -436,6 +440,7 @@
   </form>
 </dialog>
 <script src="leader-scoring.js"></script>
+<script src="ui-feedback.js"></script>
 <script src="app.js"></script>
 <script src="password-ui.js"></script>
 </body>

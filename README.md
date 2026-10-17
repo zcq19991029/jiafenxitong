@@ -29,6 +29,10 @@
 
 ## 开发与发布
 
+界面参考本机 open-claude-ui 的 AGENTS.md、cds-theme.css、CdsButton.tsx、SegmentedControl.tsx 与 ClaudeMotionPresets.ts：采用暖灰表面、陶土强调、轻边框、分段控件和 CSS 缓动，继续使用原生网页，无需引入 React。Excel 计分色与打印样式独立保留。名单导航角标统计全部班级，页内指标统计当前班级并明确标注。
+
+ui-feedback.js仅负责记分高亮、实际增减浮字、撤销定位与布局切换反馈，不保存业务数据。常规微动效160–180ms，浮字500ms；减少动态效果时保留静态反馈。弹窗和操作说明继续使用原生dialog/details的键盘与焦点行为。
+
 前端源文件为 index.html、styles.css、app.js、cloud.js、config.js、roster-import.js。config.js 的 apiBase 留空即使用同站接口，不放入任何凭据。
 
 后端源文件为 backend/worker.mjs，首次 D1 迁移为 backend/migrations/0001_initial.sql。密码在服务端加盐派生，服务器只保存会话令牌摘要；所有数据接口校验账号，管理接口校验角色。站点公开的是登录页和程序资源，名单与分数只能通过受保护接口访问。

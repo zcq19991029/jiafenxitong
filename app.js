@@ -75,6 +75,12 @@
   /* 云端模块（cloud.js）。没有它（比如离线打开、或被浏览器拦了 CDN）就退化成纯本机模式，
      界面上会明确写出来，不会偷偷当成"已同步"。 */
   var CLOUD = window.JFDT_CLOUD || null;
+  var UI = window.JFDT_UI;
+  function scoreFeedback(gno, f, i, delta) {
+    if (UI && delta) UI.feedback(gno, f, i, delta,
+      '第 ' + gno + ' 组 ' + (i != null ? memberName(curClass(), gno, +i) + ' 个人分' : FIELD_NAME[f] || f) +
+      ' ' + (delta > 0 ? '+' : '−') + Math.abs(delta));
+  }
   var CLOUD_ON = false;      // 云端真的可用（已登录且已激活）
   var cloudRec = null;       // 最近一次从云端拉到的记录
 
@@ -345,7 +351,8 @@ function removeMemberAt(cls, g, j) {
   }
 
   function undoLabel(op) {
-    var g = '第 ' + op.gno + ' 组';
+    var lesson = getLesson(op.lessonId), cls = lesson && getClass(lesson.classId);
+    var g = (cls ? cls.name + ' · 第' + lesson.seq + '次课 · ' : '') + '第 ' + op.gno + ' 组';
     if (op.reset) return g + ' 本节清零';
     if (op.i != null) {
       return g + ' ' + (op.name || '成员') + ' 个人扣分 ' + op.neu + ' → ' + op.old;
@@ -365,6 +372,9 @@ function removeMemberAt(cls, g, j) {
     var n = (S.undo || []).length;
     b.disabled = !n;
     b.textContent = n ? '↶ 撤销' + (n > 1 ? '（' + n + '）' : '') : '↶ 撤销';
+    var lastLesson = n && getLesson(S.undo[n - 1].lessonId);
+    var lastClass = lastLesson && getClass(lastLesson.classId);
+    if (lastClass && lastClass.id !== S.ui.classId) b.textContent = '↶ 撤销其他班操作';
     b.title = n
       ? '撤销：' + undoLabel(S.undo[n - 1]) + '　（快捷键 Ctrl+Z）'
       : '还没有可撤销的改动';
@@ -382,8 +392,12 @@ function removeMemberAt(cls, g, j) {
     }
     renderUndoBtn();
     if (!op) return false;
+    if (UI) UI.clear();
 
     var key = String(op.gno);
+    var beforeUndo = l.scores[key] || {};
+    var undoChanged = op.reset ? JSON.stringify(beforeUndo) !== JSON.stringify(op.old)
+      : +(op.i != null ? (beforeUndo.personal || {})[op.i] || 0 : beforeUndo[op.f] || 0) !== +op.old;
     if (op.reset) {
       l.scores[key] = op.old;
     } else {
@@ -402,6 +416,7 @@ function removeMemberAt(cls, g, j) {
     else { renderScore(); }
 
     flash('已撤销：' + undoLabel(op));
+    if (UI && undoChanged) UI.feedback(op.gno, op.reset ? null : op.f, op.i, 0, '已撤销：' + undoLabel(op), true);
     return true;
   }
 
@@ -461,6 +476,7 @@ function removeMemberAt(cls, g, j) {
     $$('#layoutSeg button').forEach(function (b) {
       b.classList.toggle('on', b.dataset.l === scoreLayout);
     });
+    if (UI) UI.pill();
   }
 
   /* ================= 视图切换 ================= */
@@ -541,10 +557,11 @@ function removeMemberAt(cls, g, j) {
     var sel = $('#lessonSel');
     sel.innerHTML = ls.map(function (l) {
       return '<option value="' + l.id + '">第 ' + l.seq + ' 次课 · ' + esc(l.date || '') + '</option>';
-    }).join('');
+    }).join('') || '<option value="">暂无课次</option>';
     var lesson = curLesson(cls);
     if (lesson) sel.value = lesson.id;
     sel.disabled = !ls.length;
+    renderUndoBtn();
 
     $('#noLessonHint').hidden = !!lesson;
     $('#lessonMeta').hidden = !lesson;
@@ -557,6 +574,7 @@ function removeMemberAt(cls, g, j) {
     renderLessonMeta(cls, lesson);
     renderGroups(cls, lesson);
     renderMetrics(cls, lesson);
+    if (UI) UI.pill();
   }
 
   function renderLessonMeta(cls, lesson) {
@@ -597,10 +615,10 @@ function removeMemberAt(cls, g, j) {
     var v = +s[f] || 0;
     var neg = (f === 'phone' || f === 'personal') && v > 0;
     return '<div class="step">' +
-      '<button data-g="' + gno + '" data-act="d" data-f="' + f + '" data-max="' + max + '" title="减 1">−</button>' +
+      '<button data-g="' + gno + '" data-act="d" data-f="' + f + '" data-max="' + max + '" title="' + (f === 'phone' ? '减少扣分次数，返还1分' : '减 1') + '">−</button>' +
       '<input class="num' + (neg ? ' neg' : '') + '" data-g="' + gno + '" data-f="' + f + '" data-max="' + max +
         '" size="1" inputmode="numeric" value="' + v + '" title="' + hint + '：可以直接点进来输数字（0-' + max + '）">' +
-      '<button data-g="' + gno + '" data-act="i" data-f="' + f + '" data-max="' + max + '" title="加 1">+</button>' +
+      '<button data-g="' + gno + '" data-act="i" data-f="' + f + '" data-max="' + max + '" title="' + (f === 'phone' ? '增加扣分次数，扣1分' : '加 1') + '">+</button>' +
     '</div>';
   }
 
@@ -610,10 +628,10 @@ function removeMemberAt(cls, g, j) {
   }
 
   /** 个人扣分格：点一次 +1；右键 / 长按 −1 */
-  function ctlPersonal(gno, m, i, n) {
+  function ctlPersonal(gno, m, i, n, fullName) {
     return '<button class="pchip' + (n ? ' hit' : '') + '" data-g="' + gno + '" data-act="p" data-i="' + i +
-      '" title="' + esc(m.name) + ' 个人扣分（点=+1，右键/长按=−1）">' +
-      esc(m.name.slice(0, 1)) + '<span class="n">' + n + '</span></button>';
+      '" title="' + esc(m.name) + ' 个人扣分次数（点一次扣1分，右键/长按返还1分，双击归零）">' +
+      '<span class="pname">' + esc(fullName ? m.name : m.name.slice(0, 1)) + '</span><span class="n">' + n + '</span></button>';
   }
 
   function ctlClear(gno, compact) {
@@ -636,29 +654,26 @@ function removeMemberAt(cls, g, j) {
       var cnt = memberCount(g);
       var maxPhone = cnt || 10;
       var names = cnt
-        ? g.members.slice(0, cnt).map(function (m) { return esc(m.name); }).join(' · ')
+        ? g.members.slice(0, cnt).map(function (m) { return '<span class="member-name">' + esc(m.name) + '</span>'; }).join('')
         : '<span style="color:var(--muted);font-weight:400">（未录入名单）</span>';
 
       var personal = cnt
-        ? '<div class="personals"><span class="plabel">个人扣分</span>' +
+        ? '<div class="personals"><span class="plabel">个人扣分次数 <small>每次 −1 分</small></span>' +
           g.members.slice(0, cnt).map(function (m, i) {
-            return ctlPersonal(g.no, m, i, +s.personal[String(i)] || 0);
+            return ctlPersonal(g.no, m, i, +s.personal[String(i)] || 0, true);
           }).join('') + '</div>'
         : '';
 
       return '' +
       '<div class="gcard' + (duty ? ' is-duty' : '') + (touched(lesson, g.no) ? ' touched' : '') + '" data-card="' + g.no + '">' +
         '<div class="gcard-head">' +
-          '<div style="min-width:0">' +
-            '<div class="gnames"><span class="gnum">' + g.no + '</span>' + names +
-              (duty ? '<span class="dutytag">值日</span>' : '') + '</div>' +
-          '</div>' +
-          '<div class="gsum">' +
-            '<div class="k">本节合计</div>' +
-            ctlSum(g.no, total, groupCum(cls, g.no)) +
-            ctlClear(g.no, false) +
-          '</div>' +
+          '<div class="group-identity"><span class="gnum">第 ' + g.no + ' 组</span>' +
+            (duty ? '<span class="dutytag">值日</span>' : '') + '</div>' +
+          '<div class="gsum"><span class="k">本节</span>' +
+            '<div class="v ' + signClass(total) + '" data-total="' + g.no + '">' + fmt(total) + '</div></div>' +
         '</div>' +
+        '<div class="gnames">' + names + '</div>' +
+        '<div class="gcard-secondary"><span class="c" data-cum="' + g.no + '">累计 ' + fmt(groupCum(cls, g.no)) + '</span><span class="card-feedback-space" aria-hidden="true"></span>' + ctlClear(g.no, false) + '</div>' +
         '<div class="gctl">' +
           '<div>' +
             '<div class="lbl">首个正确 +1</div>' +
@@ -669,11 +684,11 @@ function removeMemberAt(cls, g, j) {
             ctlStep(g.no, 'group', s, maxOf('group', maxPhone), '小组分') +
           '</div>' +
           '<div>' +
-            '<div class="lbl">手机未入袋 −1/人</div>' +
+            '<div class="lbl" title="增加次数即扣分，每次扣1分">手机未入袋次数</div><div class="deduction-note">每次 −1 分</div>' +
             ctlStep(g.no, 'phone', s, maxPhone, '手机未入袋') +
           '</div>' +
           '<div>' +
-            '<div class="lbl">值日分 0-5' + (duty ? '（本组值日）' : '') + '</div>' +
+            '<div class="lbl">值日分 0-5</div>' +
             ctlStep(g.no, 'duty', s, maxOf('duty', maxPhone), '值日分') +
           '</div>' +
         '</div>' +
@@ -749,14 +764,19 @@ function removeMemberAt(cls, g, j) {
     var ranked = cls.groups.map(function (g) { return { no: g.no, t: groupCum(cls, g.no) }; })
       .sort(function (a, b) { return b.t - a.t; });
     var lead = ranked[0] || { no: '-', t: 0 };
+    var leaders = ranked.filter(function (r) { return r.t === lead.t; });
+    var allZero = ranked.every(function (r) { return r.t === 0; });
+    var bestCount = best ? cls.groups.filter(function(g){ return groupTotal(lesson,g.no) === best.t; }).length : 0;
+    var leadText = allZero ? '暂无领先' : leaders.length > 1
+      ? '并列领先 <small>' + (leaders.length <= 3 ? leaders.map(function(r){return '第' + r.no + '组';}).join('、') : leaders.length + '个小组') + ' · ' + fmt(lead.t) + '</small>'
+      : '第 ' + lead.no + ' 组 <small>' + fmt(lead.t) + '</small>';
 
     $('#scoreMetrics').innerHTML =
       '<div class="metric"><div class="k">已记分小组</div><div class="v">' + done +
         ' <small>/ ' + cls.groups.length + ' 组</small></div></div>' +
       '<div class="metric"><div class="k">本节最高</div><div class="v ' + signClass(best ? best.t : 0) + '">' +
-        (best && done ? fmt(best.t) + ' <small>第 ' + best.no + ' 组</small>' : '—') + '</div></div>' +
-      '<div class="metric"><div class="k">累计领先</div><div class="v good">第 ' + lead.no +
-        ' 组 <small>' + fmt(lead.t) + '</small></div></div>' +
+        (best && done ? fmt(best.t) + ' <small>' + (bestCount > 1 ? bestCount + '组并列' : '第 ' + best.no + ' 组') + '</small>' : '—') + '</div></div>' +
+      '<div class="metric"><div class="k">累计领先</div><div class="v' + (allZero ? '' : ' good') + '">' + leadText + '</div></div>' +
       '<div class="metric"><div class="k">已记录课次</div><div class="v">' + ls.length + ' <small>次</small></div></div>';
   }
 
@@ -815,6 +835,8 @@ function removeMemberAt(cls, g, j) {
     save();
     refreshCard(cls, lesson, gno);
     renderMetrics(cls, lesson);
+    if (act === 'first') scoreFeedback(gno, 'first', null, newF - oldF);
+    else if (act === 'i' || act === 'd') scoreFeedback(gno, f, null, (f === 'phone' ? -1 : 1) * (newV - oldV));
   });
 
   /** 个人扣分走这里，±1 和归零都记录、都可撤销。
@@ -833,6 +855,7 @@ function removeMemberAt(cls, g, j) {
     save();
     refreshCard(cls, lesson, gno);
     renderMetrics(cls, lesson);
+    scoreFeedback(gno, null, i, old - neu);
   }
 
   /** 直接把某个成员的个人扣分设成指定值（双击归零用） */
@@ -849,6 +872,7 @@ function removeMemberAt(cls, g, j) {
     save();
     refreshCard(cls, lesson, gno);
     renderMetrics(cls, lesson);
+    scoreFeedback(gno, null, i, old - val);
   }
 
   function memberName(cls, gno, i) {
@@ -939,6 +963,7 @@ function removeMemberAt(cls, g, j) {
     save();
     refreshCard(cls, lesson, gno);
     renderMetrics(cls, lesson);
+    scoreFeedback(gno, f, null, (f === 'phone' ? -1 : 1) * (neu - old));
   });
 
   /* ================= 排行视图 ================= */
@@ -958,7 +983,7 @@ function removeMemberAt(cls, g, j) {
     var maxAbs = Math.max(1, Math.max.apply(null, rows.map(function (r) { return Math.abs(r.t); })));
     $('#groupRank').innerHTML = rows.length
       ? '<div class="bars">' + rows.map(function (r, i) {
-          var w = Math.max(2, Math.round(Math.abs(r.t) / maxAbs * 100));
+          var w = r.t === 0 ? 0 : Math.max(2, Math.round(Math.abs(r.t) / maxAbs * 100));
           return '<div class="bar-row">' +
             '<div class="who">' + (i + 1) + '. 第 ' + r.no + ' 组</div>' +
             '<div class="bar-track"><div class="bar-fill' + (r.t < 0 ? ' neg' : (i === 0 && r.t > 0 ? ' gold' : '')) + '" style="width:' + w + '%"></div></div>' +
@@ -1030,7 +1055,7 @@ function removeMemberAt(cls, g, j) {
   function updatePoolBadge() {
     var b = $('#tabPoolBadge');
     var n = pendingTotal();
-    if (n > 0) { b.hidden = false; b.textContent = n; }
+    if (n > 0) { b.hidden = false; b.textContent = '全部班级 ' + n + ' 人'; }
     else { b.hidden = true; b.textContent = ''; }
   }
 
@@ -1053,7 +1078,7 @@ function removeMemberAt(cls, g, j) {
         ' <small>人</small></div></div>' +
       '<div class="metric"><div class="k">已分配小组</div><div class="v good">' + nAssigned +
         ' <small>人</small></div></div>' +
-      '<div class="metric"><div class="k">待分配</div><div class="v ' + (nPending ? 'neg' : '') + '">' +
+      '<div class="metric"><div class="k">本班待分配</div><div class="v ' + (nPending ? 'neg' : '') + '">' +
         nPending + ' <small>人</small></div></div>' +
       '<div class="metric"><div class="k">分配率</div><div class="v">' +
         (rows.length ? Math.round(nAssigned / rows.length * 100) : 0) + ' <small>%</small></div></div>';
@@ -1719,7 +1744,8 @@ function removeMemberAt(cls, g, j) {
     S.ui.scoreLayout = scoreLayout;
     $$('#layoutSeg button').forEach(function (x) { x.classList.toggle('on', x === b); });
     save(false);
-    renderScore();
+    if (UI) UI.layout(renderScore);
+    else renderScore();
   });
 
   /* 新开一课 */
