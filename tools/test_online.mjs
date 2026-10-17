@@ -23,6 +23,8 @@ function page(storage = {}) {
   const dom = new JSDOM(fs.readFileSync('index.html', 'utf8').replace(/<script[^>]*>[\s\S]*?<\/script>/g, ''), {
     url: ORIGIN + '/ye-ye-score-helper/', runScripts: 'outside-only', pretendToBeVisual: true, virtualConsole: vc });
   const w = dom.window;
+  w.HTMLDialogElement.prototype.showModal = function () { this.setAttribute('open',''); };
+  w.HTMLDialogElement.prototype.close = function (value='') { this.returnValue=value; this.removeAttribute('open'); this.dispatchEvent(new w.Event('close')); };
   w.JFDT_CONFIG = { apiBase: 'https://api.example.test' };
   w.SEED_DATA = structuredClone(seed);
   Object.entries(storage).forEach(([key, value]) => w.localStorage.setItem(key, value));
@@ -36,7 +38,7 @@ function page(storage = {}) {
     return worker.fetch(new Request(url, { ...options, headers: { ...options.headers, Origin: ORIGIN, 'CF-Connecting-IP': '127.0.0.3' } }), env);
   };
   w.confirm = () => true; w.alert = message => network.alerts.push(message); w.print = () => {};
-  for (const file of ['roster-import.js', 'cloud.js', 'app.js']) w.eval(fs.readFileSync(file, 'utf8'));
+  for (const file of ['roster-import.js', 'cloud.js', 'app.js', 'password-ui.js']) w.eval(fs.readFileSync(file, 'utf8'));
   dom.network = network; doms.push(dom);
   return dom;
 }
@@ -153,6 +155,29 @@ env.sqlite.prepare('UPDATE score_states SET updated_at=? WHERE owner_id=?').run(
 q(a, '#btnSyncNow').click();
 await new Promise(resolve => setTimeout(resolve, 30));
 check('refreshing cloud data preserves the currently selected class', q(a, '#classSel').value === seed.classes[1].id);
+q(teacherPage, '#btnMe').click(); q(teacherPage, '#btnChangePassword').click();
+check('change password dialog opens from profile', q(teacherPage, '#dlgPassword').open);
+q(teacherPage, '#oldPassword').value = PASSWORD;
+q(teacherPage, '#newPassword').value = 'abcdef'; q(teacherPage, '#newPasswordConfirm').value = 'not-match';
+q(teacherPage, '#passwordForm').dispatchEvent(new teacherPage.window.Event('submit', {cancelable:true}));
+check('password mismatch is shown before submission', !q(teacherPage, '#passwordMsg').hidden);
+q(teacherPage, '#newPasswordConfirm').value = 'abcdef';
+q(teacherPage, '#passwordForm').dispatchEvent(new teacherPage.window.Event('submit', {cancelable:true}));
+await until(()=>!q(teacherPage,'#gate').hidden);
+check('password change returns to login and clears fields', q(teacherPage,'#oldPassword').value === '' && text(teacherPage,'#gateMsg').includes('密码已修改'));
+const resetUi = page(); q(resetUi,'#btnForgotPassword').click();
+check('forgot password opens the reset form', !q(resetUi,'#gateReset').hidden);
+q(a,'#adminResetUsername').value = 'teacher-ui'; q(a,'#btnIssueReset').click();
+await until(()=>text(a,'#adminResetResult').includes('一次性重置码：'));
+check('administrator UI issues a reset code', text(a,'#adminResetResult').includes('30 分钟'));
+const resetCode = text(a,'#adminResetResult').split('一次性重置码：')[1].slice(0,32);
+for(const [id,value] of Object.entries({resetUsername:'teacher-ui',resetCode,resetPassword:'ghijkl',resetConfirm:'ghijkl'})) q(resetUi,'#'+id).value=value;
+q(resetUi,'#btnResetPassword').click();
+await until(()=>!q(resetUi,'#gateLogin').hidden);
+check('reset UI returns to login and clears reset secrets', text(resetUi,'#gateMsg').includes('密码已重置') && q(resetUi,'#resetCode').value === '' && q(resetUi,'#resetPassword').value === '');
+q(resetUi,'#loginUsername').value='teacher-ui'; q(resetUi,'#loginPassword').value='ghijkl'; q(resetUi,'#btnAccountLogin').click();
+await until(()=>q(resetUi,'#gate').hidden);
+check('teacher signs in using reset password through the UI', resetUi.window.JFDT_CLOUD.profile().username==='teacher-ui');
 check('no unexpected frontend exceptions', errors.length === 0);
 doms.forEach(dom => dom.window.close()); env.sqlite.close();
 console.log(`Frontend and Worker integration: ${passed} passed, 0 failed`);

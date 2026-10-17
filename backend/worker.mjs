@@ -38,6 +38,9 @@ async function bodyOf(request) {
   } catch { fail(400, 'JSON 格式不正确。'); }
 }
 function text(value, maximum = 80) { return typeof value === 'string' ? value.trim().slice(0, maximum) : ''; }
+function validatePassword(password) {
+  if (typeof password !== 'string' || password.length < 6 || password.length > 128) fail(400, '密码长度需为 6–128 位。');
+}
 function validateState(data) {
   if (!data || !Array.isArray(data.classes) || !Array.isArray(data.lessons) || data.classes.length > 100 || data.lessons.length > 3000) {
     fail(400, '班级或课次数据格式不正确。');
@@ -108,7 +111,7 @@ async function register(request, env, body) {
   const username = text(body.username, 32).toLowerCase();
   if (!/^[a-z0-9][a-z0-9_.-]{2,31}$/.test(username)) fail(400, '账号需为 3–32 位字母、数字、下划线、点或短横线。');
   const password = body.password;
-  if (typeof password !== 'string' || password.length < 10 || password.length > 128) fail(400, '密码长度需为 10–128 位。');
+  validatePassword(password);
   const display = text(body.displayName);
   if (!display) fail(400, '请填写教师姓名或显示名。');
   await throttle(request, env, username, 'register');
@@ -155,6 +158,33 @@ async function route(request, env) {
   if (path === '/api/health' && method === 'GET') return json({ ok: true, service: 'ye-ye-score-api', version: 2 });
   if (!env.DB) fail(503, '数据库尚未配置。');
   if (path === '/api/auth/register' && method === 'POST') return register(request, env, await bodyOf(request));
+  if (path === '/api/auth/reset-password' && method === 'POST') {
+    const body = await bodyOf(request);
+    const username = text(body.username, 32).toLowerCase();
+    validatePassword(body.password);
+    await throttle(request, env, username, 'reset-password');
+    const code = text(body.code, 128).toUpperCase();
+    const codeHash = await digest(code);
+    const target = await env.DB.prepare('SELECT * FROM users WHERE username=?').bind(username).first();
+    if (!target || !code) fail(400, '账号或重置码无效、已使用或已过期。');
+    const now = Math.floor(Date.now() / 1000);
+    if (target.role === 'admin' && env.PASSWORD_RECOVERY_CODE && equal(codeHash, await digest(env.PASSWORD_RECOVERY_CODE.toUpperCase()))) {
+      await env.DB.prepare('INSERT OR IGNORE INTO password_resets(token_hash,user_id,expires_at,created_by) VALUES(?,?,?,?)')
+        .bind(codeHash, target.id, now + 1800, 'site-owner').run();
+    }
+    const salt = random(16), hash = await passwordHash(body.password, salt);
+    const result = await env.DB.batch([
+      env.DB.prepare(`UPDATE users SET password_hash=?,password_salt=? WHERE id=? AND EXISTS
+        (SELECT 1 FROM password_resets WHERE token_hash=? AND user_id=? AND used_at IS NULL AND expires_at>?)`)
+        .bind(hash, salt, target.id, codeHash, target.id, now),
+      env.DB.prepare(`UPDATE password_resets SET used_at=? WHERE user_id=? AND used_at IS NULL AND
+        EXISTS(SELECT 1 FROM users WHERE id=? AND password_salt=?)`).bind(now, target.id, target.id, salt),
+      env.DB.prepare(`DELETE FROM sessions WHERE user_id=? AND EXISTS(SELECT 1 FROM users WHERE id=? AND password_salt=?)`)
+        .bind(target.id, target.id, salt)
+    ]);
+    if (!result[0].meta.changes) fail(400, '账号或重置码无效、已使用或已过期。');
+    return json({ ok: true });
+  }
   if (path === '/api/auth/login' && method === 'POST') {
     const body = await bodyOf(request);
     const username = text(body.username, 32).toLowerCase();
@@ -167,6 +197,24 @@ async function route(request, env) {
     return json(await createSession(user, env));
   }
   const user = await authenticate(request, env);
+  if (path === '/api/auth/change-password' && method === 'POST') {
+    const body = await bodyOf(request);
+    validatePassword(body.password);
+    await throttle(request, env, user.username, 'change-password');
+    if (typeof body.oldPassword !== 'string' || body.oldPassword.length > 128 ||
+        !equal(await passwordHash(body.oldPassword, user.password_salt), user.password_hash)) fail(400, '原密码不正确。');
+    const salt = random(16), hash = await passwordHash(body.password, salt);
+    const result = await env.DB.batch([
+      env.DB.prepare('UPDATE users SET password_hash=?,password_salt=? WHERE id=? AND password_hash=?')
+        .bind(hash, salt, user.id, user.password_hash),
+      env.DB.prepare('DELETE FROM sessions WHERE user_id=? AND EXISTS(SELECT 1 FROM users WHERE id=? AND password_salt=?)')
+        .bind(user.id, user.id, salt),
+      env.DB.prepare('UPDATE password_resets SET used_at=? WHERE user_id=? AND used_at IS NULL AND EXISTS(SELECT 1 FROM users WHERE id=? AND password_salt=?)')
+        .bind(Math.floor(Date.now()/1000), user.id, user.id, salt)
+    ]);
+    if (!result[0].meta.changes) fail(409, '密码已在其他地方修改，请重新登录。');
+    return json({ ok: true });
+  }
   if (path === '/api/auth/me' && method === 'GET') return json({ user: publicUser(user) });
   if (path === '/api/auth/logout' && method === 'POST') {
     await env.DB.prepare('DELETE FROM sessions WHERE token_hash=?').bind(user.token_hash).run();
@@ -195,6 +243,19 @@ async function route(request, env) {
   }
   if (!path.startsWith('/api/admin/')) fail(404, '接口不存在。');
   if (user.role !== 'admin') fail(403, '只有管理员能操作。', 'forbidden');
+  if (path === '/api/admin/password-reset' && method === 'POST') {
+    const body = await bodyOf(request);
+    await throttle(request, env, user.username, 'issue-password-reset');
+    const target = await env.DB.prepare('SELECT id FROM users WHERE username=?').bind(text(body.username,32).toLowerCase()).first();
+    if (!target) fail(404, '没有找到该教师账号。');
+    const code = random(16).toUpperCase(), expiresAt = Math.floor(Date.now()/1000) + 1800;
+    await env.DB.batch([
+      env.DB.prepare('UPDATE password_resets SET used_at=? WHERE user_id=? AND used_at IS NULL').bind(Math.floor(Date.now()/1000), target.id),
+      env.DB.prepare('INSERT INTO password_resets(token_hash,user_id,expires_at,created_by) VALUES(?,?,?,?)')
+        .bind(await digest(code), target.id, expiresAt, user.id)
+    ]);
+    return json({ code, expiresAt }, 201);
+  }
   if (path === '/api/admin/invites' && method === 'POST') {
     const body = await bodyOf(request);
     const count = Math.min(50, Math.max(1, Math.trunc(Number(body.count) || 1)));

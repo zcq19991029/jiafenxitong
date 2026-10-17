@@ -18,12 +18,12 @@ const version = commit + (dirty ? '-dirty' : '');
 const types = { '.html': 'text/html; charset=utf-8', '.js': 'application/javascript; charset=utf-8',
   '.css': 'text/css; charset=utf-8', '.png': 'image/png', '.json': 'application/json; charset=utf-8' };
 const assets = {};
-for (const name of ['index.html', 'styles.css', 'app.js', 'cloud.js', 'config.js', 'roster-import.js',
+for (const name of ['index.html', 'styles.css', 'app.js', 'cloud.js', 'config.js', 'roster-import.js', 'password-ui.js',
   'assets/school-logo.png', 'assets/school-logo-mark.png']) {
   let bytes = fs.readFileSync(path.join(root, name));
   if (name === 'index.html') {
     let html = bytes.toString('utf8');
-    for (const asset of ['styles.css', 'data.js', 'config.js', 'roster-import.js', 'cloud.js', 'app.js']) {
+    for (const asset of ['styles.css', 'data.js', 'config.js', 'roster-import.js', 'cloud.js', 'app.js', 'password-ui.js']) {
       html = html.replace('"' + asset + '"', '"' + asset + '?v=' + version + '"');
     }
     html = html.replace('</head>', '<meta name="build-commit" content="' + version + '">\n</head>');
@@ -64,9 +64,12 @@ export default {
 `;
 fs.writeFileSync(path.join(out, 'server/index.js'), source);
 fs.copyFileSync(path.join(root, '.openai/hosting.json'), path.join(out, '.openai/hosting.json'));
-const schema = fs.readFileSync(path.join(root, 'backend/migrations/0001_initial.sql'), 'utf8');
-fs.writeFileSync(path.join(out, '.openai/drizzle/0001_initial.sql'), schema.replace(/;\n(?=\S)/g, ';\n--> statement-breakpoint\n'));
+const migrations = fs.readdirSync(path.join(root, 'backend/migrations')).filter(name => name.endsWith('.sql')).sort();
+for (const name of migrations) {
+  const schema = fs.readFileSync(path.join(root, 'backend/migrations', name), 'utf8');
+  fs.writeFileSync(path.join(out, '.openai/drizzle', name), schema.replace(/;\n(?=\S)/g, ';\n--> statement-breakpoint\n'));
+}
 fs.writeFileSync(path.join(out, '.openai/drizzle/meta/_journal.json'), JSON.stringify({ version: '7', dialect: 'sqlite', entries: [
-  { idx: 0, version: '6', when: 1792195200000, tag: '0001_initial', breakpoints: true }
+  ...migrations.map((name, idx) => ({idx, version:'6', when:1792195200000 + idx * 1000, tag:name.replace(/\.sql$/, ''), breakpoints:true}))
 ] }, null, 2));
 console.log('Built one Worker + D1 application:', version);

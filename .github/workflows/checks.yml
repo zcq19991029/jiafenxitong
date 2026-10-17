@@ -18,6 +18,7 @@ jobs:
       - name: Check database and application behavior
         run: |
           node tools/test_backend.mjs
+          node tools/test_passwords.mjs
           node tools/test_online.mjs
           node tools/build_site.mjs
           node tools/test_site.mjs

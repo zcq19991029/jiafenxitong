@@ -1764,7 +1764,7 @@ function removeMemberAt(cls, g, j) {
   function gateShow(which, msg, info) {
     document.body.classList.add('gated');
     $('#gate').hidden = false;
-    ['login', 'invite', 'offline'].forEach(function (k) { $('#gate' + k[0].toUpperCase() + k.slice(1)).hidden = (k !== which); });
+    ['login', 'invite', 'offline', 'reset'].forEach(function (k) { var node = $('#gate' + k[0].toUpperCase() + k.slice(1)); if (node) node.hidden = (k !== which); });
     var m = $('#gateMsg');
     m.hidden = !msg;
     m.textContent = msg || '';
@@ -2137,7 +2137,7 @@ function removeMemberAt(cls, g, j) {
     var code = $('#inviteCode').value.trim();
     if (!code) { gateShow('invite', '请先填写邀请码。', true); return; }
     var password = $('#regPassword').value;
-    if (password.length < 10 || password !== $('#regConfirm').value) { gateShow('invite', '密码至少 10 位，且两次输入须一致。'); return; }
+    if (password.length < 6 || password.length > 128 || password !== $('#regConfirm').value) { gateShow('invite', '密码需为 6–128 位，且两次输入须一致。'); return; }
     setGateBusy(true);
     CLOUD.register($('#regUsername').value.trim(), password, $('#regName').value.trim(), code).then(function () {
       setGateBusy(false);

@@ -7,6 +7,7 @@ export const PASSWORD = 'Test-only-password-123';
 export function environment() {
   const sqlite = new DatabaseSync(':memory:');
   sqlite.exec(fs.readFileSync('backend/migrations/0001_initial.sql', 'utf8'));
+  sqlite.exec(fs.readFileSync('backend/migrations/0002_password_resets.sql', 'utf8'));
   function statement(sql, values = []) {
     const execute = () => {
       const result = sqlite.prepare(sql).run(...values);

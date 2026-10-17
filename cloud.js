@@ -189,6 +189,16 @@
   });
   global.JFDT_CLOUD = {
     generation: 2, boot: boot, login: login, register: register, signOut: signOut,
+    changePassword: function (oldPassword, password) {
+      return request('/api/auth/change-password', 'POST', {oldPassword: oldPassword, password: password}).then(function (r) {
+        clearTimeout(pushTimer); clearTimeout(retryTimer); pendingFn = null;
+        client = null; profile = null;
+        global.localStorage.removeItem(SESSION_KEY);
+        if (handlers.onNeedLogin) handlers.onNeedLogin('密码已修改，请使用新密码重新登录。');
+        return r;
+      });
+    },
+    resetPassword: function (username, code, password) { return request('/api/auth/reset-password', 'POST', {username:username, code:code, password:password}); },
     available: function () { return ready; }, profile: function () { return profile; },
     pull: pull, touch: touch, flush: flush, cancelPending: cancelPending, acceptRemote: acceptRemote, forcePush: forcePush,
     hasConflict: hasConflict, reportConflict: reportConflict,
@@ -200,6 +210,7 @@
       });
     },
     admin: {
+      resetPassword: function (username) { return request('/api/admin/password-reset', 'POST', {username:username}); },
       createInvites: function (count, note, role) { return request('/api/admin/invites', 'POST', { count: count, note: note, role: role }); },
       listInvites: function () { return request('/api/admin/invites'); },
       listTeachers: function () { return request('/api/admin/teachers'); },
