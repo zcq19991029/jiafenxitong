@@ -1193,3 +1193,8 @@ table.sheet .step button, table.sheet .personal-refund, table.sheet .deduct-acti
 table.sheet .pchip.hit .n { color: var(--bad); }
 table.sheet .toggle.on { color: var(--good); }
 table.sheet td.c-sum .c { font-size: 13px; color: var(--text); }
+
+.semester-score {display:block;font-size:13px;font-weight:400;line-height:1.5;color:var(--text);white-space:nowrap;}
+.semester-score b {font-size:16px;font-variant-numeric:tabular-nums;}
+.member-name .semester-score {display:inline-block;margin-left:6px;}
+.semester-summary {font-size:16px;font-weight:600;padding:14px;}

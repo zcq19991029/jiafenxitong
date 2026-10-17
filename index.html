@@ -30,7 +30,7 @@
   <nav class="tabs" id="tabs">
     <button data-view="score" class="on">上课记分</button>
     <button data-view="leader">组内个人评分</button>
-    <button data-view="rank">排行总览</button>
+    <button data-view="rank">本学期总分</button>
     <button data-view="pool">待分配名单<em id="tabPoolBadge" hidden></em></button>
     <button data-view="data">数据与备份</button>
     <button data-view="admin" id="tabAdmin" hidden>管理</button>
@@ -162,10 +162,11 @@
       <button id="btnPrintRank" class="btn">打印 / 导出 PDF</button>
     </div>
 
-    <h2 class="sec-title">小组累计排行</h2>
+    <p id="semesterSummary" class="card semester-summary" role="status"></p>
+    <h2 class="sec-title">本学期全组加分排行</h2>
     <div class="card tablewrap" id="groupRank"></div>
 
-    <h2 class="sec-title">个人总分排行 <span class="hint">全组加分 + 个人项目分 − 个人扣分</span></h2>
+    <h2 class="sec-title">本学期个人总分 <span class="hint">全组加分 + 个人项目分 − 个人扣分</span></h2>
     <div class="card tablewrap" id="memberRank"></div>
 
     <h2 class="sec-title">逐节得分明细</h2>

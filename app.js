@@ -656,9 +656,14 @@ function removeMemberAt(cls, g, j) {
     '</div>';
   }
 
+  function semesterBadge(cls,gno,index) {
+    var m=memberTotals(cls).find(function(m){return m.gno===gno && m.sid===cls.groups.find(function(g){return g.no===gno;}).members[index].sid && m.name===cls.groups.find(function(g){return g.no===gno;}).members[index].name;});
+    return '<span class="semester-score" data-semester-group="'+gno+'" data-semester-index="'+index+'" title="本学期全部课次：个人项目分＋全组加分−个人扣分">学期 <b>'+fmt(m?m.total:0)+'</b></span>';
+  }
+
   function ctlSum(gno, total, cumVal) {
     return '<div class="v ' + signClass(total) + '" data-total="' + gno + '">' + fmt(total) + '</div>' +
-      '<div class="c" data-cum="' + gno + '">累计 ' + fmt(cumVal) + '</div>';
+      '<div class="c" data-cum="' + gno + '">学期全组 ' + fmt(cumVal) + '</div>';
   }
 
   /** 个人扣分格：点一次 +1；右键 / 长按 −1 */
@@ -690,7 +695,7 @@ function removeMemberAt(cls, g, j) {
       var cnt = memberCount(g);
       var maxPhone = cnt || 10;
       var names = cnt
-        ? g.members.slice(0, cnt).map(function (m) { return '<span class="member-name">' + esc(m.name) + '</span>'; }).join('')
+        ? g.members.slice(0, cnt).map(function (m,i) { return '<span class="member-name">' + esc(m.name) + semesterBadge(cls,g.no,i) + '</span>'; }).join('')
         : '<span style="color:var(--muted);font-weight:400">（未录入名单）</span>';
 
       var personal = cnt
@@ -765,7 +770,7 @@ function removeMemberAt(cls, g, j) {
       for (var i = 0; i < GROUP_CAP; i++) {
         var m = g.members[i];
         names += '<td class="c-mem">' + ((m && m.name)
-          ? esc(m.name) + (m.no == null ? '' : ' ' + two(m.no)) : '') + '</td>';
+          ? esc(m.name) + (m.no == null ? '' : ' ' + two(m.no)) + semesterBadge(cls,g.no,i) : '') + '</td>';
         deds += '<td class="c-ded">' + (i < cnt ? ctlPersonal(g.no, m, i, +s.personal[String(i)] || 0) : '') + '</td>';
       }
 
@@ -824,7 +829,9 @@ function removeMemberAt(cls, g, j) {
     var v = $('[data-total="' + gno + '"]', card);
     v.textContent = fmt(t);
     v.className = 'v ' + signClass(t);
-    $('[data-cum="' + gno + '"]', card).textContent = '累计 ' + fmt(groupCum(cls, gno));
+    $('[data-cum="' + gno + '"]', card).textContent = '学期全组 ' + fmt(groupCum(cls, gno));
+    var totals=memberTotals(cls);
+    $$('[data-semester-group]',card).forEach(function(el){var member=cls.groups.find(function(g){return g.no===gno;}).members[+el.dataset.semesterIndex];var total=totals.find(function(m){return m.gno===gno && m.name===member.name && m.sid===member.sid;});el.querySelector('b').textContent=fmt(total?total.total:0);});
     card.classList.toggle('touched', touched(lesson, gno));
     $$('.num', card).forEach(function (inp) {
       var f = inp.dataset.f;
@@ -1031,10 +1038,11 @@ function removeMemberAt(cls, g, j) {
 
     /* 个人排行 */
     var ms = memberTotals(cls);
+    $('#semesterSummary').textContent = cls.name+' · '+ls.length+'次课 · '+ms.length+'名已分组学生 · 学期累计合计 '+ms.reduce(function(a,m){return a+m.total;},0)+'分。包含当前班全部已录入课次，随记分实时更新。';
     $('#memberRank').innerHTML = ms.length
       ? '<table class="data fit"><thead><tr>' +
           '<th>排名</th><th>姓名</th><th>学号</th><th>小组</th>' +
-          '<th class="n">全组加分</th><th class="n">个人项目分</th><th class="n">个人扣分</th><th class="n">总分</th>' +
+          '<th class="n">全组加分</th><th class="n">个人项目分</th><th class="n">个人扣分</th><th class="n">本学期总分</th>' +
         '</tr></thead><tbody>' + ms.map(function (m, i) {
           return '<tr' + (i === 0 && m.total > 0 ? ' class="top1"' : '') + '>' +
             '<td>' + (i + 1) + '</td><td>' + esc(m.name || '（未命名）') + '</td>' +
