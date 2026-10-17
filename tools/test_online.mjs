@@ -178,6 +178,10 @@ check('reset UI returns to login and clears reset secrets', text(resetUi,'#gateM
 q(resetUi,'#loginUsername').value='teacher-ui'; q(resetUi,'#loginPassword').value='ghijkl'; q(resetUi,'#btnAccountLogin').click();
 await until(()=>q(resetUi,'#gate').hidden);
 check('teacher signs in using reset password through the UI', resetUi.window.JFDT_CLOUD.profile().username==='teacher-ui');
+const freshSession = resetUi.window.localStorage.getItem('jfdt.session.v2');
+switched.window.localStorage.setItem('jfdt.session.v2', freshSession);
+await assert.rejects(switched.window.JFDT_CLOUD.pull());
+check('expired tab cannot erase a newer login stored by another tab', switched.window.localStorage.getItem('jfdt.session.v2') === freshSession);
 check('no unexpected frontend exceptions', errors.length === 0);
 doms.forEach(dom => dom.window.close()); env.sqlite.close();
 console.log(`Frontend and Worker integration: ${passed} passed, 0 failed`);

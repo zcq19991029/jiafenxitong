@@ -49,7 +49,8 @@
   function request(path, method, body) {
     if (!apiBase) return Promise.reject(new Error('云服务尚未配置，请联系维护者。'));
     var headers = { 'Content-Type': 'application/json' };
-    if (client && client.token) headers.Authorization = 'Bearer ' + client.token;
+    var sentToken = client && client.token;
+    if (sentToken) headers.Authorization = 'Bearer ' + sentToken;
     return global.fetch(apiBase + path, { method: method || 'GET', headers: headers,
       body: body === undefined ? undefined : JSON.stringify(body), cache: 'no-store' }).then(function (response) {
       return response.json().catch(function () { return {}; }).then(function (data) {
@@ -57,9 +58,12 @@
           var e = new Error(data.error && data.error.message || '请求失败，请稍后重试。');
           e.code = data.error && data.error.code;
           e.status = response.status;
-          if (response.status === 401 && path !== '/api/auth/login') {
+          if (response.status === 401 && path !== '/api/auth/login' && client && client.token === sentToken) {
             client = null; profile = null;
-            try { global.localStorage.removeItem(SESSION_KEY); } catch (ignored) {}
+            try {
+              var stored = readSession();
+              if (stored && stored.token === sentToken) global.localStorage.removeItem(SESSION_KEY);
+            } catch (ignored) {}
             if (handlers.onNeedLogin) handlers.onNeedLogin(e.message);
           }
           throw e;
