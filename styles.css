@@ -1227,6 +1227,7 @@ table.sheet td.c-sum .c { font-size: 13px; color: var(--text); }
 .assessment-table th:nth-child(4) {width:120px;}
 .assessment-table th:nth-child(6) {width:105px;}
 .assessment-exam {width:72px;min-height:38px;font:inherit;padding:6px;}
+.foundation-check {width:100%;max-width:110px;font:inherit;font-size:12px;min-height:32px;margin-top:5px;}
 .assessment-actions {display:flex;gap:10px;align-items:center;flex-wrap:wrap;margin:12px 0;}
 .assessment-actions input,.assessment-actions select,.attendance-table select {font:inherit;min-height:40px;padding:6px 10px;}
 .assessment-settings {padding:16px;margin-bottom:16px;}

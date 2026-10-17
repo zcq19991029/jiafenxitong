@@ -189,6 +189,14 @@ const assessmentCloud=(await api(env,'/api/state','GET',undefined,admin.token)).
 check('actual final exam and custom attendance settings persist together in D1',assessmentCloud.data.classes[0].examScores[examKey]===50 && assessmentCloud.data.classes[0].assessmentSettings.customRules.length===1);
 const invalidExam=structuredClone(assessmentCloud.data);invalidExam.classes[0].examScores[examKey]=101;
 check('backend rejects actual exam scores above one hundred',(await api(env,'/api/state','PUT',{data:invalidExam,baseRevision:assessmentCloud.revision},admin.token)).status===400);
+const foundation=q(a,'[data-foundation-key]'),foundationKey=foundation.dataset.foundationKey;
+foundation.value='met';foundation.dispatchEvent(new a.window.Event('change'));
+await a.window.JFDT_CLOUD.flush();
+const criterionCloud=(await api(env,'/api/state','GET',undefined,admin.token)).data;
+check('teacher foundation confirmation persists without changing raw grades',criterionCloud.data.classes[0].foundationChecks[foundationKey]==='met'&&criterionCloud.data.lessons[0].scores['1'].group===3);
+const invalidCriterion=structuredClone(criterionCloud.data);invalidCriterion.classes[0].assessmentSettings.bonusCap=6;
+check('backend rejects rewards above the five point limit',(await api(env,'/api/state','PUT',{data:invalidCriterion,baseRevision:criterionCloud.revision},admin.token)).status===400);
+check('criterion explanation is visible without promising automatic passing',text(a,'#memberRank').includes('名次不决定赋分')&&text(a,'#memberRank').includes('基础要求'));
 q(a,'#tabs button[data-view="score"]').click();
 const beforeRedo=state(a).lessons[0].scores['1'].group;
 const semesterBefore=Number(q(a,'[data-semester-group="1"] b').textContent);
