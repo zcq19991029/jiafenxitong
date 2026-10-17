@@ -1861,6 +1861,7 @@ function removeMemberAt(cls, g, j) {
 
   /** 云端有更新就拉下来覆盖本机（只在本机没更新时） */
   function refreshCloud() {
+    if (!CLOUD_ON || !CLOUD || !CLOUD.profile()) { bootCloud(); return; }
     if (!CLOUD || !CLOUD.available()) { renderCloudStatus(); return; }
     CLOUD.pull().then(function (rec) {
       CLOUD_ON = true;
@@ -1878,7 +1879,8 @@ function removeMemberAt(cls, g, j) {
         renderScore();
         flash('已从云端拉取最新记录');
       } else if (lAt > cAt) {
-        CLOUD.flush();
+        CLOUD.touch(function () { return S; });
+        CLOUD.flush().catch(function () { renderCloudStatus(); });
       }
       renderLocalBanner();
     }).catch(function () { renderCloudStatus(); });
@@ -1991,6 +1993,8 @@ function removeMemberAt(cls, g, j) {
     CLOUD_ON = !!(CLOUD && profile);
     cloudRec = rec || null;
 
+    var hadLocalState = false;
+    try { hadLocalState = !!localStorage.getItem(LS_KEY); } catch (e) {}
     S = load();
     if (!S) {
       document.body.classList.remove('gated');
@@ -2004,7 +2008,7 @@ function removeMemberAt(cls, g, j) {
     var localAt = S.updatedAt ? Date.parse(S.updatedAt) : 0;
     var cloudAt = rec && rec.updated_at ? Date.parse(rec.updated_at) : 0;
 
-    if (cloudData && cloudData.classes && cloudAt > localAt) {
+    if (cloudData && cloudData.classes && (!hadLocalState || cloudAt > localAt)) {
       S = migrate(JSON.parse(JSON.stringify(cloudData)));   // 云端更新 → 以云端为准
       writeLocal();
     }
@@ -2028,7 +2032,7 @@ function removeMemberAt(cls, g, j) {
     gateHide();
 
     /* 本机比云端新（含"第一次登录，把本机旧记录搬上云"）→ 推上去 */
-    if (CLOUD_ON && (!cloudData || localAt > cloudAt)) {
+    if (CLOUD_ON && (!cloudData || (hadLocalState && localAt > cloudAt))) {
       CLOUD.touch(function () { return S; });
     }
     renderCloudStatus();
@@ -2072,9 +2076,12 @@ function removeMemberAt(cls, g, j) {
   /* 数据页的同步按钮 */
   $('#btnSyncNow').addEventListener('click', function () {
     if (!CLOUD || !CLOUD.available()) { alert('云端组件没加载出来，请检查网络后刷新页面。'); return; }
-    CLOUD.flush().then(function () { refreshCloud(); });
+    CLOUD.flush().then(function () { refreshCloud(); }).catch(function (e) {
+      alert('同步失败：' + (e && e.message ? e.message : e));
+    });
   });
   $('#btnPullCloud').addEventListener('click', function () {
+    if (!CLOUD_ON || !CLOUD || !CLOUD.profile()) { alert('请先登录后再拉取。'); return; }
     if (!confirm('用云端的记录覆盖这台设备上的记录？\n\n本机现在的分数会被替换掉（云端记录是同一账号在别的设备上存的那份）。')) return;
     cloudUiBackup = { classId: S.ui.classId, lessonId: S.ui.lessonId, scoreLayout: S.ui.scoreLayout };
     CLOUD.pull().then(function (rec) {
@@ -2095,9 +2102,12 @@ function removeMemberAt(cls, g, j) {
     });
   });
   $('#btnPushCloud').addEventListener('click', function () {
+    if (!CLOUD_ON || !CLOUD || !CLOUD.profile()) { alert('请先登录后再上传。'); return; }
     if (!confirm('把这台设备上的记录传到云端，覆盖云端那一份？')) return;
     CLOUD.touch(function () { return S; });
-    CLOUD.flush().then(function () { alert('已经上传到云端。'); });
+    CLOUD.flush().then(function () { alert('已经上传到云端。'); }).catch(function (e) {
+      alert('上传失败，记录仍保存在当前设备：' + (e && e.message ? e.message : e));
+    });
   });
   $('#btnSignOut').addEventListener('click', function () {
     if (!confirm('退出登录？\n\n本机的记录不会被删除；下次用同一个微信登录，记录还会同步回来。')) return;
@@ -2134,9 +2144,8 @@ function removeMemberAt(cls, g, j) {
   });
 
   /* 进入应用：有云端就走云端，没有就降级成本机模式（页面顶部会写明） */
-  if (!CLOUD) {
-    startApp(null, null);
-  } else {
+  function bootCloud() {
+    if (!CLOUD) { startApp(null, null); return; }
     CLOUD.boot({
       onReady: function (profile, rec) { renderUserBox(profile); startApp(profile, rec); },
       onNeedLogin: function (msg) {
@@ -2166,4 +2175,5 @@ function removeMemberAt(cls, g, j) {
       }
     });
   }
+  bootCloud();
 })();

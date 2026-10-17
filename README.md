@@ -2,6 +2,22 @@
 
 《电气接线原理》课堂分组、记分、个人扣分、排行、名单分配与 A4 打印工具，当前版本为夜夜加分助手 v5.2。
 
+## 线上入口
+
+GitHub Pages：https://zcq19991029.github.io/ye-ye-score-helper/
+
+源码：https://github.com/zcq19991029/ye-ye-score-helper
+
+使用时打开线上网址即可，不需要安装本地程序。Pages 仅发布网页资产和空白班级模板，不发布真实学生名单。原账号记录需要登录后从云端读取；新网址的浏览器存储与原网址相互独立，也可从原应用下载完整 JSON 后在新页面恢复。
+
+原 WorkBuddy 云端当前拒绝 GitHub Pages 来源（预检返回 403）。在原应用配置中需放行来源 `https://zcq19991029.github.io`，以及 OAuth 回调 `https://zcq19991029.github.io/ye-ye-score-helper/`。该项完成前不能将微信登录和云同步列为验收通过；原线上入口保留，不更换后端或清空数据。
+
+## 发布
+
+推送 main 后 GitHub Actions 自动运行 tools/build_pages.py，仅将允许公开的网页文件和空白模板打包到 pages-dist，再部署 GitHub Pages。不要手动将本机 data.js 或教学材料上传到 Pages。version.json 记录实际构建提交。
+
+开发回归：先在 tools/test-runtime 运行 npm ci，然后在项目根目录运行 `node tools/test_online.mjs`。公开测试只用虚构数据；原本机完整名单回归脚本仍保留在本地。真实微信授权与跨设备云读写需要另外做账号验收。
+
 - 根目录：静态网页源码、初始名单与校徽素材，无构建步骤。
 - 教学材料/分组：七份分组表、历史备份和生成脚本。
 - 教学材料/组长打分表：七份组长评分表及生成脚本。

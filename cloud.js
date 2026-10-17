@@ -34,7 +34,8 @@
   var listeners = [];
   var st = { mode: 'idle', text: '', at: 0 };
 
-  var pushTimer = null, retryTimer = null, pushing = false;
+  var pushTimer = null, retryTimer = null, inFlight = null;
+  var revision = 0;
   var pendingFn = null;         // 取"当前要推的数据"的函数
   var lastPushedAt = 0;
 
@@ -121,7 +122,7 @@
   function oauthLogin(provider) {
     if (!ready) return Promise.reject(new Error('云端组件还没加载好，请稍后重试。'));
     var back = new URL(global.location.href);
-    back.pathname = '/';
+    back.pathname = new URL('.', global.location.href).pathname;
     for (var k of ['code', 'state', 'provider']) back.searchParams.delete(k);
     for (var k2 of ['c', 'v', 'lay']) back.searchParams.delete(k2);   // 截图辅助参数不参与回调
     return Promise.resolve(cloud.auth.signInWithOAuth({
@@ -189,7 +190,7 @@
   }
 
   function pushNow(S) {
-    if (!ready || !profile) return Promise.resolve(null);
+    if (!ready || !profile) return Promise.reject(new Error('尚未登录，不能上传到云端。'));
     var name = profile.displayName || profile.name || null;
     return rpcJson('save_my_state', { p_data: payloadOf(S), p_name: name }).then(function (r) {
       if (r && r.ok === false) throw new Error(r.error || '保存失败');
@@ -206,31 +207,39 @@
   /** 每次本机保存后调一次；连续点击只会推最后一次 */
   function touch(getState) {
     pendingFn = getState;
+    revision++;
     if (!ready || !profile) return;
     setStatus('saving', '正在同步…');
     clearTimeout(pushTimer);
-    pushTimer = setTimeout(flush, PUSH_DELAY);
+    pushTimer = setTimeout(function () { flush().catch(function () {}); }, PUSH_DELAY);
   }
 
   function flush() {
     clearTimeout(pushTimer);
-    if (pushing || !pendingFn || !ready || !profile) return Promise.resolve(null);
-    var get = pendingFn;
-    pushing = true;
-    return pushNow(get()).then(function (r) {
-      pendingFn = null;
+    if (inFlight) return inFlight;
+    if (!ready || !profile) return Promise.reject(new Error('尚未登录，不能上传到云端。'));
+    if (!pendingFn) return Promise.resolve({ ok: true, unchanged: true });
+    var sentRevision = revision;
+    var snapshot = JSON.parse(JSON.stringify(pendingFn()));
+    inFlight = pushNow(snapshot).then(function (r) {
+      if (revision === sentRevision) pendingFn = null;
       clearTimeout(retryTimer);
       return r;
     }).catch(function (e) {
       if (isNetwork(e)) setStatus('offline', '云端连不上，先存在本机（会自动重试）');
       else setStatus('error', '同步失败：' + errText(e));
       clearTimeout(retryTimer);
-      retryTimer = setTimeout(flush, RETRY_DELAY);
-      return null;
+      retryTimer = setTimeout(function () { flush().catch(function () {}); }, RETRY_DELAY);
+      throw e;
     }).then(function (r) {
-      pushing = false;
+      inFlight = null;
+      if (pendingFn) return flush();
       return r;
+    }, function (e) {
+      inFlight = null;
+      throw e;
     });
+    return inFlight;
   }
 
   /* ---------------- 启动 ---------------- */
@@ -244,7 +253,11 @@
    */
   function boot(handlers) {
     var h = handlers || {};
-    ready = initSdk();
+    try { ready = initSdk(); } catch (e) {
+      ready = false;
+      h.onOffline && h.onOffline(errText(e));
+      return;
+    }
     if (!ready) { h.onOffline && h.onOffline('云端组件没能加载（可能是没网或浏览器拦截）'); return; }
 
     setStatus('connecting', '正在连接云端…');
