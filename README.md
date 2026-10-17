@@ -1,12 +1,49 @@
 # 夜夜加分助手
 
-课堂分组、记分、个人扣分、排行、名单管理与 A4 打印工具。
+面向课堂的分组记分工具：完整姓名卡片、纸质风格表格、个人扣分、项目评价、排行、名单分组、A4打印，以及教师账号间隔离的云端记录。
+
+**[打开正式应用](https://ye-ye-score-api.zcq991029.chatgpt.site/) · [完整图文使用指南](docs/使用指南.md) · [问题反馈](https://github.com/zcq19991029/ye-ye-score-helper/issues)**
+
+无需安装，使用浏览器访问。新教师凭管理员邀请码注册并导入自己的名单；GitHub仅保存源码，不使用GitHub Pages作为应用入口。
+
+![课堂卡片式记分，截图均为虚构数据](docs/screenshots/04-card-scoring.png)
+
+## 功能与图文入口
+
+所有公开截图均用临时数据库、虚构账号与学生采集；不含正式班级名单、真实分数、有效邀请码、重置码或密码。
+
+| 功能 | 主要用法 | 配图 |
+| --- | --- | --- |
+| 教师登录 / 邀请注册 | 已有账号登录；新教师凭一次性邀请码开通 | [登录](docs/screenshots/01-login.png) / [注册](docs/screenshots/02-register.png) |
+| 班级名单导入 | 下载CSV模板，Excel另存UTF-8 CSV导入 | [导入与备份](docs/screenshots/10-import-backup-sync.png) |
+| 名单与分组 | 搜索、手动分组、均匀分配待分配学生、添加成员 | [分组](docs/screenshots/09-roster-groups.png) |
+| 课次管理 | 新开课次，填写日期、任务和值日组，查看历史记录 | [新课次](docs/screenshots/06-new-lesson.png) |
+| 课堂记分 | 首个正确、小组分、手机扣分次数、值日分；两套布局 | [卡片](docs/screenshots/04-card-scoring.png) / [表格](docs/screenshots/05-table-scoring.png) |
+| 个人扣分与撤销 | 完整姓名按钮，点击扣1分，右键/长按返还；最多60步撤销 | [卡片操作](docs/screenshots/04-card-scoring.png) |
+| 组内个人评分 | 10个自定义项目，每项0–5分，独立小计、签名和备注 | [项目评价](docs/screenshots/07-individual-assessment.png) |
+| 排行统计 | 小组累计、个人总分及逐课次明细，零分不画彩条 | [排行](docs/screenshots/08-rankings.png) |
+| 打印与导出 | 打印本课/排行/本组评价，导出CSV，JSON完整备份与恢复 | [输出入口](docs/screenshots/10-import-backup-sync.png) |
+| 云端同步 | 同账号换设备恢复；明确冲突覆盖方向 | [同步入口](docs/screenshots/10-import-backup-sync.png) |
+| 个人资料与密码 | 改显示名/备注、修改密码、一次性重置码找回 | [资料](docs/screenshots/12-profile.png) / [改密](docs/screenshots/13-change-password.png) / [找回](docs/screenshots/03-forgot-password.png) |
+| 管理员 | 发放邀请码、查看教师记录、核验身份后发重置码 | [管理](docs/screenshots/11-administration.png) |
+| 手机与操作反馈 | 单列卡片、44px点击区域、实际变化反馈、减少动态模式 | [手机](docs/screenshots/14-mobile-card.png) |
+
+## 快速上课
+
+1. 注册/登录 → “数据与备份”下载模板并导入CSV。
+2. “待分配名单”确认分组 → “上课记分”选择班级、新开一课。
+3. 课堂点击加减或直接输入数字，留意“每次−1分”的扣分次数。
+4. 课后查看排行，按需打印/导出，确认顶部“已同步到云端”。
+
+课堂小组合计 = 首个正确 + 小组分 + 值日分 − 手机未入袋次数。个人总分 = 小组累计 − 本人个人扣分；“组内个人评分”的项目小计独立保存，不自动加到课堂排行。管理员有教师数据查看权限，普通教师彼此隔离。
+
+更详细的操作步骤、CSV字段示例、分数算例、跨班撤销、密码找回、打印说明与常见问题见[完整图文使用指南](docs/使用指南.md)。
 
 ## 正式版架构
 
 单个 Cloudflare Worker 托管网页和接口，D1 保存教师账号、邀请码、名单、课次和记分记录。通过 Sites 发布，GitHub 只保存源码和自动检查，不再使用 GitHub Pages。不依赖 WorkBuddy、微信登录或旧站历史数据。
 
-已登记站点：`https://ye-ye-score-api.zcq991029.chatgpt.site`。现已发布；实际验收状态以项目交接.md 为准。`.openai/hosting.json` 保存唯一站点 ID，不要重复创建服务。
+现有站点已发布；实际验收状态以项目交接.md 为准。`.openai/hosting.json` 保存唯一站点 ID，不要重复创建服务。真实名单不进入公共静态种子。
 
 ## 教师使用
 
@@ -33,7 +70,7 @@
 
 ui-feedback.js仅负责记分高亮、实际增减浮字、撤销定位与布局切换反馈，不保存业务数据。常规微动效160–180ms，浮字500ms；减少动态效果时保留静态反馈。弹窗和操作说明继续使用原生dialog/details的键盘与焦点行为。
 
-前端源文件为 index.html、styles.css、app.js、cloud.js、config.js、roster-import.js。config.js 的 apiBase 留空即使用同站接口，不放入任何凭据。
+前端源文件为 index.html、styles.css、app.js、cloud.js、config.js、roster-import.js、leader-scoring.js、password-ui.js、ui-feedback.js。config.js 的 apiBase 留空即使用同站接口，不放入任何凭据。
 
 后端源文件为 backend/worker.mjs，首次 D1 迁移为 backend/migrations/0001_initial.sql。密码在服务端加盐派生，服务器只保存会话令牌摘要；所有数据接口校验账号，管理接口校验角色。站点公开的是登录页和程序资源，名单与分数只能通过受保护接口访问。
 
@@ -41,6 +78,7 @@ ui-feedback.js仅负责记分高亮、实际增减浮字、撤销定位与布局
 
 ```text
 rtk proxy <Node路径> tools/test_backend.mjs
+rtk proxy <Node路径> tools/test_passwords.mjs
 rtk proxy <Node路径> tools/test_online.mjs
 rtk proxy <Node路径> tools/build_site.mjs
 rtk proxy <Node路径> tools/test_site.mjs
@@ -50,7 +88,7 @@ rtk proxy <Node路径> tools/test_site.mjs
 
 新服务需要在服务端机密配置中设置 BOOTSTRAP_CODE，首次管理员注册后不可复用。默认同站访问无需 ALLOWED_ORIGINS；只有明确增加外部前端时才配置该项。机密不得进入 config.js、仓库或截图。
 
-推送或部署前先暂存，运行 `rtk proxy <Python路径> tools/check_no_pii.py`，检查 Git 索引的禁止路径和真实姓名、完整学号。然后给用户完整文件清单复核。新正式站通过真实账号、名单导入、同步和权限验收后，再关闭原 Pages 入口。
+推送或部署前先检查完整文件清单并暂存，运行 `rtk proxy <Python路径> tools/check_no_pii.py`，检查 Git 索引的禁止路径和真实姓名、完整学号。二进制截图还需确认采集来源和实际画面；本仓库公开截图使用隔离的虚构数据。原GitHub Pages入口已关闭。
 
 ## 本机私有材料
 

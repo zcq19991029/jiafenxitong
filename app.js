@@ -684,7 +684,7 @@ function removeMemberAt(cls, g, j) {
             ctlStep(g.no, 'group', s, maxOf('group', maxPhone), '小组分') +
           '</div>' +
           '<div>' +
-            '<div class="lbl" title="增加次数即扣分，每次扣1分">手机未入袋次数</div><div class="deduction-note">每次 −1 分</div>' +
+            '<div class="lbl" title="手机未入袋：增加次数即扣分，每次扣1分">手机扣分次数</div><div class="deduction-note">每次 −1 分</div>' +
             ctlStep(g.no, 'phone', s, maxPhone, '手机未入袋') +
           '</div>' +
           '<div>' +
