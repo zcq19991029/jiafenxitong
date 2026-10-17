@@ -51,6 +51,16 @@ function validateState(data) {
     if (!validId(cls.id) || ids.has(cls.id) || !text(cls.name) || !Array.isArray(cls.groups)
         || !Array.isArray(cls.roster) || cls.groups.length > 100 || cls.roster.length > 1000) fail(400, '班级数据格式不正确。');
     ids.add(cls.id);
+    if (cls.assessmentSettings !== undefined) {
+      const cfg=cls.assessmentSettings;
+      if (!cfg || typeof cfg!=='object' || Array.isArray(cfg)) fail(400,'赋分考勤设置格式不正确。');
+      for (const field of ['totalLessons','late','truant','leave','early','passScore']) {
+        if (!Number.isInteger(cfg[field]) || cfg[field]<(field==='totalLessons'?1:0) || cfg[field]>(field==='totalLessons'?1000:100)) fail(400,'赋分考勤设置超出范围。');
+      }
+      if (!Array.isArray(cfg.customRules) || cfg.customRules.length>20 || cfg.customRules.some(r=>!r || !/^custom_[a-z0-9_]{1,80}$/.test(r.id) || typeof r.name!=='string' || !r.name.trim() || r.name.length>40 || !Number.isInteger(r.loss) || r.loss<0 || r.loss>100)
+        || new Set(cfg.customRules.map(r=>r.id)).size!==cfg.customRules.length || new Set(cfg.customRules.map(r=>r.name)).size!==cfg.customRules.length) fail(400,'自定义考勤规则不正确。');
+    }
+    if (cls.examScores !== undefined && (!cls.examScores || typeof cls.examScores!=='object' || Array.isArray(cls.examScores) || Object.keys(cls.examScores).length>1000 || Object.entries(cls.examScores).some(([k,v])=>k.length>200 || !Number.isFinite(v) || v<0 || v>100))) fail(400,'期末成绩须为0–100分。');
     const numbers = new Set();
     for (const group of cls.groups) {
       if (!Number.isInteger(group.no) || group.no < 1 || numbers.has(group.no)
@@ -67,6 +77,12 @@ function validateState(data) {
         || typeof lesson.topic !== 'string' || typeof lesson.date !== 'string'
         || !lesson.scores || Array.isArray(lesson.scores) || typeof lesson.scores !== 'object') fail(400, '课次数据格式不正确。');
     lessonIds.add(lesson.id);
+    if (lesson.attendance !== undefined) {
+      if (!lesson.attendance || typeof lesson.attendance!=='object' || Array.isArray(lesson.attendance) || Object.keys(lesson.attendance).length>1000) fail(400,'考勤记录格式不正确。');
+      for (const [key,record] of Object.entries(lesson.attendance)) {
+        if (key.length>200 || !record || typeof record!=='object' || typeof record.status!=='string' || !/^(present|late|truant|leave|early|custom_[a-z0-9_]{1,80})$/.test(record.status) || typeof record.label!=='string' || record.label.length>60 || !Number.isInteger(record.loss) || record.loss<0 || record.loss>100 || typeof record.updatedAt!=='string' || !Number.isFinite(Date.parse(record.updatedAt))) fail(400,'考勤状态或扣单位不正确。');
+      }
+    }
     if (lesson.leaderScores !== undefined) {
       if (!lesson.leaderScores || typeof lesson.leaderScores !== 'object' || Array.isArray(lesson.leaderScores)
           || Object.keys(lesson.leaderScores).length > 100) fail(400, '组内个人评分格式不正确。');

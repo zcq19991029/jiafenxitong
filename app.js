@@ -533,12 +533,14 @@ function removeMemberAt(cls, g, j) {
 
   /* ================= 视图切换 ================= */
 
+  var attendanceContext = null;
   var view = 'score';
 
   function switchView(v) {
+    if(view==='attendance' && v!=='attendance' && attendanceContext && attendanceContext.isDirty && attendanceContext.isDirty()){flash('请先保存本课考勤，再切换页面。');return;}
     if (v === 'admin' && !(CLOUD && CLOUD.profile() && CLOUD.profile().isAdmin)) v = 'score';
     view = v;
-    ['score', 'leader', 'rank', 'pool', 'data', 'admin'].forEach(function (k) {
+    ['score', 'leader', 'rank', 'attendance', 'pool', 'data', 'admin'].forEach(function (k) {
       var el = $('#view-' + k);
       if (el) el.hidden = (k !== v);
     });
@@ -550,6 +552,15 @@ function removeMemberAt(cls, g, j) {
     if (v === 'admin') renderAdmin();
     if (v === 'score') renderScore();
     if (v === 'leader') renderLeader();
+    if (v === 'attendance') renderAttendance();
+  }
+
+  function renderAttendance() {
+    var cls=curClass(); if(!cls || !window.JFDT_ASSESSMENT)return;
+    if(!$('#view-attendance')){var section=document.createElement('section');section.id='view-attendance';section.className='view';$('#main').appendChild(section);}
+    $('#view-attendance').hidden=false;
+    attendanceContext={root:$('#view-attendance'),cls:cls,classes:S.classes,lessons:lessonsOf(cls.id),lesson:curLesson(cls),raw:memberTotals(cls),save:function(){save();},log:addOperationLog,message:function(text){flash(text);},select:function(classId,lessonId){S.ui.classId=classId;S.ui.lessonId=lessonId;save(false);fillClassSelects();renderAttendance();}};
+    window.JFDT_ASSESSMENT.renderAttendance(attendanceContext);
   }
 
   function renderLeader() {
@@ -1059,21 +1070,7 @@ function removeMemberAt(cls, g, j) {
     /* 个人排行 */
     var ms = memberTotals(cls);
     $('#semesterSummary').textContent = cls.name+' · '+ls.length+'次课 · '+ms.length+'名已分组学生 · 学期累计合计 '+ms.reduce(function(a,m){return a+m.total;},0)+'分。包含当前班全部已录入课次，随记分实时更新。';
-    $('#memberRank').innerHTML = ms.length
-      ? '<table class="data fit"><thead><tr>' +
-          '<th>排名</th><th>姓名</th><th>学号</th><th>小组</th>' +
-          '<th class="n">全组加分</th><th class="n">个人项目分</th><th class="n">个人扣分</th><th class="n">本学期总分</th>' +
-        '</tr></thead><tbody>' + ms.map(function (m, i) {
-          return '<tr' + (i === 0 && m.total > 0 ? ' class="top1"' : '') + '>' +
-            '<td>' + (i + 1) + '</td><td>' + esc(m.name || '（未命名）') + '</td>' +
-            '<td>' + esc(m.sid || (m.no == null ? '' : m.no)) + '</td><td>第 ' + m.gno + ' 组</td>' +
-            '<td class="n">' + fmt(m.groupScore) + '</td><td class="n">' + fmt(m.project) + '</td>' +
-            '<td class="n' + (m.personal ? ' neg' : '') + '">' + (m.personal ? '−' + m.personal : '0') + '</td>' +
-            '<td class="n ' + signClass(m.total) + '">' + fmt(m.total) + '</td>' +
-          '</tr>';
-        }).join('') + '</tbody></table>' +
-        '<p class="rank-note">总分 = 全组累计加分 + 个人项目累计分 − 本人累计个人扣分，按分数从高到低动态排序。</p>'
-      : '<p class="rank-note">这个班还没录入成员名单。到「数据与备份」页补充后再看。</p>';
+    if(window.JFDT_ASSESSMENT) window.JFDT_ASSESSMENT.renderRank({root:$('#memberRank'),cls:cls,lessons:ls,raw:ms,save:function(){save();},log:addOperationLog,message:flash,openAttendance:function(){switchView('attendance');},export:function(name,rows){download(name,toCsv(rows),'text/csv');}});
 
     /* 逐节明细 */
     $('#lessonMatrix').innerHTML = ls.length
@@ -1765,6 +1762,7 @@ function removeMemberAt(cls, g, j) {
         }).join('') + '</tbody></table>';
     }
 
+    if(window.JFDT_ASSESSMENT) html+=window.JFDT_ASSESSMENT.printHtml(cls,ls,ms);
     printArea(html + '</div>', 'rank');
   }
 
