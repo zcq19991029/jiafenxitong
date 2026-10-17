@@ -181,7 +181,14 @@ q(a,'button[data-g="1"][data-f="group"][data-act="i"]').click();
 const selectiveIndex=state(a).undo.length-1;
 q(a,'button[data-g="1"][data-f="duty"][data-act="i"]').click();
 q(a,'#btnOperationLog').click();
-q(a,'[data-undo-index="'+selectiveIndex+'"]').click();
+let swipeRow=q(a,'[data-undo-index="'+selectiveIndex+'"]').closest('.operation-row');
+swipeRow.setPointerCapture=()=>{};
+function swipeEvent(type,x,y){const event=new a.window.MouseEvent(type,{bubbles:true,clientX:x,clientY:y});Object.defineProperties(event,{pointerType:{value:'touch'},pointerId:{value:9}});swipeRow.dispatchEvent(event);}
+swipeEvent('pointerdown',220,50);swipeEvent('pointermove',80,50);swipeEvent('pointermove',210,50);swipeEvent('pointerup',210,50);
+check('pulling a swipe back before release cancels undo',state(a).lessons[0].scores['1'].group===selectiveBase.group+1);
+swipeEvent('pointerdown',220,50);swipeEvent('pointermove',210,100);swipeEvent('pointerup',210,100);
+check('vertical scrolling never triggers swipe undo',state(a).lessons[0].scores['1'].group===selectiveBase.group+1);
+swipeEvent('pointerdown',220,50);swipeEvent('pointermove',80,50);swipeEvent('pointerup',80,50);
 check('selective undo preserves newer changes on another field',state(a).lessons[0].scores['1'].group===selectiveBase.group && state(a).lessons[0].scores['1'].duty===(selectiveBase.duty||0)+1);
 q(a,'.log-restore:not([disabled])').click();
 check('selected operation can be restored',state(a).lessons[0].scores['1'].group===selectiveBase.group+1);

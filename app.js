@@ -1801,6 +1801,37 @@ function removeMemberAt(cls, g, j) {
   $('#btnRedo').addEventListener('click', redo);
   $('#btnOperationLog').addEventListener('click',function(){renderUndoBtn();openDlg($('#dlgOperationLog'));});
   $('#closeOperationLog').addEventListener('click',function(){$('#dlgOperationLog').close();});
+  (function wireLogSwipe(){
+    var list=$('#operationLogList'), gesture=null, suppressClick=false;
+    list.addEventListener('pointerdown',function(e){
+      if(e.pointerType!=='touch' && e.pointerType!=='pen')return;
+      if(e.target.closest('button'))return;
+      var row=e.target.closest('.operation-row'), button=row&&row.querySelector('[data-undo-index]:not([disabled])');
+      if(!button)return;
+      gesture={row:row,button:button,id:e.pointerId,x:e.clientX,y:e.clientY,dx:0,locked:false};
+    });
+    list.addEventListener('pointermove',function(e){
+      if(!gesture || gesture.id!==e.pointerId)return;
+      var dx=e.clientX-gesture.x,dy=e.clientY-gesture.y;
+      if(!gesture.locked && Math.abs(dy)>10 && Math.abs(dy)>Math.abs(dx)){gesture=null;return;}
+      if(!gesture.locked && dx < -10 && Math.abs(dx)>Math.abs(dy)*1.2){
+        gesture.locked=true;gesture.row.setPointerCapture(e.pointerId);gesture.row.classList.add('log-swiping');
+      }
+      if(!gesture.locked)return;
+      gesture.dx=Math.max(-150,Math.min(0,dx));
+      gesture.row.style.transform='translateX('+gesture.dx+'px)';
+      gesture.row.classList.toggle('swipe-ready',gesture.dx<=-96);
+    });
+    function finish(e,cancel){
+      if(!gesture || gesture.id!==e.pointerId)return;
+      var g=gesture;gesture=null;
+      g.row.classList.remove('log-swiping','swipe-ready');g.row.style.transform='';
+      if(!cancel && g.locked && g.dx<=-96){suppressClick=true;g.button.click();setTimeout(function(){suppressClick=false;},350);}
+    }
+    list.addEventListener('pointerup',function(e){finish(e,false);});
+    list.addEventListener('pointercancel',function(e){finish(e,true);});
+    list.addEventListener('click',function(e){if(suppressClick && e.isTrusted){e.preventDefault();e.stopPropagation();}},true);
+  })();
   $('#operationLogList').addEventListener('click',function(event){
     var button=event.target.closest('button[data-undo-index],button[data-redo-index]');
     if(!button || button.disabled)return;
