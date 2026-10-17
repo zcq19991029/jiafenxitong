@@ -281,12 +281,12 @@ function removeMemberAt(cls, g, j) {
   function groupTotal(lesson, gno) {
     var s = lesson.scores[String(gno)];
     if (!s) return 0;
-    return (s.first ? 1 : 0) + (+s.group || 0) + (+s.duty || 0) - (+s.phone || 0);
+    return Math.round(((s.first ? 1 : 0) + (+s.group || 0) + (+s.duty || 0) - (+s.phone || 0))*100)/100;
   }
 
   /** 小组累计（该班全部课次） */
   function groupCum(cls, gno) {
-    return lessonsOf(cls.id).reduce(function (a, l) { return a + groupTotal(l, gno); }, 0);
+    return Math.round(lessonsOf(cls.id).reduce(function (a, l) { return a + groupTotal(l, gno); }, 0)*100)/100;
   }
 
   /** 某节课是否给该组记过任何东西 */
@@ -315,7 +315,7 @@ function removeMemberAt(cls, g, j) {
     var ls = lessonsOf(cls.id);
     var out = [];
     cls.groups.forEach(function (g) {
-      var gs = ls.reduce(function (a, l) { return a + groupTotal(l, g.no); }, 0);
+      var gs = groupCum(cls,g.no);
       g.members.forEach(function (m, idx) {
         if (!m.name) return;
         var p = ls.reduce(function (a, l) {
@@ -324,7 +324,7 @@ function removeMemberAt(cls, g, j) {
         }, 0);
         out.push({
           name: m.name, sid: m.sid, no: m.no, gno: g.no,
-          groupScore: gs, project: ls.reduce(function(a,l){return a+projectScore(l,g.no,m);},0), personal: p, total: gs + ls.reduce(function(a,l){return a+projectScore(l,g.no,m);},0) - p
+          groupScore: gs, project: ls.reduce(function(a,l){return a+projectScore(l,g.no,m);},0), personal: p, total: Math.round((gs + ls.reduce(function(a,l){return a+projectScore(l,g.no,m);},0) - p)*100)/100
         });
       });
     });
@@ -345,7 +345,7 @@ function removeMemberAt(cls, g, j) {
   function pushUndo(op) {
     if (!S.undo) S.undo = [];
     op.at = new Date().toISOString();
-    addOperationLog('记分', undoLabel(Object.assign({},op,{old:op.neu,neu:op.old})));
+    addOperationLog('记分', undoLabel(reverseOp(op)));
     S.redo = [];
     S.undo.push(op);
     if (S.undo.length > UNDO_MAX) S.undo.shift();
@@ -364,12 +364,16 @@ function removeMemberAt(cls, g, j) {
     var lesson = getLesson(op.lessonId), cls = lesson && getClass(lesson.classId);
     var g = (cls ? cls.name + ' · 第' + lesson.seq + '次课 · ' : '') + '第 ' + op.gno + ' 组';
     if (op.reset) return g + ' 本节清零';
+    if(op.f==='duty'&&Object.prototype.hasOwnProperty.call(op,'neuDutyMeta'))return g+' 值日 '+dutyLabel(op.neuDutyMeta,op.neu)+' → '+dutyLabel(op.oldDutyMeta,op.old);
     if (op.i != null) {
       return g + ' ' + (op.name || '成员') + ' 个人扣分 ' + op.neu + ' → ' + op.old;
     }
     return g + ' ' + (FIELD_NAME[op.f] || op.f) + ' ' + showVal(op.f, op.neu) +
       ' → ' + showVal(op.f, op.old);
   }
+
+  function dutyLabel(meta,value){return (meta?meta.present+'/'+meta.expected+'人，':'历史分 ')+value+'分';}
+  function reverseOp(op){return Object.assign({},op,{old:op.neu,neu:op.old},Object.prototype.hasOwnProperty.call(op,'oldDutyMeta')?{oldDutyMeta:op.neuDutyMeta,neuDutyMeta:op.oldDutyMeta}:{});}
 
   function showVal(f, v) {
     if (f === 'first') return v ? '已加' : '未加';
@@ -399,7 +403,7 @@ function removeMemberAt(cls, g, j) {
       '<h4>已撤销 · 可恢复</h4>'+((S.redo||[]).length ? S.redo.map(function(entry,index){return '<article class="operation-row"><div><small>已撤销</small><div>'+esc(undoLabel(entry.op))+'</div></div><button class="btn log-restore" data-redo-index="'+index+'" '+(index!==S.redo.length-1?'disabled title="请先恢复最近撤销的一项"':'')+'>↷ 恢复</button></article>';}).reverse().join(''):'<p class="note">暂无待恢复记录。</p>')+
       '<details><summary>完整操作流水（仅核对）</summary>'+entries.map(function(e){return '<article class="operation-row"><div><small>'+esc(new Date(e.at).toLocaleString())+' · '+esc(e.kind)+'</small><div>'+esc(e.detail)+'</div></div></article>';}).join('')+'</details>';
     var entry=(S.redo || []).slice(-1)[0];
-    $('#redoDetail').textContent=entry ? '下一步重做：'+undoLabel(Object.assign({},entry.op,{old:entry.op.neu,neu:entry.op.old})) : '暂无可重做操作';
+    $('#redoDetail').textContent=entry ? '下一步重做：'+undoLabel(reverseOp(entry.op)) : '暂无可重做操作';
   }
 
   function fadeLogRow(row) {
@@ -455,6 +459,7 @@ function removeMemberAt(cls, g, j) {
       var s = sc(l, op.gno);
       if (op.i != null) s.personal[op.i] = op.old;
       else s[op.f] = op.old;
+      if(op.f==='duty' && Object.prototype.hasOwnProperty.call(op,'oldDutyMeta')){if(op.oldDutyMeta)s.dutyParticipation=op.oldDutyMeta;else delete s.dutyParticipation;}
     }
 
     var cls = getClass(l.classId);
@@ -687,6 +692,12 @@ function removeMemberAt(cls, g, j) {
     '</div>';
   }
 
+  function ctlDuty(gno,s,count) {
+    var record=s.dutyParticipation,expected=record?record.expected:count;
+    if(!expected)return '<span class="note">先录入小组成员</span>';
+    return '<div class="duty-ratio" data-duty-group="'+gno+'"><div class="duty-people"><input type="number" inputmode="numeric" min="0" max="99" step="1" data-duty-present="'+gno+'" aria-label="第'+gno+'组值日参与人数" placeholder="人数" value="'+(record?record.present:'')+'"><span>/</span><input type="number" inputmode="numeric" min="1" max="99" step="1" data-duty-expected="'+gno+'" aria-label="第'+gno+'组值日应到人数" value="'+expected+'"><span>人</span></div><span class="duty-earned" data-duty-earned="'+gno+'">'+fmt(+s.duty||0)+'分</span><small>'+(record?'按参与比例自动计算':(+s.duty?'历史分保留；填人数后自动计算':'填参与人数，自动换算5分'))+'</small></div>';
+  }
+
   function semesterBadge(cls,gno,index) {
     var m=memberTotals(cls).find(function(m){return m.gno===gno && m.sid===cls.groups.find(function(g){return g.no===gno;}).members[index].sid && m.name===cls.groups.find(function(g){return g.no===gno;}).members[index].name;});
     return '<span class="semester-score" data-semester-group="'+gno+'" data-semester-index="'+index+'" title="本学期全部课次：个人项目分＋全组加分−个人扣分">学期 <b>'+fmt(m?m.total:0)+'</b></span>';
@@ -760,8 +771,8 @@ function removeMemberAt(cls, g, j) {
             ctlStep(g.no, 'phone', s, maxPhone, '手机未入袋') +
           '</div>' +
           '<div>' +
-            '<div class="lbl">值日分 0-5</div>' +
-            ctlStep(g.no, 'duty', s, maxOf('duty', maxPhone), '值日分') +
+            '<div class="lbl">值日参与 / 应到 · 自动5分制</div>' +
+            ctlDuty(g.no,s,cnt) +
           '</div>' +
         '</div>' +
         personal +
@@ -786,7 +797,7 @@ function removeMemberAt(cls, g, j) {
         '<th class="c-phone" rowspan="2">全组·手机未入袋<br>（-1/人）</th>' +
         '<th class="c-first" rowspan="2">全组·首个正确<br>(+1)</th>' +
         '<th class="c-grp" rowspan="2">全组·小组分<br>(0-5)</th>' +
-        '<th class="c-duty" rowspan="2">全组·值日分<br>(0-5)</th>' +
+        '<th class="c-duty" rowspan="2">全组·值日<br>参与/应到 · 自动换算5分</th>' +
         '<th class="c-sum" rowspan="2">本节<br>合计</th>' +
       '</tr><tr>' + sub + '</tr>' +
     '</thead>';
@@ -813,7 +824,7 @@ function removeMemberAt(cls, g, j) {
           '<td class="c-phone" rowspan="2">' + ctlStep(g.no, 'phone', s, maxPhone, '手机未入袋') + '</td>' +
           '<td class="c-first" rowspan="2">' + ctlFirst(g.no, s) + '</td>' +
           '<td class="c-grp" rowspan="2">' + ctlStep(g.no, 'group', s, maxOf('group', maxPhone), '小组分') + '</td>' +
-          '<td class="c-duty" rowspan="2">' + ctlStep(g.no, 'duty', s, maxOf('duty', maxPhone), '值日分') + '</td>' +
+          '<td class="c-duty" rowspan="2">' + ctlDuty(g.no,s,cnt) + '</td>' +
           '<td class="c-sum" rowspan="2">' + ctlSum(g.no, groupTotal(lesson, g.no), groupCum(cls, g.no)) +
             ctlClear(g.no, true) + '</td>' +
         '</tr>' +
@@ -863,6 +874,7 @@ function removeMemberAt(cls, g, j) {
     $('[data-cum="' + gno + '"]', card).textContent = '学期全组 ' + fmt(groupCum(cls, gno));
     var totals=memberTotals(cls);
     $$('[data-semester-group]',card).forEach(function(el){var member=cls.groups.find(function(g){return g.no===gno;}).members[+el.dataset.semesterIndex];var total=totals.find(function(m){return m.gno===gno && m.name===member.name && m.sid===member.sid;});el.querySelector('b').textContent=fmt(total?total.total:0);});
+    var duty=$('.duty-ratio',card);if(duty)duty.outerHTML=ctlDuty(gno,s,memberCount(groupOf(cls,gno)));
     card.classList.toggle('touched', touched(lesson, gno));
     $$('.num', card).forEach(function (inp) {
       var f = inp.dataset.f;
@@ -1021,6 +1033,20 @@ function removeMemberAt(cls, g, j) {
   /* 清零使用明确按钮，避免连续两次扣分被浏览器dblclick误判为清零。 */
 
   $('#groupList').addEventListener('change', function (e) {
+    var dutyInput=e.target.closest('[data-duty-present],[data-duty-expected]');
+    if(dutyInput){
+      var cls=curClass(),lesson=curLesson(cls);if(!lesson)return;
+      var gno=+(dutyInput.dataset.dutyPresent||dutyInput.dataset.dutyExpected),box=dutyInput.closest('.duty-ratio');
+      var presentText=box.querySelector('[data-duty-present]').value,expectedText=box.querySelector('[data-duty-expected]').value;
+      var present=Number(presentText),expected=Number(expectedText),s=sc(lesson,gno);
+      if(presentText===''&&expectedText!==''&&Number.isInteger(expected)&&expected>=1&&expected<=99)return;
+      if(presentText===''||expectedText===''||!Number.isInteger(present)||!Number.isInteger(expected)||expected<1||expected>99||present<0||present>expected){flash('值日人数须为整数，参与人数不能超过应到人数。');refreshCard(cls,lesson,gno);return;}
+      var oldMeta=s.dutyParticipation?JSON.parse(JSON.stringify(s.dutyParticipation)):null,old=+s.duty||0,next=Math.round(500*present/expected)/100;
+      if(oldMeta&&oldMeta.present===present&&oldMeta.expected===expected)return;
+      s.dutyParticipation={present:present,expected:expected};s.duty=next;
+      pushUndo({lessonId:lesson.id,gno:gno,f:'duty',old:old,neu:next,oldDutyMeta:oldMeta,neuDutyMeta:{present:present,expected:expected}});
+      save();refreshCard(cls,lesson,gno);renderMetrics(cls,lesson);if(next!==old)scoreFeedback(gno,'duty',null,next-old);return;
+    }
     var inp = e.target.closest('input.num');
     if (!inp) return;
     var cls = curClass(), lesson = curLesson(cls);
@@ -1510,12 +1536,13 @@ function removeMemberAt(cls, g, j) {
     var rows = [['班级', cls.name, '第 ' + lesson.seq + ' 次课', '日期', lesson.date || '',
                  '本节任务', lesson.topic || '', '值日组', lesson.dutyGroup || '']];
     rows.push([]);
-    rows.push(['组号', '成员', '首个正确', '小组分', '手机未入袋', '值日分', '个人扣分合计', '本节合计', '小组累计']);
+    rows.push(['组号', '成员', '首个正确', '小组分', '手机未入袋', '值日分', '值日参与人数', '值日应到人数', '个人扣分合计', '本节合计', '小组累计']);
     cls.groups.forEach(function (g) {
       var s = sc(lesson, g.no);
       rows.push([g.no,
         g.members.map(function (m) { return m.name; }).join('、'),
         s.first ? 1 : 0, +s.group || 0, +s.phone || 0, +s.duty || 0,
+        s.dutyParticipation?s.dutyParticipation.present:'',s.dutyParticipation?s.dutyParticipation.expected:'',
         personalSum(lesson, g.no), groupTotal(lesson, g.no), groupCum(cls, g.no)]);
     });
     download(cls.name + '_第' + lesson.seq + '次课_' + stamp() + '.csv', toCsv(rows), 'text/csv');
@@ -1631,7 +1658,7 @@ function removeMemberAt(cls, g, j) {
   }
 
   var XL_RULE = '加分规则：①首个正确完成并通过验收的小组「首个正确」+1（整组）；' +
-    '②「小组分」为整组完成质量（0-5分）；③本节课值日组「值日分」0-5 分（按工具清点与场地整理质量评分）。' +
+    '②「小组分」为整组完成质量（0-5分）；③值日分由参与/应到人数自动换算，5×参与人数÷应到人数，保留两位小数。' +
     '扣分规则：④课堂说话等违纪，由教师在对应成员的姓名下方「个人扣分」栏记录，每次 -1（犯几次记几次）；' +
     '⑤手机未入袋（纪委按学号登记），本组每人 -1。';
 
@@ -1659,7 +1686,7 @@ function removeMemberAt(cls, g, j) {
       '<th class="c-phone" rowspan="2">全组·手机未入袋<br>（-1/人）</th>' +
       '<th class="c-first" rowspan="2">全组·首个正确<br>(+1)</th>' +
       '<th class="c-grp" rowspan="2">全组·小组分<br>(0-5)</th>' +
-      '<th class="c-duty" rowspan="2">全组·值日分<br>(0-5)</th>' +
+      '<th class="c-duty" rowspan="2">全组·值日<br>参与/应到 · 自动换算5分</th>' +
       '<th class="c-sum" rowspan="2">本节<br>合计</th>' +
       '</tr><tr>' + subHead + '</tr></thead>';
 
@@ -1681,7 +1708,7 @@ function removeMemberAt(cls, g, j) {
           '<td class="c-phone" rowspan="2">' + (+s.phone || '') + '</td>' +
           '<td class="c-first" rowspan="2">' + (s.first ? 1 : '') + '</td>' +
           '<td class="c-grp" rowspan="2">' + (+s.group || '') + '</td>' +
-          '<td class="c-duty" rowspan="2">' + (+s.duty || '') + '</td>' +
+          '<td class="c-duty" rowspan="2">' + (+s.duty || '') + (s.dutyParticipation?'<br><small>'+s.dutyParticipation.present+'/'+s.dutyParticipation.expected+'人</small>':'') + '</td>' +
           '<td class="c-sum" rowspan="2">' +
             (touched(lesson, g.no) ? fmt(groupTotal(lesson, g.no)) : '') + '</td>' +
         '</tr>' +
@@ -1793,7 +1820,7 @@ function removeMemberAt(cls, g, j) {
     var l = getLesson(entry.op.lessonId); if(!l) {renderUndoBtn();return false;}
     l.scores[String(entry.op.gno)] = entry.scores;
     S.undo.push(entry.op); S.ui.classId=l.classId; S.ui.lessonId=l.id;
-    addOperationLog('重做',undoLabel(Object.assign({},entry.op,{old:entry.op.neu,neu:entry.op.old})));
+    addOperationLog('重做',undoLabel(reverseOp(entry.op)));
     save(false); renderScore(); renderUndoBtn(); flash('已重做：' + undoLabel(entry.op)); return true;
   }
   $('#btnRedo').addEventListener('click', redo);

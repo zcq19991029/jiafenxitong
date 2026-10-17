@@ -25,7 +25,16 @@ const partiallyGraded=structuredClone(lesson);partiallyGraded.leaderScores['1'].
 const pending=A.rows(cls,[partiallyGraded],raw).find(m=>m.sid==='991');
 check('ungraded task is excluded from the denominator and marked pending',pending.task.maximum===5&&pending.task.pending===1&&pending.task.rate===1&&!pending.ready);
 let highBonus=structuredClone(raw);highBonus[1].groupScore=100;
-check('group reward is limited to five learning points',A.rows(cls,[lesson],highBonus).find(m=>m.sid==='992').learning===69);
+check('all accumulated rewards participate with only the final grade capped',A.rows(cls,[lesson],highBonus).find(m=>m.sid==='992').learning===80);
+const longClass={...cls,assessmentSettings:{taskTarget:100,bonusCap:5}};
+const longRaw=structuredClone(raw);longRaw[1].project=80;longRaw[1].groupScore=10;
+check('eighty task points plus ten reward points out of one hundred yield ninety six regular points',A.rows(longClass,[lesson],longRaw).find(m=>m.sid==='992').regular===96);
+longRaw[1].groupScore=20;
+check('rewards beyond the former semester cap continue to increase the assigned grade',A.rows(longClass,[lesson],longRaw).find(m=>m.sid==='992').regular===100);
+longRaw[1].personal=5;
+check('personal deductions are applied once on the original points scale',A.rows(longClass,[lesson],longRaw).find(m=>m.sid==='992').regular===98);
+longClass.assessmentSettings.taskTarget=200;longRaw[1].project=160;longRaw[1].groupScore=40;longRaw[1].personal=10;
+check('semester growth preserves equal ratios instead of a fixed reward allowance',A.rows(longClass,[lesson],longRaw).find(m=>m.sid==='992').regular===98);
 let negative=structuredClone(raw);negative[2].personal=999;negative[2].groupScore=-100;
 check('classroom deductions cannot erase the learning base',A.rows(cls,[lesson],negative).find(m=>m.sid==='993').learning===40);
 lesson.attendance={'sid:993':{status:'truant',loss:3}};rows=A.rows(cls,[lesson],raw);

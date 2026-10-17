@@ -58,7 +58,7 @@ function validateState(data) {
         if (!Number.isInteger(cfg[field]) || cfg[field]<(field==='totalLessons'?1:0) || cfg[field]>(field==='totalLessons'?1000:100)) fail(400,'赋分考勤设置超出范围。');
       }
       if (cfg.taskTarget!==undefined && (!Number.isInteger(cfg.taskTarget)||cfg.taskTarget<0||cfg.taskTarget>100000)) fail(400,'任务满分基准须为0–100000整数。');
-      if (cfg.bonusCap!==undefined && (!Number.isInteger(cfg.bonusCap)||cfg.bonusCap<0||cfg.bonusCap>5)) fail(400,'小组奖励上限须为0–5整数。');
+      // bonusCap is an obsolete setting retained in old backups, never used to cap rewards.
       if (!Array.isArray(cfg.customRules) || cfg.customRules.length>20 || cfg.customRules.some(r=>!r || !/^custom_[a-z0-9_]{1,80}$/.test(r.id) || typeof r.name!=='string' || !r.name.trim() || r.name.length>40 || !Number.isInteger(r.loss) || r.loss<0 || r.loss>100)
         || new Set(cfg.customRules.map(r=>r.id)).size!==cfg.customRules.length || new Set(cfg.customRules.map(r=>r.name)).size!==cfg.customRules.length) fail(400,'自定义考勤规则不正确。');
     }
@@ -105,6 +105,12 @@ function validateState(data) {
     }
     for (const score of Object.values(lesson.scores)) {
       if (!score || typeof score !== 'object' || Array.isArray(score)) fail(400, '记分数据格式不正确。');
+      if (score.dutyParticipation !== undefined) {
+        const r=score.dutyParticipation;
+        if (!r || typeof r!=='object' || Array.isArray(r) || !Number.isInteger(r.present) || !Number.isInteger(r.expected)
+            || r.expected<1 || r.expected>99 || r.present<0 || r.present>r.expected
+            || !Number.isFinite(score.duty) || Math.abs(score.duty-Math.round(500*r.present/r.expected)/100)>0.000001) fail(400,'值日人数或自动换算分数不正确。');
+      }
       for (const field of ['first', 'group', 'phone', 'duty']) {
         if (score[field] !== undefined && (!Number.isFinite(score[field]) || score[field] < 0 || score[field] > 1000000)) fail(400, '分数须为有效非负数。');
       }

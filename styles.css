@@ -1239,3 +1239,9 @@ table.sheet td.c-sum .c { font-size: 13px; color: var(--text); }
 @media(min-width:1600px){.rank-columns {grid-template-columns:240px minmax(0,1fr);}.rank-groups .bar-row {grid-template-columns:75px minmax(30px,1fr) 40px;gap:8px;}.rank-groups .who {font-size:13px;}}
 @media print{.assessment-actions,.assessment-settings {display:none;}.rank-columns{display:block;}}
 @media(min-width:1600px){.rank-groups{position:sticky;top:16px;}.rank-members .assessment-scroll{max-height:70dvh;}.assessment-table thead th{position:sticky;top:0;z-index:1;background:var(--panel);}}
+
+.duty-ratio {display:flex;flex-direction:column;align-items:center;gap:3px;}
+.duty-people {display:flex;align-items:center;justify-content:center;gap:3px;}
+.duty-people input {width:42px;min-width:0;min-height:36px;padding:3px 1px;text-align:center;font:inherit;font-size:16px;font-weight:600;color:var(--xl-ink);border:1px solid var(--xl-line);border-radius:6px;background:var(--panel);}
+.duty-earned {font-size:16px;font-weight:700;color:var(--good);}
+.duty-ratio small {font-size:11px;line-height:1.2;color:var(--text);}
