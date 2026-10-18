@@ -794,6 +794,17 @@ dialog::backdrop {
 
 /* ---------- 打印 ---------- */
 #printArea { display: none; }
+@media print {
+ #printArea .lesson-duplex-front .sheet-tb col.w-no{width:3%!important}
+ #printArea .lesson-duplex-front .sheet-tb col.w-mem{width:7.5%!important}
+ #printArea .lesson-duplex-front .sheet-tb col.w-attendance{width:6%!important}
+ #printArea .lesson-duplex-front .sheet-tb col.w-phone{width:6%!important}
+ #printArea .lesson-duplex-front .sheet-tb col.w-first{width:4.5%!important}
+ #printArea .lesson-duplex-front .sheet-tb col.w-grp,#printArea .lesson-duplex-front .sheet-tb col.w-duty{width:4%!important}
+ #printArea .lesson-duplex-front .sheet-tb col.w-sum{width:4.5%!important}
+ #printArea .lesson-duplex-front .sheet-tb col.w-grade{width:7%!important}
+ #printArea .lesson-duplex-front .sheet-tb col.w-grade:nth-last-child(3){width:9%!important}
+}
 
 /* 本课记录用 A4 纵向（和纸质记录表一致）；积分总览列多，用 A4 横向 */
 @page lessonpage { size: A4 portrait; margin: 7mm 6mm 5mm; }
