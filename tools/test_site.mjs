@@ -143,6 +143,26 @@ const teacherState=JSON.parse(tw.localStorage.getItem('jfdt.v1'));
 check('new teacher receives no administrator lessons or students', teacherState.lessons.length===0 && teacherState.classes.every(c=>c.roster.length===0&&c.groups.every(g=>!g.members.length)));
 const existingAdmin=await(await site.fetch(new Request(origin+'/api/state',{headers:{Authorization:'Bearer '+admin.token}}),env)).json();
 check('neutral initialization never changes an existing account', existingAdmin.data.classes[0].roster.length===2 && existingAdmin.data.lessons[0].scores['1'].group===1);
+
+// Exercise the actual UI below the learning cap, including all three derived cells.
+q('#tabs [data-view="leader"]').click();
+function change(selector,value,event='change'){q(selector).value=value;q(selector).dispatchEvent(new w.Event(event,{bubbles:true}));}
+change('[data-project="0"]','项目甲');change('[data-project="1"]','项目乙');change('[data-project="2"]','项目丙');
+change('[data-member][data-item="0"]','4');
+q('#tabs [data-view="score"]').click();
+const gradeValues=()=>['regular','contribution','needed'].map(f=>parseFloat(q('[data-card="1"] [data-home-grade="'+f+'"] strong').textContent));
+console.log('LINKAGE before',gradeValues());
+const beforeDed=gradeValues();q('[data-card="1"] [data-act="p"]').click();
+const afterDed=gradeValues();console.log('LINKAGE deduction',afterDed);
+check('below-cap personal deduction immediately lowers regular and contribution and raises exam target',afterDed[0]<beforeDed[0]&&afterDed[1]<beforeDed[1]&&afterDed[2]>beforeDed[2]);
+q('[data-attendance-open]').click();change('#homeAttendanceStatus','truant');change('#homeAttendanceLoss','3');q('#homeAttendanceForm').dispatchEvent(new w.Event('submit',{cancelable:true}));
+const afterAtt=gradeValues();check('attendance loss immediately changes all three numeric grades with projects present',Math.abs(afterDed[0]-afterAtt[0]-1)<.001&&afterAtt[1]<afterDed[1]&&afterAtt[2]>afterDed[2]);
+q('#tabs [data-view="leader"]').click();change('[data-member][data-item="0"]','5');q('#tabs [data-view="score"]').click();
+check('individual project score immediately updates home grade',gradeValues()[0]>afterAtt[0]);
+q('#tabs [data-view="leader"]').click();change('[data-project="3"]','新增全班项目');q('#tabs [data-view="score"]').click();
+check('new shared project increases denominator by five without assigning a score',q('[data-home-grade="regular"] .completion-rate').textContent.includes('25%'));
+const linkageState=JSON.parse(w.localStorage.getItem('jfdt.v1'));check('project names synchronize every group in the lesson',linkageState.classes[0].groups.every(g=>linkageState.lessons[0].leaderScores[String(g.no)].projects[3]==='新增全班项目'));
+
 teacherDom.window.close();
 if(errors.length)console.log(errors);check('packaged application has no unexpected exceptions', errors.length === 0);
 dom.window.close(); env.sqlite.close();
