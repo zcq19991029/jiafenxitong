@@ -41,9 +41,9 @@ check('classroom deductions can reduce the entire learning component to zero',A.
 lesson.attendance={'sid:993':{status:'truant',loss:3}};rows=A.rows(cls,[lesson],raw);
 check('attendance can bring regular grade below sixty',find('993').attendance===45&&find('993').regular===45);
 cls.foundationChecks={'sid:991':'met'};lesson.attendance['sid:991']={status:'present',loss:0};rows=A.rows(cls,[lesson],raw);
-check('teacher confirmation plus complete tasks and attendance enables reviewed status',find('991').ready);
+check('complete tasks and attendance enable reviewed status',find('991').ready);
 cls.foundationChecks['sid:991']='makeup';rows=A.rows(cls,[lesson],raw);
-check('makeup status remains a provisional estimate',!find('991').ready&&find('991').confirmation==='makeup');
+check('legacy makeup flag cannot change completeness or grades',find('991').ready&&find('991').regular===100);
 cls.examScores={'sid:991':50};rows=A.rows(cls,[lesson],raw);
 check('actual exam uses forty sixty weighting',find('991').final===70);
 cls.assessmentSettings={...A.settings(cls),totalLessons:2,late:8};rows=A.rows(cls,[lesson],raw);

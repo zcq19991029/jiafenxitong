@@ -1217,7 +1217,7 @@ table.sheet td.c-sum .c { font-size: 13px; color: var(--text); }
 .rank-columns .sec-title {margin-top:0;}
 .rank-members #memberRank {padding:16px;}
 .assessment-scroll {overflow:auto;max-width:100%;}
-.assessment-table {width:100%;min-width:1000px;table-layout:fixed;}
+.assessment-table {width:100%;min-width:1320px;table-layout:fixed;}
 .assessment-table th,.assessment-table td {padding:10px 8px;vertical-align:middle;font-size:14px;white-space:nowrap;}
 .assessment-table small {display:block;white-space:normal;max-width:170px;font-size:12px;color:var(--muted);}
 .assessment-table th {white-space:normal;}
@@ -1245,3 +1245,29 @@ table.sheet td.c-sum .c { font-size: 13px; color: var(--text); }
 .duty-people input {width:42px;min-width:0;min-height:36px;padding:3px 1px;text-align:center;font:inherit;font-size:16px;font-weight:600;color:var(--xl-ink);border:1px solid var(--xl-line);border-radius:6px;background:var(--panel);}
 .duty-earned {font-size:16px;font-weight:700;color:var(--good);}
 .duty-ratio small {font-size:11px;line-height:1.2;color:var(--text);}
+
+/* Ranking: prominent results, quieter evidence, separate optional review. */
+.assessment-table .grade-regular {background:#edf5ee;color:#236442;}
+.assessment-table .grade-contribution {background:#edf2fa;color:#2f527a;}
+.assessment-table .grade-needed {background:#fcf0e9;color:#a7472e;}
+.assessment-table td.grade-regular,.assessment-table td.grade-contribution,.assessment-table td.grade-needed {text-align:center;padding:18px 10px;white-space:normal;}
+.assessment-table .grade-value {display:block;font-size:28px;line-height:1.2;font-weight:750;font-variant-numeric:tabular-nums;overflow-wrap:normal;}
+.assessment-table .grade-needed .grade-value {font-size:25px;}
+.assessment-table .grade-regular small,.assessment-table .grade-contribution small,.assessment-table .grade-needed small {color:#57534e;margin:6px auto 0;line-height:1.5;font-size:12px;}
+.assessment-table th.grade-regular,.assessment-table th.grade-contribution,.assessment-table th.grade-needed {width:145px;background:#f4f1ed;}
+.foundation-review {margin-top:18px;padding:14px 16px;border:1px solid var(--line);border-radius:12px;}
+.foundation-review summary {cursor:pointer;font-weight:650;}
+.foundation-review-grid {display:grid;grid-template-columns:repeat(auto-fill,minmax(190px,1fr));gap:10px;}
+.foundation-review-grid label {display:flex;align-items:center;justify-content:space-between;gap:12px;padding:8px;background:var(--panel);border-radius:8px;}
+.foundation-review-grid .foundation-check {margin:0;min-height:40px;}
+.assessment-scroll {scrollbar-gutter:stable;}
+
+/* Keep the full table reachable; horizontal scroll controls remain visible. */
+.assessment-scroll {min-width:0;width:100%;overflow:auto;max-height:65dvh;border-bottom:1px solid var(--line);padding-bottom:8px;scrollbar-width:auto;scrollbar-color:#9f9386 #eee9e2;}
+.assessment-scroll::-webkit-scrollbar {height:13px;width:13px;}
+.assessment-scroll::-webkit-scrollbar-thumb {background:#9f9386;border:3px solid #eee9e2;border-radius:10px;}
+.assessment-scroll:focus-visible {outline:2px solid #a7472e;outline-offset:3px;}
+.assessment-table {min-width:1480px;}
+.assessment-table th,.assessment-table td {overflow:visible;}
+.assessment-table th:nth-child(10),.assessment-table th:nth-child(11) {width:130px;}
+.assessment-exam {width:100%;min-width:80px;box-sizing:border-box;}
