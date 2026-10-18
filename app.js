@@ -717,12 +717,15 @@ function removeMemberAt(cls, g, j) {
 
   }
 
+  function attendanceCell(cls,lesson,g,printing){var A=window.JFDT_ASSESSMENT,cfg=A.settings(cls),rows=A.rows(cls,lessonsOf(cls.id),memberTotals(cls)),labels={present:'到课',leave:'请假',truant:'旷课',late:'迟到',early:'早退'};return '<td rowspan="2" class="home-attendance" data-home-attendance="'+g.no+'">'+g.members.filter(function(m){return !!m.name;}).map(function(m,i){var k=A.key(m),record=lesson.attendance&&lesson.attendance[k],row=rows.find(function(r){return r.key===k;}),status=record?record.status:'';var opts=[['','未登记'],['present','到课'],['leave','请假'],['truant','旷课'],['late','迟到'],['early','早退']].concat((cfg.customRules||[]).map(function(r){return [r.id,r.name];}));if(status&&!opts.some(function(o){return o[0]===status;}))opts.push([status,record.label]);return '<div class="home-attendance-person"><span>'+(i+1)+'</span>'+(printing?'<b>'+esc(record?record.label:'未登记')+(record&&record.loss?' −'+record.loss:'')+'</b>':'<select data-home-att-key="'+esc(k)+'" data-home-att-group="'+g.no+'" aria-label="成员'+(i+1)+' '+esc(m.name)+' 本节考勤">'+opts.map(function(o){var loss=o[0]?A.deduction(o[0],cfg):0;return '<option value="'+esc(o[0])+'"'+(o[0]===status?' selected':'')+'>'+esc(o[1])+(o[0]?' '+(loss?'−'+loss:'0'):'')+'</option>';}).join('')+'</select>')+'<strong title="本学期考勤分，满分48">'+(row?row.attendance:48)+'/48</strong></div>';}).join('')+'</td>';}
+  $('#groupList').addEventListener('change',function(e){var input=e.target.closest('[data-home-att-key]');if(!input)return;var cls=curClass(),lesson=curLesson(cls),A=window.JFDT_ASSESSMENT;if(!lesson)return;var key=input.dataset.homeAttKey,status=input.value,cfg=A.settings(cls),old=lesson.attendance&&lesson.attendance[key];if((old?old.status:'')===status)return;var labels={present:'正常出勤',leave:'请假',truant:'旷课',late:'迟到',early:'早退'},custom=(cfg.customRules||[]).find(function(r){return r.id===status;});if(status&&!labels[status]&&!custom)return;if(!lesson.attendance)lesson.attendance={};var member=A.roster(cls,memberTotals(cls)).find(function(m){return m.key===key;});if(status)lesson.attendance[key]={status:status,label:labels[status]||custom.name,loss:A.deduction(status,cfg),updatedAt:new Date().toISOString()};else delete lesson.attendance[key];addOperationLog('考勤',cls.name+' · 第'+lesson.seq+'次 · '+lesson.date+' · '+member.name+'：'+(old?old.label:'未登记')+' → '+(status?lesson.attendance[key].label+'（扣'+lesson.attendance[key].loss+'分）':'未登记'));save();renderGroups(cls,lesson);flash('考勤已保存，个人平时分与期末目标已更新');});
+
   function homeGradeHead(){return '<th rowspan="2" class="home-grade regular">平时成绩<br>/100</th><th rowspan="2" class="home-grade contribution">计入总评<br>/40</th><th rowspan="2" class="home-grade needed">期末至少需考<br>/100</th>';}
   function homeGradeCells(cls,g){
     var A=window.JFDT_ASSESSMENT;if(!A)return '<td rowspan="2" colspan="3">成绩模块未加载</td>';
     var rows=A.rows(cls,lessonsOf(cls.id),memberTotals(cls));
-    var members=g.members.filter(function(m){return !!m.name;}).map(function(m){return {member:m,row:rows.find(function(r){return r.key===A.key(m);})};});
-    return ['regular','contribution','needed'].map(function(field){return '<td rowspan="2" class="home-grade '+field+'" data-home-grade="'+field+'">'+members.map(function(item){var m=item.member,r=item.row;if(!r)return '';var value=field==='needed'?(r.attendanceFailed?'不适用':r.needed>100?'无法达到':r.needed):r[field];return '<div class="home-grade-person" data-grade-student="'+esc(r.key)+'" title="'+esc(m.name)+'：'+(r.ready?'记录已齐':'预估，项目或考勤记录未齐')+'"><span class="home-grade-name">'+esc(m.name)+'</span><strong>'+value+'</strong>'+(r.attendanceFailed?'<small>考勤挂科</small>':!r.ready?'<small>预估</small>':'')+'</div>';}).join('')+'</td>';}).join('');
+    var members=g.members.filter(function(m){return !!m.name;}).map(function(m,i){return {member:m,index:i+1,row:rows.find(function(r){return r.key===A.key(m);})};});
+    return ['regular','contribution','needed'].map(function(field){return '<td rowspan="2" class="home-grade '+field+'" data-home-grade="'+field+'">'+members.map(function(item){var m=item.member,r=item.row;if(!r)return '';var value=field==='needed'?(r.attendanceFailed?'不适用':r.needed>100?'无法达到':r.needed):r[field];return '<div class="home-grade-person" data-grade-student="'+esc(r.key)+'" title="'+esc(m.name)+'：'+(r.ready?'记录已齐':'预估，项目或考勤记录未齐')+'"><span class="home-grade-name">'+item.index+'</span><strong>'+value+'</strong>'+(r.attendanceFailed?'<small>考勤挂科</small>':'')+'</div>';}).join('')+'</td>';}).join('');
   }
 
   /** 个人扣分格：点一次 +1；右键 / 长按 −1 */
@@ -801,7 +804,7 @@ function removeMemberAt(cls, g, j) {
   function groupsTable(cls, lesson) {
     var cols = '<col class="w-no">';
     for (var c = 0; c < GROUP_CAP; c++) cols += '<col class="w-mem">';
-    cols += '<col class="w-phone"><col class="w-first"><col class="w-grp">' +
+    cols += '<col class="w-attendance"><col class="w-phone"><col class="w-first"><col class="w-grp">' +
       '<col class="w-duty"><col class="w-sum"><col class="w-grade"><col class="w-grade"><col class="w-grade">';
 
     var sub = '';
@@ -811,7 +814,7 @@ function removeMemberAt(cls, g, j) {
       '<tr>' +
         '<th class="c-no" rowspan="2">组<br>号</th>' +
         '<th class="c-mem" colspan="' + GROUP_CAP + '">小组成员姓名 / 个人扣分（-1/次）</th>' +
-        '<th class="c-phone" rowspan="2">全组·手机未入袋<br>（-1/人）</th>' +
+        '<th class="home-attendance" rowspan="2">成员考勤<br>本节状态 / 学期考勤分</th><th class="c-phone" rowspan="2">全组·手机未入袋<br>（-1/人）</th>' +
         '<th class="c-first" rowspan="2">全组·首个正确<br>(+1)</th>' +
         '<th class="c-grp" rowspan="2">全组·小组分<br>(0-5)</th>' +
         '<th class="c-duty" rowspan="2">全组·值日<br>(0-5)</th>' +
@@ -837,7 +840,7 @@ function removeMemberAt(cls, g, j) {
           '" data-card="' + g.no + '">' +
         '<tr class="gname">' +
           '<td class="c-no" rowspan="2">' + g.no + '</td>' +
-          names +
+          names + attendanceCell(cls,lesson,g,false) +
           '<td class="c-phone" rowspan="2">' + ctlStep(g.no, 'phone', s, maxPhone, '手机未入袋') + '</td>' +
           '<td class="c-first" rowspan="2">' + ctlFirst(g.no, s) + '</td>' +
           '<td class="c-grp" rowspan="2">' + ctlStep(g.no, 'group', s, maxOf('group', maxPhone), '小组分') + '</td>' +
@@ -1687,7 +1690,7 @@ function removeMemberAt(cls, g, j) {
 
     var cols = '<col class="w-no">';
     for (var c = 0; c < GROUP_CAP; c++) cols += '<col class="w-mem">';
-    cols += '<col class="w-phone"><col class="w-first"><col class="w-grp">' +
+    cols += '<col class="w-attendance"><col class="w-phone"><col class="w-first"><col class="w-grp">' +
       '<col class="w-duty"><col class="w-sum"><col class="w-grade"><col class="w-grade"><col class="w-grade">';
 
     var subHead = '';
@@ -1696,7 +1699,7 @@ function removeMemberAt(cls, g, j) {
     var head = '<thead><tr>' +
       '<th class="c-no" rowspan="2">组<br>号</th>' +
       '<th class="c-mem" colspan="' + GROUP_CAP + '">小组成员姓名 / 个人扣分（-1/次）</th>' +
-      '<th class="c-phone" rowspan="2">全组·手机未入袋<br>（-1/人）</th>' +
+      '<th class="home-attendance" rowspan="2">成员考勤<br>本节状态 / 学期考勤分</th><th class="c-phone" rowspan="2">全组·手机未入袋<br>（-1/人）</th>' +
       '<th class="c-first" rowspan="2">全组·首个正确<br>(+1)</th>' +
       '<th class="c-grp" rowspan="2">全组·小组分<br>(0-5)</th>' +
       '<th class="c-duty" rowspan="2">全组·值日<br>(0-5)</th>' +
@@ -1717,7 +1720,7 @@ function removeMemberAt(cls, g, j) {
       return '<tbody data-pg="' + g.no + '"' + (isDuty ? ' class="is-duty"' : '') + '>' +
         '<tr class="gname">' +
           '<td class="c-no' + (isDuty ? ' duty' : '') + '" rowspan="2">' + g.no + '</td>' +
-          names +
+          names + attendanceCell(cls,lesson,g,true) +
           '<td class="c-phone" rowspan="2">' + (+s.phone || '') + '</td>' +
           '<td class="c-first" rowspan="2">' + (s.first ? 1 : '') + '</td>' +
           '<td class="c-grp" rowspan="2">' + (+s.group || '') + '</td>' +
@@ -1735,7 +1738,7 @@ function removeMemberAt(cls, g, j) {
       (pend.length ? pend.map(function (r) {
         return esc(r.name) + '(' + two(r.no) + ')';
       }).join('、') : '无，全班都已分组');
-    var foot='<tfoot><tr><td class="c-note" colspan="'+(GROUP_CAP+9)+'">'+note+'</td></tr><tr><td class="c-note" colspan="'+(GROUP_CAP+9)+'">右侧三列为本学期当前个人成绩，与排名页相同；按姓名逐行对应。未批改或考勤未齐为预估，考勤挂科时考试目标不适用。打印后不会自动更新。</td></tr></tfoot>';
+    var foot='<tfoot><tr><td class="c-note" colspan="'+(GROUP_CAP+10)+'">'+note+'</td></tr><tr><td class="c-note" colspan="'+(GROUP_CAP+10)+'">右侧三列为本学期当前个人成绩，与排名页相同；按姓名逐行对应。成绩按已登记的项目和考勤计算，考勤挂科时考试目标不适用。打印后不会自动更新。</td></tr></tfoot>';
 
     printArea(
       '<div class="sheet">' +
