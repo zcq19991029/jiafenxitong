@@ -1271,3 +1271,33 @@ table.sheet td.c-sum .c { font-size: 13px; color: var(--text); }
 .assessment-table th,.assessment-table td {overflow:visible;}
 .assessment-table th:nth-child(10),.assessment-table th:nth-child(11) {width:130px;}
 .assessment-exam {width:100%;min-width:80px;box-sizing:border-box;}
+
+/* Compact classroom defaults: lesson-only values, one-purpose cells. */
+@media screen {
+ #scoreMetrics .metric:nth-child(3) {display:none;}
+ #scoreMetrics {grid-template-columns:repeat(3,minmax(0,1fr));}
+ .duty-score {width:100%;min-height:44px;border:1px solid #c6d7bf;border-radius:8px;background:#f5faf2;color:#256b3e;font:700 18px/1.2 inherit;cursor:pointer;}
+ .duty-score:focus-visible,.toggle:focus-visible {outline:2px solid #256b3e;outline-offset:2px;}
+ button.toggle[data-act=first] {min-width:44px;min-height:44px;width:100%;font-size:25px;line-height:1;color:#8fa58c;background:#f5f8f2;border:1px solid #ccd8c5;}
+ button.toggle.on[data-act=first] {color:#fff;background:#2f8550;border-color:#2f8550;box-shadow:0 0 0 2px #2f855022;}
+ #dlgDutyPeople {width:min(380px,calc(100vw - 32px));}
+ #dlgDutyPeople select {min-height:44px;font-size:18px;}
+ #dlgDutyPeople details {margin:16px 0;}
+ table.sheet th.c-duty {font-size:14px;}
+ table.sheet .c-mem {white-space:nowrap;}
+ table.sheet .step {min-width:0;}
+ table.sheet .step .num {min-width:28px;width:100%;}
+ table.sheet .step button {flex-shrink:0;}
+}
+@media screen and (min-width:1000px) {
+ body.sidebar-layout .topbar {width:250px;padding:12px;}
+ body.sidebar-layout main {margin-left:250px;width:calc(100% - 250px);padding:8px 16px;}
+ body.sidebar-layout .local-warn {margin-left:250px;}
+ body.sidebar-layout table.sheet {min-width:1050px;height:calc(100dvh - 16px);font-size:14px;}
+ body.sidebar-layout table.sheet .step button {width:30px;height:36px;}
+ body.sidebar-layout #scoreMetrics {grid-template-columns:repeat(2,minmax(0,1fr));}
+}
+
+@media screen {.sheetwrap{max-width:100%;overflow:auto;scrollbar-width:auto;padding-bottom:8px}.sheetwrap::-webkit-scrollbar{height:12px}.sheetwrap::-webkit-scrollbar-thumb{background:#a99b8d;border-radius:8px}#dlgDutyPeople button{min-height:44px}.duty-score{font-family:inherit;font-size:18px;font-weight:700;}}
+
+@media screen and (min-width:1000px){body.sidebar-layout .brandtext h1{white-space:nowrap;font-size:14px}body.sidebar-layout .brandtext{min-width:100px}body.sidebar-layout .topbar-main{flex-wrap:wrap}body.sidebar-layout #userBox{flex-wrap:wrap;gap:6px}body.sidebar-layout .brand{min-width:0}body.sidebar-layout .brandtext .sub{font-size:11px}}

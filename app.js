@@ -676,8 +676,8 @@ function removeMemberAt(cls, g, j) {
   }
 
   function ctlFirst(gno, s) {
-    return '<button class="toggle' + (s.first ? ' on' : '') + '" data-g="' + gno + '" data-act="first">' +
-      (s.first ? '已加分 +1' : '未加分') + '</button>';
+    return '<button class="toggle' + (s.first ? ' on' : '') + '" data-g="' + gno + '" data-act="first" aria-label="第'+gno+'组首个正确，加1分" aria-pressed="'+!!s.first+'">' +
+      '✓</button>';
   }
 
   /** ± 步进 + 可直接输入的数字框 */
@@ -695,17 +695,17 @@ function removeMemberAt(cls, g, j) {
   function ctlDuty(gno,s,count) {
     var record=s.dutyParticipation,expected=record?record.expected:count;
     if(!expected)return '<span class="note">先录入小组成员</span>';
-    return '<div class="duty-ratio" data-duty-group="'+gno+'"><div class="duty-people"><input type="number" inputmode="numeric" min="0" max="99" step="1" data-duty-present="'+gno+'" aria-label="第'+gno+'组值日参与人数" placeholder="人数" value="'+(record?record.present:'')+'"><span>/</span><input type="number" inputmode="numeric" min="1" max="99" step="1" data-duty-expected="'+gno+'" aria-label="第'+gno+'组值日应到人数" value="'+expected+'"><span>人</span></div><span class="duty-earned" data-duty-earned="'+gno+'">'+fmt(+s.duty||0)+'分</span><small>'+(record?'按参与比例自动计算':(+s.duty?'历史分保留；填人数后自动计算':'填参与人数，自动换算5分'))+'</small></div>';
+    return '<button type="button" class="duty-score" data-duty-open="'+gno+'" aria-label="第'+gno+'组值日 '+fmt(+s.duty||0)+'分，点击选择参与人数">'+fmt(+s.duty||0)+'</button>';
+
   }
 
   function semesterBadge(cls,gno,index) {
-    var m=memberTotals(cls).find(function(m){return m.gno===gno && m.sid===cls.groups.find(function(g){return g.no===gno;}).members[index].sid && m.name===cls.groups.find(function(g){return g.no===gno;}).members[index].name;});
-    return '<span class="semester-score" data-semester-group="'+gno+'" data-semester-index="'+index+'" title="本学期全部课次：个人项目分＋全组加分−个人扣分">学期 <b>'+fmt(m?m.total:0)+'</b></span>';
+    return '';
   }
 
   function ctlSum(gno, total, cumVal) {
     return '<div class="v ' + signClass(total) + '" data-total="' + gno + '">' + fmt(total) + '</div>' +
-      '<div class="c" data-cum="' + gno + '">学期全组 ' + fmt(cumVal) + '</div>';
+      '';
   }
 
   /** 个人扣分格：点一次 +1；右键 / 长按 −1 */
@@ -756,7 +756,7 @@ function removeMemberAt(cls, g, j) {
             '<div class="v ' + signClass(total) + '" data-total="' + g.no + '">' + fmt(total) + '</div></div>' +
         '</div>' +
         '<div class="gnames">' + names + '</div>' +
-        '<div class="gcard-secondary"><span class="c" data-cum="' + g.no + '">累计 ' + fmt(groupCum(cls, g.no)) + '</span><span class="card-feedback-space" aria-hidden="true"></span>' + ctlClear(g.no, false) + '</div>' +
+        '<div class="gcard-secondary"><span class="card-feedback-space" aria-hidden="true"></span>' + ctlClear(g.no, false) + '</div>' +
         '<div class="gctl">' +
           '<div>' +
             '<div class="lbl">首个正确 +1</div>' +
@@ -771,7 +771,7 @@ function removeMemberAt(cls, g, j) {
             ctlStep(g.no, 'phone', s, maxPhone, '手机未入袋') +
           '</div>' +
           '<div>' +
-            '<div class="lbl">值日参与 / 应到 · 自动5分制</div>' +
+            '<div class="lbl">值日分</div>' +
             ctlDuty(g.no,s,cnt) +
           '</div>' +
         '</div>' +
@@ -797,7 +797,7 @@ function removeMemberAt(cls, g, j) {
         '<th class="c-phone" rowspan="2">全组·手机未入袋<br>（-1/人）</th>' +
         '<th class="c-first" rowspan="2">全组·首个正确<br>(+1)</th>' +
         '<th class="c-grp" rowspan="2">全组·小组分<br>(0-5)</th>' +
-        '<th class="c-duty" rowspan="2">全组·值日<br>参与/应到 · 自动换算5分</th>' +
+        '<th class="c-duty" rowspan="2">全组·值日<br>(0-5)</th>' +
         '<th class="c-sum" rowspan="2">本节<br>合计</th>' +
       '</tr><tr>' + sub + '</tr>' +
     '</thead>';
@@ -871,10 +871,10 @@ function removeMemberAt(cls, g, j) {
     var v = $('[data-total="' + gno + '"]', card);
     v.textContent = fmt(t);
     v.className = 'v ' + signClass(t);
-    $('[data-cum="' + gno + '"]', card).textContent = '学期全组 ' + fmt(groupCum(cls, gno));
+    
     var totals=memberTotals(cls);
     $$('[data-semester-group]',card).forEach(function(el){var member=cls.groups.find(function(g){return g.no===gno;}).members[+el.dataset.semesterIndex];var total=totals.find(function(m){return m.gno===gno && m.name===member.name && m.sid===member.sid;});el.querySelector('b').textContent=fmt(total?total.total:0);});
-    var duty=$('.duty-ratio',card);if(duty)duty.outerHTML=ctlDuty(gno,s,memberCount(groupOf(cls,gno)));
+    var duty=$('[data-duty-open]',card);if(duty)duty.outerHTML=ctlDuty(gno,s,memberCount(groupOf(cls,gno)));
     card.classList.toggle('touched', touched(lesson, gno));
     $$('.num', card).forEach(function (inp) {
       var f = inp.dataset.f;
@@ -883,13 +883,23 @@ function removeMemberAt(cls, g, j) {
     });
     var tg = $('[data-act="first"]', card);
     tg.classList.toggle('on', !!s.first);
-    tg.textContent = s.first ? '已加分 +1' : '未加分';
+    tg.textContent = '✓';tg.setAttribute('aria-pressed',String(!!s.first));
     $$('.pchip', card).forEach(function (c) {
       var n = (+s.personal[c.dataset.i] || 0);
       c.classList.toggle('hit', !!n);
       $('.n', c).textContent = n;
     });
   }
+
+  // A single editor keeps conversion and participation metadata out of the sheet.
+  var dutyDialog=document.createElement('dialog');dutyDialog.id='dlgDutyPeople';
+  dutyDialog.innerHTML='<form method="dialog"><h2 id="dutyPeopleTitle">值日人数</h2><label class="field col">参与人数<select id="dutyPeopleSelect" autofocus></select></label><details><summary>调整应到人数</summary><label class="field col">应到人数<input id="dutyExpectedInput" type="number" min="1" max="99" step="1" required></label></details><p class="note">确认后自动填入值日分。</p><div class="btnrow"><button class="btn" value="cancel" formnovalidate>取消</button><button class="btn primary" value="ok">确定</button></div></form>';
+  document.body.appendChild(dutyDialog);wireDialog(dutyDialog);
+  var dutyEditing=null;
+  function dutyChoices(expected,selected){$('#dutyPeopleSelect').innerHTML=Array.from({length:expected+1},function(_,i){return '<option value="'+i+'"'+(i===selected?' selected':'')+'>'+i+' 人</option>';}).join('');}
+  $('#dutyExpectedInput').addEventListener('input',function(){var n=Number(this.value);if(Number.isInteger(n)&&n>0&&n<=99)dutyChoices(n,Math.min(n,Number($('#dutyPeopleSelect').value)||0));});
+  $('#groupList').addEventListener('click',function(e){var button=e.target.closest('[data-duty-open]');if(!button)return;var cls=curClass(),lesson=curLesson(cls);if(!lesson)return;var gno=Number(button.dataset.dutyOpen),state=sc(lesson,gno),count=memberCount(groupOf(cls,gno)),record=state.dutyParticipation;dutyEditing={classId:cls.id,lessonId:lesson.id,gno:gno};var expected=record?record.expected:count;$('#dutyPeopleTitle').textContent='第 '+gno+' 组 · 值日人数';$('#dutyExpectedInput').value=expected;dutyChoices(expected,record?record.present:0);dutyDialog.returnValue='';openDlg(dutyDialog);});
+  dutyDialog.addEventListener('close',function(){if(dutyDialog.returnValue!=='ok'||!dutyEditing)return;var cls=curClass(),lesson=curLesson(cls),edit=dutyEditing;dutyEditing=null;if(!lesson||lesson.id!==edit.lessonId||cls.id!==edit.classId)return;var present=Number($('#dutyPeopleSelect').value),expected=Number($('#dutyExpectedInput').value);if(!Number.isInteger(expected)||expected<1||expected>99||!Number.isInteger(present)||present<0||present>expected)return;var s=sc(lesson,edit.gno),oldMeta=s.dutyParticipation?JSON.parse(JSON.stringify(s.dutyParticipation)):null,old=+s.duty||0,next=Math.round(500*present/expected)/100;if(oldMeta&&oldMeta.present===present&&oldMeta.expected===expected)return;s.dutyParticipation={present:present,expected:expected};s.duty=next;pushUndo({lessonId:lesson.id,gno:edit.gno,f:'duty',old:old,neu:next,oldDutyMeta:oldMeta,neuDutyMeta:{present:present,expected:expected}});save();refreshCard(cls,lesson,edit.gno);renderMetrics(cls,lesson);if(next!==old)scoreFeedback(edit.gno,'duty',null,next-old);});
 
   /* ================= 记分交互（事件委托） ================= */
 
@@ -1033,20 +1043,6 @@ function removeMemberAt(cls, g, j) {
   /* 清零使用明确按钮，避免连续两次扣分被浏览器dblclick误判为清零。 */
 
   $('#groupList').addEventListener('change', function (e) {
-    var dutyInput=e.target.closest('[data-duty-present],[data-duty-expected]');
-    if(dutyInput){
-      var cls=curClass(),lesson=curLesson(cls);if(!lesson)return;
-      var gno=+(dutyInput.dataset.dutyPresent||dutyInput.dataset.dutyExpected),box=dutyInput.closest('.duty-ratio');
-      var presentText=box.querySelector('[data-duty-present]').value,expectedText=box.querySelector('[data-duty-expected]').value;
-      var present=Number(presentText),expected=Number(expectedText),s=sc(lesson,gno);
-      if(presentText===''&&expectedText!==''&&Number.isInteger(expected)&&expected>=1&&expected<=99)return;
-      if(presentText===''||expectedText===''||!Number.isInteger(present)||!Number.isInteger(expected)||expected<1||expected>99||present<0||present>expected){flash('值日人数须为整数，参与人数不能超过应到人数。');refreshCard(cls,lesson,gno);return;}
-      var oldMeta=s.dutyParticipation?JSON.parse(JSON.stringify(s.dutyParticipation)):null,old=+s.duty||0,next=Math.round(500*present/expected)/100;
-      if(oldMeta&&oldMeta.present===present&&oldMeta.expected===expected)return;
-      s.dutyParticipation={present:present,expected:expected};s.duty=next;
-      pushUndo({lessonId:lesson.id,gno:gno,f:'duty',old:old,neu:next,oldDutyMeta:oldMeta,neuDutyMeta:{present:present,expected:expected}});
-      save();refreshCard(cls,lesson,gno);renderMetrics(cls,lesson);if(next!==old)scoreFeedback(gno,'duty',null,next-old);return;
-    }
     var inp = e.target.closest('input.num');
     if (!inp) return;
     var cls = curClass(), lesson = curLesson(cls);
@@ -1686,7 +1682,7 @@ function removeMemberAt(cls, g, j) {
       '<th class="c-phone" rowspan="2">全组·手机未入袋<br>（-1/人）</th>' +
       '<th class="c-first" rowspan="2">全组·首个正确<br>(+1)</th>' +
       '<th class="c-grp" rowspan="2">全组·小组分<br>(0-5)</th>' +
-      '<th class="c-duty" rowspan="2">全组·值日<br>参与/应到 · 自动换算5分</th>' +
+      '<th class="c-duty" rowspan="2">全组·值日<br>(0-5)</th>' +
       '<th class="c-sum" rowspan="2">本节<br>合计</th>' +
       '</tr><tr>' + subHead + '</tr></thead>';
 
