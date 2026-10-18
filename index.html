@@ -216,7 +216,9 @@
         <button class="btn" id="btnRosterTemplate">下载名单模板</button>
         <button class="btn" id="btnExportRoster">导出全部名单</button>
         <button class="btn primary" id="btnImportRoster">导入名单</button>
+        <button class="btn" id="btnRosterGroups">名单与分组</button>
         <input type="file" id="fileRoster" accept=".xlsx,.xls,.ods,.csv,.tsv" hidden>
+        <details class="note"><summary>WorkBuddy 整理名单后，怎样导入？</summary><p>让 WorkBuddy 生成含“班级、姓名、学号、小组、班内序号”的 XLSX，下载到本机；点击“导入名单”选择文件，核对人数后确认，再点“名单与分组”核对。文件中小组留空则进入待分配；WorkBuddy 生成文件不会自动写入网站。已有课次的班级请在分组管理中操作，不能覆盖整班名单。</p></details>
       </div>
       <p class="note" id="rosterImportStatus" role="status"></p>
     </div>

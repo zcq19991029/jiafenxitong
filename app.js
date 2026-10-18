@@ -585,6 +585,7 @@ function removeMemberAt(cls, g, j) {
         fillClassSelects(); save(false); renderLeader();
       },
       openScore: function () { switchView('score'); }
+      ,openGroups: function () { switchView('pool'); }
     });
   }
 
@@ -1603,6 +1604,7 @@ function removeMemberAt(cls, g, j) {
 
   $('#btnRestore').addEventListener('click', function () { $('#fileRestore').click(); });
   $('#btnRosterSetup').addEventListener('click', function () { switchView('data'); });
+  $('#btnRosterGroups').addEventListener('click',function(){switchView('pool');});
   $('#btnRosterTemplate').addEventListener('click', function () {
     rosterDownload([['班级','姓名','学号','小组','班内序号'],['示例班','张三','26000000001',1,1],['示例班','李四','26000000002',1,2]], '名单导入模板');
   });
@@ -1621,8 +1623,9 @@ function removeMemberAt(cls, g, j) {
         var result = window.JFDT_ROSTER.apply(S, rows, p ? p.displayName : '');
         if (!confirm('导入 ' + result.classes + ' 个班、' + result.students + ' 名学生？同名班级的空白名单将被替换。')) return;
         S = result.state;
+        var importedClass=S.classes.find(function(c){return c.name===rows[0]['班级'];});if(importedClass){S.ui.classId=importedClass.id;S.ui.lessonId=null;}
         save(); fillClassSelects(); renderData(); renderUndoBtn();
-        $('#rosterImportStatus').textContent = '已导入 ' + result.classes + ' 个班、' + result.students + ' 名学生。';
+        $('#rosterImportStatus').textContent = '已导入 ' + result.classes + ' 个班、' + result.students + ' 名学生。下一步：点击“名单与分组”核对或分配小组。';
         flash('名单已导入，正在同步');
       } catch (e) { alert('导入失败：' + e.message); }
     };
@@ -1689,7 +1692,14 @@ function removeMemberAt(cls, g, j) {
     b.classList.remove('print-lesson', 'print-rank');
     b.classList.add(orient === 'rank' ? 'print-rank' : 'print-lesson');
     $('#printArea').innerHTML = html;
-    window.print();
+    if(lessonExporting)return;
+    if(orient!=='lesson'||!html.includes('lesson-duplex')){window.print();return;}
+    var old=document.querySelector('#lessonPrintFrame');if(old)old.remove();
+    var frame=document.createElement('iframe');frame.id='lessonPrintFrame';frame.title='本课打印文档';frame.style.cssText='position:fixed;width:1px;height:1px;left:-10000px;top:0;border:0';
+    var css=Array.from(document.querySelectorAll('link[rel="stylesheet"]')).map(function(l){return '<link rel="stylesheet" href="'+esc(l.href)+'">';}).join('');
+    var pageStyle=$('#lessonPageStyle');
+    frame.srcdoc='<!doctype html><html><head><meta charset="utf-8"><title>本课加分表</title>'+css+'<style>'+(pageStyle?pageStyle.textContent:'')+'@media print{html,body{margin:0!important;padding:0!important;height:auto!important;min-height:0!important;display:block!important}body::before,body::after{display:none!important}#printArea{display:block!important;position:static!important;margin:0!important}.lesson-duplex-page:last-child{break-after:auto!important;page-break-after:auto!important}}</style></head><body class="print-lesson"><div id="printArea">'+html+'</div></body></html>';
+    frame.onload=function(){frame.contentWindow.focus();frame.contentWindow.print();};document.body.appendChild(frame);
   }
 
   var XL_RULE = '加分规则：①首个正确完成并通过验收的小组「首个正确」+1（整组）；' +
@@ -1704,15 +1714,15 @@ function removeMemberAt(cls, g, j) {
   }
 
   /** 打印本课：完全照着纸质《课堂分组与加分记录表》的 12 列版式 */
-  var lessonPrintOptions={range:'both',orientation:'portrait'};
+  var lessonPrintOptions={range:'both',orientation:'portrait'},lessonExporting=false;
   function openLessonPrint(cls,lesson){
     var dlg=$('#dlgLessonPrint');
     if(!dlg){dlg=document.createElement('dialog');dlg.id='dlgLessonPrint';dlg.innerHTML='<form method="dialog"><h2>打印本课</h2><label class="field col">打印范围<select id="lessonPrintRange"><option value="both">加分表＋背面说明</option><option value="front">仅加分表</option><option value="rules">仅规则说明</option></select></label><label class="field col">纸张方向<select id="lessonPrintOrientation"><option value="portrait">A4 竖向</option><option value="landscape">A4 横向</option></select></label><p class="note">范围和方向在此选择。双面打印选择长边翻转；建议关闭页眉页脚。</p><div class="btnrow"><button class="btn" value="cancel">取消</button><button class="btn primary" value="ok">开始打印</button></div></form>';document.body.appendChild(dlg);}
     dlg.onclose=function(){if(dlg.returnValue!=='ok')return;lessonPrintOptions={range:$('#lessonPrintRange').value,orientation:$('#lessonPrintOrientation').value};printLesson(cls,lesson);};dlg.returnValue='';openDlg(dlg);
   }
   function downloadLessonExcel(cls,lesson){
-    var box=document.createElement('div'),original=window.print,options=lessonPrintOptions;window.print=function(){};lessonPrintOptions={range:'both',orientation:'portrait'};
-    try{printLesson(cls,lesson);box.innerHTML=$('#printArea').innerHTML;}finally{window.print=original;lessonPrintOptions=options;document.body.classList.remove('print-lesson');}
+    var box=document.createElement('div'),original=window.print,options=lessonPrintOptions;window.print=function(){};lessonPrintOptions={range:'both',orientation:'portrait'};lessonExporting=true;
+    try{printLesson(cls,lesson);box.innerHTML=$('#printArea').innerHTML;}finally{window.print=original;lessonPrintOptions=options;lessonExporting=false;document.body.classList.remove('print-lesson');}
     var table=box.querySelector('.sheet-tb');
     var wb=XLSX.utils.book_new();
     if(table)XLSX.utils.book_append_sheet(wb,XLSX.utils.table_to_sheet(table,{raw:true}),'本课加分表');
@@ -1786,7 +1796,10 @@ function removeMemberAt(cls, g, j) {
     if(lessonPrintOptions.range==='rules')holder.querySelectorAll('.lesson-duplex-front').forEach(function(e){e.remove();});
     var style=$('#lessonPageStyle');if(!style){style=document.createElement('style');style.id='lessonPageStyle';document.head.appendChild(style);}
     var landscape=lessonPrintOptions.orientation==='landscape';
+    var printSlots=cls.groups.reduce(function(n,g){return n+Math.max(3,g.members.filter(function(m){return !!m.name;}).length);},0);
+    var printLine=Math.min(4,(landscape?118:200)/Math.max(1,printSlots)),printFont=Math.min(10,printLine*2.5);
     style.textContent='@media print{@page{size:A4 '+(landscape?'landscape':'portrait')+';margin:10mm}@page leaderPaper{size:A4 '+(landscape?'landscape':'portrait')+';margin:10mm}.lesson-duplex-page{height:'+(landscape?'178':'264')+'mm!important}.lesson-duplex-front .sheet-tb{top:'+(landscape?'31':'22')+'mm!important;transform:none!important;zoom:'+(landscape?'.65':'.92')+';width:100%!important}.lesson-rules-back{font-size:'+(landscape?'8':'10')+'pt!important}.lesson-rules-back p{font-size:'+(landscape?'8':'10')+'pt!important}.lesson-rules-back h2{margin:2mm 0 1mm!important}}';
+    style.textContent+='@media print{.lesson-duplex-front .sheet-tb{top:20mm!important;transform:none!important;zoom:1!important;width:100%!important;--print-font:'+printFont+'pt;--print-line:'+printLine+'mm}}';
     printArea('<div class="lesson-duplex">'+holder.innerHTML+'</div>','lesson');
   }
 

@@ -30,7 +30,7 @@ check('same-origin access needs no extra CORS configuration', (await site.fetch(
   { ...env, ALLOWED_ORIGINS: '' })).status === 200);
 const vc = new VirtualConsole();
 const errors = [];
-vc.on('jsdomError', e => { if (!/Not implemented.*(navigation|HTMLDialogElement)/i.test(e.message)) errors.push(e.message); });
+vc.on('jsdomError', e => { if (!/Not implemented.*(navigation|HTMLDialogElement|window.*focus|window.*print)/i.test(e.message)) errors.push(e.message); });
 const dom = new JSDOM(html.replace(/<script[^>]*>[\s\S]*?<\/script>/g, ''), { url: origin + '/', runScripts: 'outside-only', virtualConsole: vc });
 const w = dom.window;
 w.HTMLDialogElement.prototype.showModal=function(){this.setAttribute('open','');};
@@ -144,6 +144,6 @@ check('new teacher receives no administrator lessons or students', teacherState.
 const existingAdmin=await(await site.fetch(new Request(origin+'/api/state',{headers:{Authorization:'Bearer '+admin.token}}),env)).json();
 check('neutral initialization never changes an existing account', existingAdmin.data.classes[0].roster.length===2 && existingAdmin.data.lessons[0].scores['1'].group===1);
 teacherDom.window.close();
-check('packaged application has no unexpected exceptions', errors.length === 0);
+if(errors.length)console.log(errors);check('packaged application has no unexpected exceptions', errors.length === 0);
 dom.window.close(); env.sqlite.close();
 console.log(`Packaged single-site integration: ${passed} passed, 0 failed`);

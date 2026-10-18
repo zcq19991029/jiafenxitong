@@ -21,6 +21,7 @@
       '<div class="card lesson-bar"><label class="field"><span>班级</span><select id="leaderClassSel">'+state.classes.map(function(c){return '<option value="'+esc(c.id)+'"'+(cls&&c.id===cls.id?' selected':'')+'>'+esc(c.name)+'</option>';}).join('')+'</select></label>'+
       '<label class="field"><span>课次</span><select id="leaderLessonSel"'+(!lessons.length?' disabled':'')+'>'+lessons.map(function(l){return '<option value="'+esc(l.id)+'"'+(lesson&&l.id===lesson.id?' selected':'')+'>第'+l.seq+'次 · '+esc(l.date)+'</option>';}).join('')+'</select></label></div><div id="leaderSheet"></div>';
     root.querySelector('#leaderClassSel').onchange=function(){context.select(this.value,null);};
+    var manage=document.createElement('button');manage.className='btn';manage.id='leaderManageGroups';manage.textContent='名单与分组';manage.onclick=function(){context.openGroups();};root.querySelector('.lesson-bar').appendChild(manage);
     root.querySelector('#leaderLessonSel').onchange=function(){context.select(cls.id,this.value);};
     var sheet=root.querySelector('#leaderSheet');
     if(!cls||!lesson) { sheet.innerHTML='<div class="card empty-hint">请先在“上课记分”新开一课，再填写个人评分。<p><button class="btn" id="leaderGoScore">前往上课记分</button></p></div>';sheet.querySelector('button').onclick=context.openScore;return; }
