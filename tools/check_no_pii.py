@@ -20,7 +20,7 @@ def git(*args):
 
 def forbidden(name):
     p = PurePosixPath(name)
-    return (name == 'data.js' or p.parts[0] in ('教学材料', '效果预览', '_shots', '迁移记录')
+    return (name == 'data.js' or p.parts[0] in ('教学材料', '效果预览', '_shots', '迁移记录', '项目归档')
             or 'node_modules' in p.parts
             or (p.name.startswith('_shot') and p.suffix == '.html'))
 
