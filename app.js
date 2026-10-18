@@ -1,4 +1,4 @@
-/* 夜夜加分助手 —— 主逻辑
+/* 夜夜小组制加分助手 —— 主逻辑
    数据全部保存在本机 localStorage，无需网络、无需服务器。 */
 (function () {
   'use strict';
@@ -288,6 +288,8 @@ function removeMemberAt(cls, g, j) {
   function groupCum(cls, gno) {
     return Math.round(lessonsOf(cls.id).reduce(function (a, l) { return a + groupTotal(l, gno); }, 0)*100)/100;
   }
+
+  function groupCumThrough(cls,gno,lesson) { return Math.round(lessonsOf(cls.id).filter(function(l){return Number(l.seq)<=Number(lesson.seq);}).reduce(function(total,l){return total+groupTotal(l,gno);},0)*100)/100; }
 
   /** 某节课是否给该组记过任何东西 */
   function touched(lesson, gno) {
@@ -654,19 +656,26 @@ function removeMemberAt(cls, g, j) {
     }).join('');
     $('#lessonMeta').innerHTML =
       '<span class="tag">' + esc(cls.name) + ' · 第 ' + lesson.seq + ' 次课</span>' +
-      '<label class="field"><span>日期</span><input type="date" id="metaDate" value="' + esc(lesson.date || '') + '"></label>' +
+      '<div class="field"><span>上课日期</span><strong id="metaDateLabel">' + esc(lesson.date || '未填写') + '</strong></div>' +
       '<label class="field"><span>值日组</span><select id="metaDuty">' + dutyOpts + '</select></label>' +
       '<label class="field" style="flex:1;min-width:200px"><span>本节任务</span>' +
       '<input type="text" class="topic" id="metaTopic" value="' + esc(lesson.topic || '') + '" placeholder="例如：三相异步电动机正反转接线"></label>' +
-      '<button class="btn" id="btnPrintLesson">打印本课</button>';
+      '<div class="btnrow"><button class="btn" id="btnEditLesson">修改课次</button><button class="btn" id="btnPrintLesson">打印本课</button></div>';
 
-    $('#metaDate').addEventListener('change', function () { lesson.date = this.value; save(); renderScore(); });
+    $('#btnEditLesson').addEventListener('click',function(){openLessonEditor(cls,lesson);});
     $('#metaTopic').addEventListener('change', function () { lesson.topic = this.value; save(); });
     $('#metaDuty').addEventListener('change', function () {
       lesson.dutyGroup = this.value ? +this.value : null; save(); renderGroups(cls, lesson);
     });
     $('#btnPrintLesson').addEventListener('click', function () { printLesson(cls, lesson); });
   }
+
+  var lessonEditor=document.createElement('dialog');lessonEditor.id='dlgEditLesson';lessonEditor.setAttribute('aria-labelledby','editLessonTitle');
+  lessonEditor.innerHTML='<form id="editLessonForm"><h2 id="editLessonTitle">修改课次</h2><p class="note">更正课次资料，保留本课分数、项目评价和考勤。日期不参与计分。</p><label class="field col">课次序号<input id="editLessonSeq" type="number" min="1" step="1" required></label><label class="field col">上课日期<input id="editLessonDate" type="date" required></label><label class="field col">本节任务<input id="editLessonTopic" maxlength="300"></label><p id="editLessonError" role="alert" class="note"></p><div class="btnrow"><button type="button" class="btn" id="cancelEditLesson">取消</button><button type="submit" class="btn primary">保存修改</button></div></form>';
+  document.body.appendChild(lessonEditor);wireDialog(lessonEditor);var editingLessonId=null;
+  function openLessonEditor(cls,lesson){editingLessonId=lesson.id;$('#editLessonTitle').textContent=cls.name+' · 修改课次';$('#editLessonSeq').value=lesson.seq;$('#editLessonDate').value=lesson.date||'';$('#editLessonTopic').value=lesson.topic||'';$('#editLessonError').textContent='';openDlg(lessonEditor);}
+  $('#cancelEditLesson').addEventListener('click',function(){lessonEditor.close();});
+  $('#editLessonForm').addEventListener('submit',function(e){e.preventDefault();var lesson=getLesson(editingLessonId);if(!lesson)return;var seq=Number($('#editLessonSeq').value),date=$('#editLessonDate').value,topic=$('#editLessonTopic').value.trim();if(!Number.isInteger(seq)||seq<1||!/^\d{4}-\d{2}-\d{2}$/.test(date)){$('#editLessonError').textContent='请填写有效的课次序号和日期。';return;}if(S.lessons.some(function(l){return l.classId===lesson.classId&&l.id!==lesson.id&&l.seq===seq;})){$('#editLessonError').textContent='本班已有第 '+seq+' 次课，请使用其他序号。';return;}var before='第'+lesson.seq+'次 · '+lesson.date+' · '+(lesson.topic||'未填任务');if(lesson.seq===seq&&lesson.date===date&&(lesson.topic||'')===topic){lessonEditor.close();return;}lesson.seq=seq;lesson.date=date;lesson.topic=topic;var cls=S.classes.find(function(c){return c.id===lesson.classId;});addOperationLog('修改课次',cls.name+' · '+before+' → 第'+seq+'次 · '+date+' · '+(topic||'未填任务'));save();lessonEditor.close();renderScore();flash('课次资料已修改，分数和考勤已保留');});
 
   /* ---- 记分控件（卡片视图与表格视图共用，保证两边的操作完全一致） ---- */
 
@@ -704,8 +713,16 @@ function removeMemberAt(cls, g, j) {
   }
 
   function ctlSum(gno, total, cumVal) {
-    return '<div class="v ' + signClass(total) + '" data-total="' + gno + '">' + fmt(total) + '</div>' +
-      '';
+    return '<div class="v '+signClass(total)+'" data-total="'+gno+'">'+fmt(total)+'</div>';
+
+  }
+
+  function homeGradeHead(){return '<th rowspan="2" class="home-grade regular">平时成绩<br>/100</th><th rowspan="2" class="home-grade contribution">计入总评<br>/40</th><th rowspan="2" class="home-grade needed">期末至少需考<br>/100</th>';}
+  function homeGradeCells(cls,g){
+    var A=window.JFDT_ASSESSMENT;if(!A)return '<td rowspan="2" colspan="3">成绩模块未加载</td>';
+    var rows=A.rows(cls,lessonsOf(cls.id),memberTotals(cls));
+    var members=g.members.filter(function(m){return !!m.name;}).map(function(m){return {member:m,row:rows.find(function(r){return r.key===A.key(m);})};});
+    return ['regular','contribution','needed'].map(function(field){return '<td rowspan="2" class="home-grade '+field+'" data-home-grade="'+field+'">'+members.map(function(item){var m=item.member,r=item.row;if(!r)return '';var value=field==='needed'?(r.attendanceFailed?'不适用':r.needed>100?'无法达到':r.needed):r[field];return '<div class="home-grade-person" data-grade-student="'+esc(r.key)+'" title="'+esc(m.name)+'：'+(r.ready?'记录已齐':'预估，项目或考勤记录未齐')+'"><span class="home-grade-name">'+esc(m.name)+'</span><strong>'+value+'</strong>'+(r.attendanceFailed?'<small>考勤挂科</small>':!r.ready?'<small>预估</small>':'')+'</div>';}).join('')+'</td>';}).join('');
   }
 
   /** 个人扣分格：点一次 +1；右键 / 长按 −1 */
@@ -785,7 +802,7 @@ function removeMemberAt(cls, g, j) {
     var cols = '<col class="w-no">';
     for (var c = 0; c < GROUP_CAP; c++) cols += '<col class="w-mem">';
     cols += '<col class="w-phone"><col class="w-first"><col class="w-grp">' +
-      '<col class="w-duty"><col class="w-sum">';
+      '<col class="w-duty"><col class="w-sum"><col class="w-grade"><col class="w-grade"><col class="w-grade">';
 
     var sub = '';
     for (var k = 0; k < GROUP_CAP; k++) sub += '<th class="c-mem">成员' + (k + 1) + '</th>';
@@ -798,7 +815,7 @@ function removeMemberAt(cls, g, j) {
         '<th class="c-first" rowspan="2">全组·首个正确<br>(+1)</th>' +
         '<th class="c-grp" rowspan="2">全组·小组分<br>(0-5)</th>' +
         '<th class="c-duty" rowspan="2">全组·值日<br>(0-5)</th>' +
-        '<th class="c-sum" rowspan="2">本节<br>合计</th>' +
+        '<th class="c-sum" rowspan="2">本节<br>合计</th>'+homeGradeHead() +
       '</tr><tr>' + sub + '</tr>' +
     '</thead>';
 
@@ -825,8 +842,8 @@ function removeMemberAt(cls, g, j) {
           '<td class="c-first" rowspan="2">' + ctlFirst(g.no, s) + '</td>' +
           '<td class="c-grp" rowspan="2">' + ctlStep(g.no, 'group', s, maxOf('group', maxPhone), '小组分') + '</td>' +
           '<td class="c-duty" rowspan="2">' + ctlDuty(g.no,s,cnt) + '</td>' +
-          '<td class="c-sum" rowspan="2">' + ctlSum(g.no, groupTotal(lesson, g.no), groupCum(cls, g.no)) +
-            ctlClear(g.no, true) + '</td>' +
+          '<td class="c-sum" rowspan="2">' + ctlSum(g.no, groupTotal(lesson, g.no), groupCumThrough(cls, g.no, lesson)) +
+            ctlClear(g.no, true) + '</td>' + homeGradeCells(cls,g) +
         '</tr>' +
         '<tr class="gded">' + deds + '</tr>' +
       '</tbody>';
@@ -870,7 +887,7 @@ function removeMemberAt(cls, g, j) {
     var t = groupTotal(lesson, gno);
     var v = $('[data-total="' + gno + '"]', card);
     v.textContent = fmt(t);
-    v.className = 'v ' + signClass(t);
+    v.className = 'v ' + signClass(t);var gradeCells=$$('[data-home-grade]',card);if(gradeCells.length){var holder=document.createElement('tr');holder.innerHTML=homeGradeCells(cls,groupOf(cls,gno));gradeCells.forEach(function(cell,i){cell.innerHTML=holder.children[i].innerHTML;});}
     
     var totals=memberTotals(cls);
     $$('[data-semester-group]',card).forEach(function(el){var member=cls.groups.find(function(g){return g.no===gno;}).members[+el.dataset.semesterIndex];var total=totals.find(function(m){return m.gno===gno && m.name===member.name && m.sid===member.sid;});el.querySelector('b').textContent=fmt(total?total.total:0);});
@@ -1581,7 +1598,7 @@ function removeMemberAt(cls, g, j) {
   });
 
   $('#btnBackup').addEventListener('click', function () {
-    download('夜夜加分助手_备份_' + stamp() + '.json',
+    download('夜夜小组制加分助手_备份_' + stamp() + '.json',
       JSON.stringify(S, null, 2), 'application/json');
   });
 
@@ -1671,7 +1688,7 @@ function removeMemberAt(cls, g, j) {
     var cols = '<col class="w-no">';
     for (var c = 0; c < GROUP_CAP; c++) cols += '<col class="w-mem">';
     cols += '<col class="w-phone"><col class="w-first"><col class="w-grp">' +
-      '<col class="w-duty"><col class="w-sum">';
+      '<col class="w-duty"><col class="w-sum"><col class="w-grade"><col class="w-grade"><col class="w-grade">';
 
     var subHead = '';
     for (var k = 0; k < GROUP_CAP; k++) subHead += '<th class="c-mem">成员' + (k + 1) + '</th>';
@@ -1683,7 +1700,7 @@ function removeMemberAt(cls, g, j) {
       '<th class="c-first" rowspan="2">全组·首个正确<br>(+1)</th>' +
       '<th class="c-grp" rowspan="2">全组·小组分<br>(0-5)</th>' +
       '<th class="c-duty" rowspan="2">全组·值日<br>(0-5)</th>' +
-      '<th class="c-sum" rowspan="2">本节<br>合计</th>' +
+      '<th class="c-sum" rowspan="2">本节<br>合计</th>'+homeGradeHead() +
       '</tr><tr>' + subHead + '</tr></thead>';
 
     var body = cls.groups.map(function (g) {
@@ -1706,7 +1723,7 @@ function removeMemberAt(cls, g, j) {
           '<td class="c-grp" rowspan="2">' + (+s.group || '') + '</td>' +
           '<td class="c-duty" rowspan="2">' + (+s.duty || '') + (s.dutyParticipation?'<br><small>'+s.dutyParticipation.present+'/'+s.dutyParticipation.expected+'人</small>':'') + '</td>' +
           '<td class="c-sum" rowspan="2">' +
-            (touched(lesson, g.no) ? fmt(groupTotal(lesson, g.no)) : '') + '</td>' +
+            (touched(lesson, g.no) ? fmt(groupTotal(lesson, g.no)) : '') + '</td>'+homeGradeCells(cls,g) +
         '</tr>' +
         '<tr class="gded">' + deds + '</tr>' +
       '</tbody>';
@@ -1718,14 +1735,7 @@ function removeMemberAt(cls, g, j) {
       (pend.length ? pend.map(function (r) {
         return esc(r.name) + '(' + two(r.no) + ')';
       }).join('、') : '无，全班都已分组');
-    var cumLine = '各组累计：' + cls.groups.map(function (g) {
-      return g.no + '组' + fmt(groupCum(cls, g.no));
-    }).join('　');
-
-    var foot = '<tfoot>' +
-      '<tr><td class="c-note" colspan="' + (GROUP_CAP + 6) + '">' + note + '</td></tr>' +
-      '<tr><td class="c-note" colspan="' + (GROUP_CAP + 6) + '">' + esc(cumLine) + '</td></tr>' +
-      '</tfoot>';
+    var foot='<tfoot><tr><td class="c-note" colspan="'+(GROUP_CAP+9)+'">'+note+'</td></tr><tr><td class="c-note" colspan="'+(GROUP_CAP+9)+'">右侧三列为本学期当前个人成绩，与排名页相同；按姓名逐行对应。未批改或考勤未齐为预估，考勤挂科时考试目标不适用。打印后不会自动更新。</td></tr></tfoot>';
 
     printArea(
       '<div class="sheet">' +
@@ -2214,7 +2224,7 @@ function removeMemberAt(cls, g, j) {
         '下载这位老师的完整数据 JSON</button></div>';
       var dl = $('#btnDlTeacher');
       if (dl) dl.addEventListener('click', function () {
-        download('夜夜加分助手_' + name + '_' + stamp() + '.json',
+        download('夜夜小组制加分助手_' + name + '_' + stamp() + '.json',
           JSON.stringify({ source: 'admin-export', name: name, uid: uid, data: d }, null, 2),
           'application/json');
       });

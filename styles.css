@@ -1,4 +1,4 @@
-/* 夜夜加分助手；界面参考 open-claude-ui 的语义色阶与控件几何，Excel 颜色独立保留。 */
+/* 夜夜小组制加分助手；界面参考 open-claude-ui 的语义色阶与控件几何，Excel 颜色独立保留。 */
 
 /* ============================================================
    设计变量
@@ -1301,3 +1301,16 @@ table.sheet td.c-sum .c { font-size: 13px; color: var(--text); }
 @media screen {.sheetwrap{max-width:100%;overflow:auto;scrollbar-width:auto;padding-bottom:8px}.sheetwrap::-webkit-scrollbar{height:12px}.sheetwrap::-webkit-scrollbar-thumb{background:#a99b8d;border-radius:8px}#dlgDutyPeople button{min-height:44px}.duty-score{font-family:inherit;font-size:18px;font-weight:700;}}
 
 @media screen and (min-width:1000px){body.sidebar-layout .brandtext h1{white-space:nowrap;font-size:14px}body.sidebar-layout .brandtext{min-width:100px}body.sidebar-layout .topbar-main{flex-wrap:wrap}body.sidebar-layout #userBox{flex-wrap:wrap;gap:6px}body.sidebar-layout .brand{min-width:0}body.sidebar-layout .brandtext .sub{font-size:11px}}
+
+.lesson-cumulative {font-size:12px;line-height:1.5;color:#695a36;margin-top:6px;white-space:nowrap}.lesson-cumulative strong{font-size:16px;font-variant-numeric:tabular-nums}.sheet .c-sum small{font-size:11px;font-weight:500}.gsum .lesson-cumulative{font-size:12px}@media print{.lesson-cumulative{font-size:9px;margin-top:3px}.lesson-cumulative strong{font-size:12px}}
+
+table.sheet col.w-grade,#printArea col.w-grade{width:115px}
+table.sheet .home-grade{padding:5px;background:#edf5ee;color:#236442;vertical-align:top}
+table.sheet .home-grade.contribution{background:#edf2fa;color:#2f527a}
+table.sheet .home-grade.needed{background:#fcf0e9;color:#a7472e}
+.home-grade-person{display:grid;grid-template-columns:1fr auto;align-items:center;gap:0 4px;min-height:34px;border-bottom:1px solid #00000009;line-height:1.2}
+.home-grade-person:last-child{border:0}.home-grade-name{font-size:11px;white-space:nowrap}.home-grade-person strong{font-size:18px;font-variant-numeric:tabular-nums}.home-grade-person small{grid-column:1/-1;font-size:9px;opacity:.8}
+@media screen and (min-width:1000px){body.sidebar-layout table.sheet{min-width:1400px;height:auto;min-height:calc(100dvh - 16px)}}
+@media print{#printArea .home-grade{padding:2px;vertical-align:top}#printArea .home-grade-person{min-height:22px;break-inside:avoid}#printArea .home-grade-person strong{font-size:12px}#printArea .home-grade-name{font-size:8px}#printArea .home-grade-person small{font-size:7px}}
+
+@media print{#printArea .sheet-tb{width:100%;table-layout:fixed}#printArea .sheet-tb col.w-no{width:3%}#printArea .sheet-tb col.w-mem{width:6%}#printArea .sheet-tb col.w-phone{width:7%}#printArea .sheet-tb col.w-first{width:5%}#printArea .sheet-tb col.w-grp,#printArea .sheet-tb col.w-duty,#printArea .sheet-tb col.w-sum{width:6%}#printArea .sheet-tb col.w-grade{width:10%}#printArea .sheet-tb th{white-space:normal}#printArea .home-grade-person{grid-template-columns:1fr auto}.home-grade-name{white-space:normal}}

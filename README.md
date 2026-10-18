@@ -1,8 +1,8 @@
-# 夜夜加分助手
+# 夜夜小组制加分助手
 
-面向课堂的分组记分工具：宽屏侧栏、完整姓名卡片、纸质风格表格、个人扣分、项目评价、排行、名单分组、A4打印，以及教师账号间隔离的云端记录。
+专用于小组制课堂的记分助手：宽屏侧栏、完整姓名卡片、纸质风格表格、个人扣分、项目评价、排行、名单分组、A4打印，以及教师账号间隔离的云端记录。
 
-**[打开正式应用](https://ye-ye-score-api.zcq991029.chatgpt.site/) · [完整图文使用指南](docs/使用指南.md) · [问题反馈](https://github.com/zcq19991029/ye-ye-score-helper/issues)**
+**[打开正式应用](https://ye-ye-score-api.zcq991029.chatgpt.site/) · [完整图文使用指南](docs/使用指南.md) · [问题反馈](https://github.com/zcq19991029/ye-ye-group-score-helper/issues)**
 
 无需安装，使用浏览器访问。新教师凭管理员邀请码注册并导入自己的名单；GitHub仅保存源码，不使用GitHub Pages作为应用入口。
 
