@@ -94,9 +94,17 @@ const homeRegular=q('[data-home-grade="regular"] strong').textContent;
 check('home grades use member positions without repeated names or estimate text', q('[data-home-grade="regular"] .home-grade-name').textContent==='1' && !q('[data-home-grade="regular"]').textContent.includes('预估'));
 q('#tabs [data-view="rank"]').click();
 check('home grade uses the identical assessment result as rankings',q('#memberRank td.grade-regular strong').textContent===homeRegular);
-q('#tabs [data-view="score"]').click();q('#btnPrintLesson').click();
+q('#tabs [data-view="score"]').click();q('#btnPrintLesson').click();q('#dlgLessonPrint').returnValue='ok';q('#dlgLessonPrint').dispatchEvent(new w.Event('close'));
 check('printed lesson includes the same three personal grades without group cumulative clutter',q('#printArea').textContent.includes('至今完成率')&&q('#printArea').textContent.includes('计入总评')&&q('#printArea').textContent.includes('期末至少需考')&&!q('#printArea').textContent.includes('累计至本课'));
 check('lesson sheets pair every front with a rules back',q('#printArea .lesson-duplex-front').nextElementSibling.classList.contains('lesson-rules-back')&&q('#printArea').textContent.includes('加分与成绩换算说明'));
+for(const range of ['front','rules']){
+  q('#btnPrintLesson').click();q('#lessonPrintRange').value=range;q('#lessonPrintOrientation').value='landscape';q('#dlgLessonPrint').returnValue='ok';q('#dlgLessonPrint').dispatchEvent(new w.Event('close'));
+  check('print range '+range+' and landscape are honored',q('#printArea').querySelectorAll('.lesson-duplex-page').length===1 && !!q(range==='front'?'.lesson-duplex-front':'.lesson-rules-back') && q('#lessonPageStyle').textContent.includes('A4 landscape'));
+}
+let exportedBook;const oldWrite=w.XLSX.write;w.XLSX.write=function(book,options){exportedBook=book;return oldWrite(book,options);};
+w.URL.createObjectURL=()=> 'blob:test';w.URL.revokeObjectURL=()=>{};
+Array.from(q('#lessonMeta').querySelectorAll('button')).find(b=>b.textContent==='下载本课Excel').click();
+check('lesson Excel has scoring, individual grades and rules sheets',exportedBook&&exportedBook.SheetNames.join(',')==='本课加分表,个人成绩,规则说明');w.XLSX.write=oldWrite;
 const paperGroups=Array.from({length:13},(_,i)=>({no:i+1,members:[{name:'虚构甲',sid:'paper'+i}]})),paperBefore=JSON.stringify(paperGroups);
 const batchHtml=w.JFDT_LEADER_PRINT_HTML({name:'虚构打印班'}, {seq:1,date:'2026-10-14'},paperGroups,2),batchBox=w.document.createElement('div');batchBox.innerHTML=batchHtml;
 check('13-group print creates seven sheets with no placeholder project names',batchBox.querySelectorAll('.leader-paper').length===7&&batchBox.querySelectorAll('.leader-slip').length===13&&!batchHtml.includes('项目2')&&JSON.stringify(paperGroups)===paperBefore);
