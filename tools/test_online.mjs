@@ -161,7 +161,7 @@ const leaderState=(await api(env,'/api/state','GET',undefined,admin.token)).data
 check('operation log survives a cloud round trip',Array.isArray(leaderState.data.operationLog) && leaderState.data.operationLog.some(e=>e.kind==='个人项目评分'));
 check('custom projects and individual marks persist in the database',leaderState.data.lessons[0].leaderScores['1'].projects[0]==='协作' && Object.values(leaderState.data.lessons[0].leaderScores['1'].members)[0][1]===4);
 q(a,'#tabs button[data-view="rank"]').click();
-check('personal ranking includes the saved project marks',text(a,'#memberRank').includes('个人项目分') && text(a,'#memberRank').includes('全组累计加分 + 个人项目累计分'));
+check('personal ranking includes the saved project marks',text(a,'#memberRank').includes('个人项目分') && text(a,'#memberRank').includes('当前累计'));
 q(a,'#tabs button[data-view="attendance"]').click();
 check('attendance view includes the selected lesson and settings',!!q(a,'#attendanceLessonSel') && !!q(a,'#assessmentSettingsForm'));
 const attInput=q(a,'[data-att-key]'),attKey=attInput.dataset.attKey;
@@ -182,7 +182,7 @@ q(a,'#attendanceCustomName').value='实训迟归';q(a,'#attendanceCustomLoss').v
 q(a,'#attendanceCustomForm').dispatchEvent(new a.window.Event('submit',{bubbles:true,cancelable:true}));
 check('custom attendance rules preserve other class settings',state(a).classes[0].assessmentSettings.totalLessons===30 && state(a).classes[0].assessmentSettings.customRules[0].loss===2);
 q(a,'#tabs button[data-view="rank"]').click();
-check('assessment displays assignment, attendance and final exam targets',text(a,'#memberRank').includes('学习赋分/80') && text(a,'#memberRank').includes('考勤/20') && text(a,'#memberRank').includes('期末需考/100'));
+check('assessment displays assignment, attendance and final exam targets',text(a,'#memberRank').includes('学习赋分/52') && text(a,'#memberRank').includes('考勤/48') && text(a,'#memberRank').includes('期末需考/100'));
 const exam=q(a,'[data-exam-key]'),examKey=exam.dataset.examKey;exam.value='50';exam.dispatchEvent(new a.window.Event('change'));
 await a.window.JFDT_CLOUD.flush();
 const assessmentCloud=(await api(env,'/api/state','GET',undefined,admin.token)).data;
@@ -194,7 +194,16 @@ foundation.value='met';foundation.dispatchEvent(new a.window.Event('change'));
 await a.window.JFDT_CLOUD.flush();
 const criterionCloud=(await api(env,'/api/state','GET',undefined,admin.token)).data;
 check('teacher foundation confirmation persists without changing raw grades',criterionCloud.data.classes[0].foundationChecks[foundationKey]==='met'&&criterionCloud.data.lessons[0].scores['1'].group===3);
-check('criterion explanation is visible without promising automatic passing',text(a,'#memberRank').includes('名次不决定赋分')&&text(a,'#memberRank').includes('基础要求'));
+check('criterion explanation is visible without promising automatic passing',text(a,'#memberRank').includes('排名仅展示')&&text(a,'#memberRank').includes('无60分保底')&&text(a,'#memberRank').includes('基础要求'));
+const failRoot=a.window.document.createElement('div');
+const failStudent={name:'阈值测试',sid:'99001'};
+const failClass={id:'fail-test',name:'虚构考勤班',groups:[{no:1,members:[failStudent]}],roster:[failStudent],examScores:{'sid:99001':100}};
+const failLessons=['truant','truant','late','early','late'].map((status,i)=>({id:'fail'+i,attendance:{'sid:99001':{status,loss:status==='truant'?3:1}}}));
+let failCsv;
+a.window.JFDT_ASSESSMENT.renderRank({cls:failClass,lessons:failLessons,raw:[{...failStudent,gno:1,total:10,project:10,groupScore:0,personal:0}],root:failRoot,openAttendance(){},log(){},save(){},message(){},export(name,rows){failCsv=rows;}});
+check('high numeric exam scores cannot hide the attendance failure in the ranking UI',failRoot.textContent.includes('考勤挂科，不适用')&&failRoot.textContent.includes('实际旷课2次 · 折算1次 · 合计3次旷课'));
+failRoot.querySelector('#assessmentExport').click();
+check('CSV includes attendance failure, counts and an inapplicable exam target',failCsv[0].includes('合计旷课次数')&&failCsv[1].includes('考勤挂科，不适用')&&failCsv[1].includes('考勤挂科')&&failCsv[1].at(-1)===3&&failCsv[1].length===failCsv[0].length);
 q(a,'#tabs button[data-view="score"]').click();
 function setDuty(present,expected){
   q(a,'[data-duty-expected="1"]').value=String(expected);
