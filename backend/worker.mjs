@@ -57,6 +57,8 @@ function validateState(data) {
       for (const field of ['totalLessons','late','truant','leave','early','passScore']) {
         if (!Number.isInteger(cfg[field]) || cfg[field]<(field==='totalLessons'?1:0) || cfg[field]>(field==='totalLessons'?1000:100)) fail(400,'赋分考勤设置超出范围。');
       }
+      for(const field of ['lateEarlyConversion','truantFailure'])if(cfg[field]!==undefined&&(!Number.isInteger(cfg[field])||cfg[field]<1||cfg[field]>100))fail(400,'挂科门槛须为1–100整数。');
+      if(cfg.attendanceFailureEnabled!==undefined&&typeof cfg.attendanceFailureEnabled!=='boolean')fail(400,'挂科标记开关格式错误。');
       if (cfg.taskTarget!==undefined && (!Number.isInteger(cfg.taskTarget)||cfg.taskTarget<0||cfg.taskTarget>100000)) fail(400,'任务满分基准须为0–100000整数。');
       // bonusCap is an obsolete setting retained in old backups, never used to cap rewards.
       if (!Array.isArray(cfg.customRules) || cfg.customRules.length>20 || cfg.customRules.some(r=>!r || !/^custom_[a-z0-9_]{1,80}$/.test(r.id) || typeof r.name!=='string' || !r.name.trim() || r.name.length>40 || !Number.isInteger(r.loss) || r.loss<0 || r.loss>100)

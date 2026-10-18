@@ -717,8 +717,14 @@ function removeMemberAt(cls, g, j) {
 
   }
 
-  function attendanceCell(cls,lesson,g,printing){var A=window.JFDT_ASSESSMENT,cfg=A.settings(cls),rows=A.rows(cls,lessonsOf(cls.id),memberTotals(cls)),labels={present:'到课',leave:'请假',truant:'旷课',late:'迟到',early:'早退'};return '<td rowspan="2" class="home-attendance" data-home-attendance="'+g.no+'">'+g.members.filter(function(m){return !!m.name;}).map(function(m,i){var k=A.key(m),record=lesson.attendance&&lesson.attendance[k],row=rows.find(function(r){return r.key===k;}),status=record?record.status:'';var opts=[['','未登记'],['present','到课'],['leave','请假'],['truant','旷课'],['late','迟到'],['early','早退']].concat((cfg.customRules||[]).map(function(r){return [r.id,r.name];}));if(status&&!opts.some(function(o){return o[0]===status;}))opts.push([status,record.label]);return '<div class="home-attendance-person"><span>'+(i+1)+'</span>'+(printing?'<b>'+esc(record?record.label:'未登记')+(record&&record.loss?' −'+record.loss:'')+'</b>':'<select data-home-att-key="'+esc(k)+'" data-home-att-group="'+g.no+'" aria-label="成员'+(i+1)+' '+esc(m.name)+' 本节考勤">'+opts.map(function(o){var loss=o[0]?A.deduction(o[0],cfg):0;return '<option value="'+esc(o[0])+'"'+(o[0]===status?' selected':'')+'>'+esc(o[1])+(o[0]?' '+(loss?'−'+loss:'0'):'')+'</option>';}).join('')+'</select>')+'<strong title="本学期考勤分，满分48">'+(row?row.attendance:48)+'/48</strong></div>';}).join('')+'</td>';}
-  $('#groupList').addEventListener('change',function(e){var input=e.target.closest('[data-home-att-key]');if(!input)return;var cls=curClass(),lesson=curLesson(cls),A=window.JFDT_ASSESSMENT;if(!lesson)return;var key=input.dataset.homeAttKey,status=input.value,cfg=A.settings(cls),old=lesson.attendance&&lesson.attendance[key];if((old?old.status:'')===status)return;var labels={present:'正常出勤',leave:'请假',truant:'旷课',late:'迟到',early:'早退'},custom=(cfg.customRules||[]).find(function(r){return r.id===status;});if(status&&!labels[status]&&!custom)return;if(!lesson.attendance)lesson.attendance={};var member=A.roster(cls,memberTotals(cls)).find(function(m){return m.key===key;});if(status)lesson.attendance[key]={status:status,label:labels[status]||custom.name,loss:A.deduction(status,cfg),updatedAt:new Date().toISOString()};else delete lesson.attendance[key];addOperationLog('考勤',cls.name+' · 第'+lesson.seq+'次 · '+lesson.date+' · '+member.name+'：'+(old?old.label:'未登记')+' → '+(status?lesson.attendance[key].label+'（扣'+lesson.attendance[key].loss+'分）':'未登记'));save();renderGroups(cls,lesson);flash('考勤已保存，个人平时分与期末目标已更新');});
+  function attendanceCell(cls,lesson,g,printing){var A=window.JFDT_ASSESSMENT,rows=A.rows(cls,lessonsOf(cls.id),memberTotals(cls));return '<td rowspan="2" class="home-attendance">'+g.members.filter(function(m){return !!m.name;}).map(function(m,i){var k=A.key(m),row=rows.find(function(r){return r.key===k;}),score=row?row.attendance:48;return '<div class="home-attendance-person compact"><span>'+(i+1)+'</span>'+(printing?'<strong>'+score+'</strong>':'<button type="button" class="attendance-score" data-attendance-open="'+esc(k)+'" aria-label="成员'+(i+1)+' '+esc(m.name)+' 考勤'+score+'分，点击修改">'+score+'</button>')+'</div>';}).join('')+'</td>';}
+  var attendanceDialog=document.createElement('dialog');attendanceDialog.id='dlgHomeAttendance';attendanceDialog.setAttribute('aria-labelledby','homeAttendanceTitle');attendanceDialog.innerHTML='<form id="homeAttendanceForm"><h2 id="homeAttendanceTitle">考勤</h2><label class="field col">本课状态<select id="homeAttendanceStatus"></select></label><label class="field col">本次扣分<input id="homeAttendanceLoss" type="number" min="0" max="100" step="1" required></label><p class="note">扣分只影响考勤分；迟到早退折算仅用于挂科标记，不再次扣分。</p><button type="button" class="linkbtn" id="homeAttendanceRules">考勤扣分与挂科设置</button><div class="btnrow"><button type="button" class="btn" id="cancelHomeAttendance">取消</button><button class="btn primary" type="submit">保存</button></div></form>';document.body.appendChild(attendanceDialog);wireDialog(attendanceDialog);var attendanceEdit=null;
+  $('#groupList').addEventListener('click',function(e){var button=e.target.closest('[data-attendance-open]');if(!button)return;var cls=curClass(),lesson=curLesson(cls),A=window.JFDT_ASSESSMENT;if(!lesson)return;var key=button.dataset.attendanceOpen,member=A.roster(cls,memberTotals(cls)).find(function(m){return m.key===key;}),cfg=A.settings(cls),record=lesson.attendance&&lesson.attendance[key],opts=[['','未登记'],['present','到课'],['leave','请假'],['truant','旷课'],['late','迟到'],['early','早退']].concat(cfg.customRules.map(function(r){return [r.id,r.name];}));if(record&&!opts.some(function(o){return o[0]===record.status;}))opts.push([record.status,record.label]);attendanceEdit={key:key,lessonId:lesson.id,classId:cls.id};$('#homeAttendanceTitle').textContent=member.name+' · 第'+lesson.seq+'次课';$('#homeAttendanceStatus').innerHTML=opts.map(function(o){return '<option value="'+esc(o[0])+'"'+(record&&record.status===o[0]?' selected':'')+'>'+esc(o[1])+'</option>';}).join('');$('#homeAttendanceLoss').value=record?record.loss:0;$('#homeAttendanceLoss').disabled=!record;openDlg(attendanceDialog);});
+  $('#homeAttendanceStatus').addEventListener('change',function(){var cls=curClass();$('#homeAttendanceLoss').disabled=!this.value;$('#homeAttendanceLoss').value=this.value?window.JFDT_ASSESSMENT.deduction(this.value,window.JFDT_ASSESSMENT.settings(cls)):0;});
+  $('#cancelHomeAttendance').addEventListener('click',function(){attendanceDialog.close();});
+  $('#homeAttendanceRules').addEventListener('click',function(){attendanceDialog.close();switchView('attendance');var settings=$('.assessment-settings');if(settings)settings.open=true;});
+  $('#homeAttendanceForm').addEventListener('submit',function(e){e.preventDefault();var edit=attendanceEdit,cls=curClass(),lesson=curLesson(cls),A=window.JFDT_ASSESSMENT;if(!edit||!lesson||edit.lessonId!==lesson.id||edit.classId!==cls.id)return;var status=$('#homeAttendanceStatus').value,loss=Number($('#homeAttendanceLoss').value);if(!Number.isInteger(loss)||loss<0||loss>100)return;var old=lesson.attendance&&lesson.attendance[edit.key];if((old?old.status:'')===status&&(!status||old.loss===loss)){attendanceDialog.close();return;}var option=$('#homeAttendanceStatus').selectedOptions[0],member=A.roster(cls,memberTotals(cls)).find(function(m){return m.key===edit.key;});if(!lesson.attendance)lesson.attendance={};if(status)lesson.attendance[edit.key]={status:status,label:option.textContent,loss:loss,updatedAt:new Date().toISOString()};else delete lesson.attendance[edit.key];addOperationLog('考勤',cls.name+' · 第'+lesson.seq+'次 · '+member.name+'：'+(old?old.label+' 扣'+old.loss:'未登记')+' → '+(status?option.textContent+' 扣'+loss:'未登记'));save();attendanceDialog.close();renderGroups(cls,lesson);flash('考勤已保存');});
+  function attendanceNameClass(cls,m){var A=window.JFDT_ASSESSMENT,r=A.rows(cls,lessonsOf(cls.id),memberTotals(cls)).find(function(r){return r.key===A.key(m);});return r&&r.attendanceFailed?' attendance-failed':'';}
 
   function homeGradeHead(){return '<th rowspan="2" class="home-grade regular">平时成绩<br>/100</th><th rowspan="2" class="home-grade contribution">计入总评<br>/40</th><th rowspan="2" class="home-grade needed">期末至少需考<br>/100</th>';}
   function homeGradeCells(cls,g){
@@ -757,7 +763,7 @@ function removeMemberAt(cls, g, j) {
       var cnt = memberCount(g);
       var maxPhone = cnt || 10;
       var names = cnt
-        ? g.members.slice(0, cnt).map(function (m,i) { return '<span class="member-name">' + esc(m.name) + semesterBadge(cls,g.no,i) + '</span>'; }).join('')
+        ? g.members.slice(0, cnt).map(function (m,i) { return '<span class="member-name'+attendanceNameClass(cls,m)+'">' + esc(m.name) + semesterBadge(cls,g.no,i) + '</span>'; }).join('')
         : '<span style="color:var(--muted);font-weight:400">（未录入名单）</span>';
 
       var personal = cnt
@@ -814,7 +820,7 @@ function removeMemberAt(cls, g, j) {
       '<tr>' +
         '<th class="c-no" rowspan="2">组<br>号</th>' +
         '<th class="c-mem" colspan="' + GROUP_CAP + '">小组成员姓名 / 个人扣分（-1/次）</th>' +
-        '<th class="home-attendance" rowspan="2">成员考勤<br>本节状态 / 学期考勤分</th><th class="c-phone" rowspan="2">全组·手机未入袋<br>（-1/人）</th>' +
+        '<th class="home-attendance" rowspan="2">考勤分<br>/48</th><th class="c-phone" rowspan="2">全组·手机未入袋<br>（-1/人）</th>' +
         '<th class="c-first" rowspan="2">全组·首个正确<br>(+1)</th>' +
         '<th class="c-grp" rowspan="2">全组·小组分<br>(0-5)</th>' +
         '<th class="c-duty" rowspan="2">全组·值日<br>(0-5)</th>' +
@@ -831,7 +837,7 @@ function removeMemberAt(cls, g, j) {
 
       for (var i = 0; i < GROUP_CAP; i++) {
         var m = g.members[i];
-        names += '<td class="c-mem">' + ((m && m.name)
+        names += '<td class="c-mem'+(m&&m.name?attendanceNameClass(cls,m):'')+'">' + ((m && m.name)
           ? esc(m.name) + (m.no == null ? '' : ' ' + two(m.no)) + semesterBadge(cls,g.no,i) : '') + '</td>';
         deds += '<td class="c-ded">' + (i < cnt ? ctlPersonal(g.no, m, i, +s.personal[String(i)] || 0) : '') + '</td>';
       }
@@ -1699,7 +1705,7 @@ function removeMemberAt(cls, g, j) {
     var head = '<thead><tr>' +
       '<th class="c-no" rowspan="2">组<br>号</th>' +
       '<th class="c-mem" colspan="' + GROUP_CAP + '">小组成员姓名 / 个人扣分（-1/次）</th>' +
-      '<th class="home-attendance" rowspan="2">成员考勤<br>本节状态 / 学期考勤分</th><th class="c-phone" rowspan="2">全组·手机未入袋<br>（-1/人）</th>' +
+      '<th class="home-attendance" rowspan="2">考勤分<br>/48</th><th class="c-phone" rowspan="2">全组·手机未入袋<br>（-1/人）</th>' +
       '<th class="c-first" rowspan="2">全组·首个正确<br>(+1)</th>' +
       '<th class="c-grp" rowspan="2">全组·小组分<br>(0-5)</th>' +
       '<th class="c-duty" rowspan="2">全组·值日<br>(0-5)</th>' +
@@ -1712,7 +1718,7 @@ function removeMemberAt(cls, g, j) {
       var names = '', deds = '';
       for (var i = 0; i < GROUP_CAP; i++) {
         var m = g.members[i];
-        names += '<td class="c-mem">' +
+        names += '<td class="c-mem'+(m&&m.name?attendanceNameClass(cls,m):'')+'">' +
           ((m && m.name) ? esc(m.name) + ' ' + two(m.no == null ? null : m.no) : '') + '</td>';
         var dv = +s.personal[String(i)] || 0;
         deds += '<td class="c-ded">' + (dv ? dv : '') + '</td>';

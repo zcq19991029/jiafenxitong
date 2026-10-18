@@ -85,3 +85,9 @@ check('attendance points never fall below zero',A.rows(cls,excessive,raw).find(m
 const print=A.printHtml(cls,attendanceLessons(['truant','truant','truant']),raw);
 check('print identifies attendance failure rather than promising an exam can rescue it',print.includes('考勤挂科')&&print.includes('不适用')&&!print.includes('学习/80'));
 console.log(`Criterion assessment formulas: ${passed} passed, 0 failed`);
+
+const adjustable={...cls,assessmentSettings:{taskTarget:10,lateEarlyConversion:2,truantFailure:2}};
+const foldRows=A.rows(adjustable,attendanceLessons(['late','early','late','early']),raw);
+check('teachers can change conversion and failure thresholds without an extra deduction',foldRows.find(m=>m.sid==='991').convertedTruants===2&&foldRows.find(m=>m.sid==='991').attendanceFailed&&foldRows.find(m=>m.sid==='991').loss===4);
+adjustable.assessmentSettings.attendanceFailureEnabled=false;
+check('disabling attendance failure clears only the marker and restores exam target',!A.rows(adjustable,attendanceLessons(['truant','truant','truant']),raw).find(m=>m.sid==='991').attendanceFailed&&A.rows(adjustable,attendanceLessons(['truant','truant','truant']),raw).find(m=>m.sid==='991').attendance===39);

@@ -1320,3 +1320,5 @@ table.sheet col.w-attendance{width:165px}.home-attendance{background:#f6eff1;pad
 @media print{#printArea .sheet-tb col.w-attendance{width:11%}#printArea .sheet-tb col.w-mem{width:4.5%}#printArea .home-attendance-person{grid-template-columns:9px 1fr 27px;min-height:22px;font-size:8px}#printArea .home-attendance-person strong{font-size:8px}}
 
 @media screen{body.sidebar-layout table.sheet td.c-mem{font-size:14px;white-space:normal;overflow:visible;text-overflow:clip;word-break:keep-all}}
+
+.home-attendance-person.compact{grid-template-columns:14px 1fr}.attendance-score{width:100%;min-height:32px;border:0;background:transparent;font:700 16px inherit;color:#374151;cursor:pointer}.attendance-score:hover{background:#e8e0e5;border-radius:6px}.attendance-failed{color:#b91c1c!important;font-weight:750!important}table.sheet col.w-attendance{width:80px}#dlgHomeAttendance{width:min(420px,calc(100vw - 32px))}#dlgHomeAttendance .field{margin-bottom:14px}#dlgHomeAttendance select,#dlgHomeAttendance input{min-height:44px}
