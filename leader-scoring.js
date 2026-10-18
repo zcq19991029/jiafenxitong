@@ -17,7 +17,7 @@
     var cls=state.classes.find(function (c) { return c.id===state.ui.classId; }) || state.classes[0];
     var lessons=state.lessons.filter(function (l) { return cls && l.classId===cls.id; }).sort(function (a,b) { return b.seq-a.seq; });
     var lesson=lessons.find(function (l) { return l.id===state.ui.lessonId; }) || lessons[0];
-    root.innerHTML='<h2 class="sec-title">组内个人评分</h2><p class="note">参考组长评分表：填写项目名称，每项0–5分，最多10项；个人项目分自动汇入个人总分，与全组加分相加后减去个人扣分。</p>'+
+    root.innerHTML='<h2 class="sec-title">组内个人评分</h2><p class="note">填写本课项目名称，每项0–5分、全组共用，最多10项；在任一组改名会同步到所有组，分数仍按成员分别填写。个人项目分自动汇入个人总分。</p>'+
       '<div class="card lesson-bar"><label class="field"><span>班级</span><select id="leaderClassSel">'+state.classes.map(function(c){return '<option value="'+esc(c.id)+'"'+(cls&&c.id===cls.id?' selected':'')+'>'+esc(c.name)+'</option>';}).join('')+'</select></label>'+
       '<label class="field"><span>课次</span><select id="leaderLessonSel"'+(!lessons.length?' disabled':'')+'>'+lessons.map(function(l){return '<option value="'+esc(l.id)+'"'+(lesson&&l.id===lesson.id?' selected':'')+'>第'+l.seq+'次 · '+esc(l.date)+'</option>';}).join('')+'</select></label></div><div id="leaderSheet"></div>';
     root.querySelector('#leaderClassSel').onchange=function(){context.select(this.value,null);};
@@ -30,6 +30,15 @@
     selectedGroup=group.no;
     var record=lesson.leaderScores&&lesson.leaderScores[String(group.no)];
     if(!record) record={projects:Array(10).fill(''),members:{},signedBy:'',note:''};
+    if(!Array.isArray(lesson.leaderProjectNames)){
+      lesson.leaderProjectNames=Array.from({length:10},function(_,index){
+        var candidate=record.projects[index];
+        if(String(candidate||'').trim())return candidate;
+        for(var i=0;i<cls.groups.length;i++){var other=lesson.leaderScores&&lesson.leaderScores[String(cls.groups[i].no)],name=other&&other.projects&&other.projects[index];if(String(name||'').trim())return name;}
+        return '';
+      });
+    }
+    record.projects=lesson.leaderProjectNames.slice();
     function persist() { if(!lesson.leaderScores) lesson.leaderScores={};lesson.leaderScores[String(group.no)]=record;context.save(); }
     function log(detail) { if(context.log) context.log(cls.name+' · 第'+lesson.seq+'次课 · 第'+group.no+'组 · '+detail); }
     function scores(member) { return record.members[key(member)] || Array(10).fill(null); }
@@ -38,7 +47,7 @@
     var body=members.map(function(m,row){var values=scores(m);return '<tr><td>'+(row+1)+'</td><td class="leader-member">'+esc(m.name)+'<small>'+esc(m.sid||'未填写学号')+'</small></td>'+values.map(function(n,col){return '<td><input type="number" class="leader-number" data-member="'+esc(key(m))+'" data-item="'+col+'" aria-label="'+esc(m.name)+' 项目'+(col+1)+'" min="0" max="5" step="1" value="'+(n==null?'':n)+'"></td>';}).join('')+'<td class="leader-total" data-total-key="'+esc(key(m))+'">'+total(values)+'</td></tr>';}).join('');
     sheet.innerHTML='<div class="card"><div class="btnrow"><label class="field"><span>小组</span><select id="leaderGroupSel">'+cls.groups.map(function(g){return '<option value="'+g.no+'"'+(g.no===group.no?' selected':'')+'>第'+g.no+'组（'+g.members.filter(function(m){return m.name;}).length+'人）</option>';}).join('')+'</select></label><button class="btn" id="leaderPrint">打印本组评分表</button><button class="btn" id="leaderExport">导出本组CSV</button></div><p class="note">课次：第'+lesson.seq+'次 · '+esc(lesson.date)+'　任务：'+esc(lesson.topic)+'</p><div class="tablewrap"><table class="leader-table"><thead>'+head+'</thead><tbody>'+body+'</tbody></table></div>'+(!members.length?'<p class="note">本组暂无成员。已确定名单和分组后，成员会出现在这里。</p>':'')+'<label class="field"><span>组长 / 复核人</span><input id="leaderSignedBy" maxlength="100" value="'+esc(record.signedBy)+'"></label><label class="field col"><span>备注</span><textarea id="leaderNote" maxlength="500">'+esc(record.note)+'</textarea></label><p id="leaderFeedback" class="note" role="status">填写后自动保存，随教师账号同步。</p></div>';
     sheet.querySelector('#leaderGroupSel').onchange=function(){selectedGroup=+this.value;window.JFDT_LEADER_RENDER(context);};
-    sheet.querySelectorAll('[data-project]').forEach(function(input){input.onchange=function(){var old=record.projects[+input.dataset.project], next=input.value.trim(); if(old===next)return; record.projects[+input.dataset.project]=next; log('项目'+(+input.dataset.project+1)+'名称：'+(old||'空')+' → '+(next||'空'));persist();};});
+    sheet.querySelectorAll('[data-project]').forEach(function(input){input.onchange=function(){var index=+input.dataset.project,old=lesson.leaderProjectNames[index],next=input.value.trim(); if(old===next)return;lesson.leaderProjectNames[index]=next;cls.groups.forEach(function(g){if(!lesson.leaderScores)lesson.leaderScores={};var target=lesson.leaderScores[String(g.no)];if(!target)target=lesson.leaderScores[String(g.no)]={projects:Array(10).fill(''),members:{},signedBy:'',note:''};if(!Array.isArray(target.projects))target.projects=Array(10).fill('');target.projects[index]=next;});record=lesson.leaderScores[String(group.no)];log('全班统一项目'+(index+1)+'名称：'+(old||'空')+' → '+(next||'空')+'（所有小组同步）');context.save();};});
     sheet.querySelectorAll('[data-member]').forEach(function(input){input.onchange=function(){
       var value=input.value===''?null:Number(input.value), id=input.dataset.member, index=+input.dataset.item;
       if(value!==null&&(!Number.isInteger(value)||value<0||value>5)){input.value=(record.members[id]||[])[index]??'';sheet.querySelector('#leaderFeedback').textContent='每项请填写0–5的整数，或留空。';return;}
