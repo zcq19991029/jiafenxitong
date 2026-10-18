@@ -81,5 +81,26 @@
     next.undo = [];
     return { state: next, students: added, classes: Object.keys(byClass).length };
   }
-  global.JFDT_ROSTER = { parse: csv, apply: apply };
+  function workbook(data) {
+    if (!global.XLSX) throw new Error('Excel 组件未加载，请刷新网页。');
+    var book = global.XLSX.read(data, { type: 'array', cellText: true });
+    var all = [];
+    book.SheetNames.forEach(function (name) {
+      var rows = global.XLSX.utils.sheet_to_json(book.Sheets[name], { header: 1, raw: false, defval: '' });
+      if (!rows.some(function(r){return r.some(function(v){return String(v).trim();});})) return;
+      var start = rows.findIndex(function(r){return ['班级','姓名','学号'].every(function(k){return r.indexOf(k)>=0;});});
+      if(start<0) throw new Error('工作表“'+name+'”缺少班级、姓名、学号表头，请使用名单模板。');
+      var header=rows[start].map(function(v){return String(v).trim();});
+      var used=header.filter(Boolean);
+      if(new Set(used).size!==used.length) throw new Error('工作表表头重复。');
+      rows.slice(start+1).forEach(function(r){
+        if(!r.some(function(v){return String(v).trim();}))return;
+        var item={}; header.forEach(function(k,i){if(k)item[k]=String(r[i] == null ? '' : r[i]).trim();});
+        all.push(item);
+      });
+    });
+    if(!all.length)throw new Error('名单为空。');
+    return all;
+  }
+  global.JFDT_ROSTER = { parse: csv, workbook: workbook, apply: apply };
 })(typeof window !== 'undefined' ? window : this);

@@ -1603,19 +1603,21 @@ function removeMemberAt(cls, g, j) {
   $('#btnRestore').addEventListener('click', function () { $('#fileRestore').click(); });
   $('#btnRosterSetup').addEventListener('click', function () { switchView('data'); });
   $('#btnRosterTemplate').addEventListener('click', function () {
-    download('名单导入模板.csv', '\uFEFF班级,姓名,学号,小组,班内序号\r\n示例班,张三,26000000001,1,1\r\n示例班,李四,26000000002,1,2\r\n', 'text/csv;charset=utf-8');
+    rosterDownload([['班级','姓名','学号','小组','班内序号'],['示例班','张三','26000000001',1,1],['示例班','李四','26000000002',1,2]], '名单导入模板');
   });
   $('#btnImportRoster').addEventListener('click', function () { $('#fileRoster').click(); });
   $('#fileRoster').addEventListener('change', function () {
     var file = this.files && this.files[0];
     this.value = '';
     if (!file) return;
-    if (file.size > 1000000) { alert('名单文件不能超过 1MB。'); return; }
+    if (file.size > 10000000) { alert('名单文件不能超过 10MB。'); return; }
+    var excel = /\.(xlsx|xls|ods)$/i.test(file.name);
     var reader = new FileReader();
     reader.onload = function () {
       try {
         var p = CLOUD && CLOUD.profile();
-        var result = window.JFDT_ROSTER.apply(S, window.JFDT_ROSTER.parse(reader.result), p ? p.displayName : '');
+        var rows = excel ? window.JFDT_ROSTER.workbook(reader.result) : window.JFDT_ROSTER.parse(reader.result);
+        var result = window.JFDT_ROSTER.apply(S, rows, p ? p.displayName : '');
         if (!confirm('导入 ' + result.classes + ' 个班、' + result.students + ' 名学生？同名班级的空白名单将被替换。')) return;
         S = result.state;
         save(); fillClassSelects(); renderData(); renderUndoBtn();
@@ -1624,7 +1626,28 @@ function removeMemberAt(cls, g, j) {
       } catch (e) { alert('导入失败：' + e.message); }
     };
     reader.onerror = function () { alert('名单文件读取失败。'); };
-    reader.readAsText(file, 'UTF-8');
+    if(excel) reader.readAsArrayBuffer(file); else reader.readAsText(file, 'UTF-8');
+  });
+
+  function rosterDownload(rows, name) {
+    var format = $('#rosterFormat').value;
+    if(format==='csv'){download(name+'.csv',toCsv(rows),'text/csv;charset=utf-8');return;}
+    var wb = XLSX.utils.book_new();
+    var ws = XLSX.utils.aoa_to_sheet(rows);
+    ws['!cols']=[{wch:20},{wch:16},{wch:26},{wch:10},{wch:12}];
+    XLSX.utils.book_append_sheet(wb,ws,'名单');
+    var bytes=XLSX.write(wb,{bookType:format,type:'array'});
+    download(name+'.'+format,bytes,'application/octet-stream');
+  }
+  $('#btnExportRoster').addEventListener('click',function(){
+    var rows=[['班级','姓名','学号','小组','班内序号']];
+    S.classes.forEach(function(c){
+      (c.roster||[]).forEach(function(m){
+        var group=c.groups.find(function(g){return g.members.some(function(p){return p.sid===m.sid;});});
+        rows.push([c.name,m.name,String(m.sid),group?group.no:'',m.no==null?'':m.no]);
+      });
+    });
+    rosterDownload(rows,'全部班级名单_'+stamp());
   });
 
   $('#fileRestore').addEventListener('change', function () {
