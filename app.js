@@ -578,7 +578,7 @@ function removeMemberAt(cls, g, j) {
     }
     if (window.JFDT_LEADER_RENDER) window.JFDT_LEADER_RENDER({
       root: $('#view-leader'), state: S,
-      save: function () { save(); },
+      save: function () { save(); var cls=curClass(),lesson=curLesson(cls);if(lesson)renderGroups(cls,lesson); },
       log: function(detail) { addOperationLog('个人项目评分',detail); },
       select: function (classId, lessonId) {
         S.ui.classId = classId; S.ui.lessonId = lessonId;
@@ -1622,7 +1622,7 @@ function removeMemberAt(cls, g, j) {
         var p = CLOUD && CLOUD.profile();
         var rows = excel ? window.JFDT_ROSTER.workbook(reader.result) : window.JFDT_ROSTER.parse(reader.result);
         var result = window.JFDT_ROSTER.apply(S, rows, p ? p.displayName : '');
-        if (!confirm('导入 ' + result.classes + ' 个班、' + result.students + ' 名学生？同名班级的空白名单将被替换。')) return;
+        if (!confirm('识别到：'+Array.from(new Set(rows.map(function(r){return r['班级'];}))).join('、')+'；共 ' + result.students + ' 名学生。'+(rows.skippedSheets&&rows.skippedSheets.length?' 已跳过非名单页：'+rows.skippedSheets.join('、')+'。':'')+'确认导入？同名班级的空白名单将被替换；仅提取名单与已有分组，不导入纸表考勤格。')) return;
         S = result.state;
         var importedClass=S.classes.find(function(c){return c.name===rows[0]['班级'];});if(importedClass){S.ui.classId=importedClass.id;S.ui.lessonId=null;}
         save(); fillClassSelects(); renderData(); renderUndoBtn();
@@ -1824,7 +1824,7 @@ function removeMemberAt(cls, g, j) {
     var foot='<tfoot><tr><td class="c-note" colspan="'+(GROUP_CAP+10)+'">'+note+'</td></tr><tr><td class="c-note" colspan="'+(GROUP_CAP+10)+'">右侧三列为本学期当前个人成绩，与排名页相同；按姓名逐行对应。成绩按已登记的项目和考勤计算，考勤挂科时考试目标不适用。打印后不会自动更新。</td></tr></tfoot>';
 
     var cfg=window.JFDT_ASSESSMENT.settings(cls);
-    var reverse='<section class="lesson-duplex-page lesson-rules-back"><h1>小组制课堂 · 加分与成绩换算说明</h1><p>'+esc(cls.name)+' · 第'+lesson.seq+'次课 · '+esc(lesson.date||'')+'</p><h2>1. 课堂怎么记分</h2><p>个人项目每项0–5分；项目名称为空时留给组长线下填写，教师回到网页补录名称和分数。首个正确点亮加1；小组分0–5；值日分=5×参与人数÷应到人数。全组奖励给该组每位成员；个人扣分只扣对应成员。手机未入袋按次数扣全组分。</p><h2>2. 从原始积分换算到平时成绩</h2><p>平时分后的括号是至今项目完成率＝已评项目实得÷已评项目满分；不含奖励、行为扣分或考勤。无有效项目显示—，并非0%完成。平时分另含奖励、扣分与考勤，因此100分不一定对应100%项目完成率。同一课项目名由任一组编辑后全组同步；每个命名项目固定满分5，立即计入所有学生的项目分母。未录分暂按0分显示当前预测，填分后自动更新；空白名称不计。项目完成率=个人项目得分÷命名项目满分。学习分=52×clamp((个人项目得分＋全组累计净加分−个人累计扣分)÷命名项目满分,0,1)；全组奖励增加学习分，行为扣分降低学习分。考勤分=max(0,48−累计考勤扣分)；迟到/早退/旷课按本班规则扣考勤分，请假默认不扣。平时分=学习分＋考勤分；迟到＋早退折算旷课只用于挂科，不重复扣分。</p><p>例：项目80/100，净奖励10，考勤48 → 学习46.8、平时94.8、折合37.9、期末至少36.8（及格线60）。奖励持续累计，不增加项目满分；没有有效项目时学习暂按0，等补录后重算。</p><h2>3. 考勤与挂科标记</h2><p>本班默认扣分：迟到'+cfg.late+'、早退'+cfg.early+'、旷课'+cfg.truant+'、请假'+cfg.leave+'；每次可由教师更正。迟到＋早退每'+cfg.lateEarlyConversion+'次折算1次旷课，只用于挂科计数，不重复扣分。实际＋折算旷课合计'+cfg.truantFailure+'次触发标红；当前考勤挂科标记'+(cfg.attendanceFailureEnabled?'开启':'关闭')+'。门槛与开关由教师在二级设置调整，更正后自动重算。</p><h2>4. 期末还需考多少分</h2><p>平时占40%，期末占60%，本班及格线'+cfg.passScore+'。期末需考=max(0,(及格线−平时成绩×0.4)÷0.6)，向上取0.1分。折合列仅显示一位小数，计算使用未提前舍入的数值。超过100表示无法达到；考勤挂科时目标不适用，考试高分不能解除标记。</p><h2>5. 阅读与使用</h2><p>正面三列按成员序号1、2、3…对应，是打印时本学期当前个人成绩，与排名页相同；不是小组平均分。未编辑考勤默认到课，只登记请假、旷课、迟到或早退等异常。资料未齐时供参考。纸上填写不会自动识别，教师需回网页补录；以网页最新记录为准。</p><p class="duplex-note">双面打印：A4竖向，长边翻转；关闭浏览器页眉页脚。每张加分表正面后紧跟这份规则背面。</p></section>';
+    var reverse='<section class="lesson-duplex-page lesson-rules-back"><h1>小组制课堂 · 加分与成绩换算说明</h1><p>'+esc(cls.name)+' · 第'+lesson.seq+'次课 · '+esc(lesson.date||'')+'</p><h2>1. 课堂怎么记分</h2><p>个人项目每项0–5分；项目名称为空时留给组长线下填写，教师回到网页补录名称和分数。首个正确点亮加1；小组分0–5；值日分=5×参与人数÷应到人数。全组奖励给该组每位成员；个人扣分只扣对应成员。手机未入袋按次数扣全组分。</p><h2>2. 从原始积分换算到平时成绩</h2><p>平时分后的括号是至今项目完成率＝个人项目实得÷全班已命名项目满分；不含奖励、行为扣分或考勤。无有效项目显示—，并非0%完成。平时分另含奖励、扣分与考勤，因此100分不一定对应100%项目完成率。同一课项目名由任一组编辑后全组同步；每个命名项目固定满分5，立即计入所有学生的项目分母。未录分暂按0分显示当前预测，填分后自动更新；空白名称不计。项目完成率=个人项目得分÷命名项目满分。学习分=52×clamp((个人项目得分＋全组累计净加分−个人累计扣分)÷命名项目满分,0,1)；全组奖励增加学习分，行为扣分降低学习分。考勤分=max(0,48−累计考勤扣分)；迟到/早退/旷课按本班规则扣考勤分，请假默认不扣。平时分=学习分＋考勤分；迟到＋早退折算旷课只用于挂科，不重复扣分。</p><p>例：项目80/100，净奖励10，考勤48 → 学习46.8、平时94.8、折合37.9、期末至少36.8（及格线60）。奖励持续累计，不增加项目满分；没有有效项目时学习暂按0，等补录后重算。</p><h2>3. 考勤与挂科标记</h2><p>本班默认扣分：迟到'+cfg.late+'、早退'+cfg.early+'、旷课'+cfg.truant+'、请假'+cfg.leave+'；每次可由教师更正。迟到＋早退每'+cfg.lateEarlyConversion+'次折算1次旷课，只用于挂科计数，不重复扣分。实际＋折算旷课合计'+cfg.truantFailure+'次触发标红；当前考勤挂科标记'+(cfg.attendanceFailureEnabled?'开启':'关闭')+'。门槛与开关由教师在二级设置调整，更正后自动重算。</p><h2>4. 期末还需考多少分</h2><p>平时占40%，期末占60%，本班及格线'+cfg.passScore+'。期末需考=max(0,(及格线−平时成绩×0.4)÷0.6)，向上取0.1分。折合列仅显示一位小数，计算使用未提前舍入的数值。超过100表示无法达到；考勤挂科时目标不适用，考试高分不能解除标记。</p><h2>5. 阅读与使用</h2><p>正面三列按成员序号1、2、3…对应，是打印时本学期当前个人成绩，与排名页相同；不是小组平均分。未编辑考勤默认到课，只登记请假、旷课、迟到或早退等异常。资料未齐时供参考。纸上填写不会自动识别，教师需回网页补录；以网页最新记录为准。</p><p class="duplex-note">双面打印：A4竖向，长边翻转；关闭浏览器页眉页脚。每张加分表正面后紧跟这份规则背面。</p></section>';
     var groupBodies=body.match(/<tbody[\s\S]*?<\/tbody>/g)||[],pages=[];
     for(var offset=0;offset<groupBodies.length;offset+=groupBodies.length){pages.push('<section class="lesson-duplex-page lesson-duplex-front"><div class="sheet-title">课堂分组与加分记录表</div><div class="sheet-info">'+esc(cls.name)+' · 第'+lesson.seq+'次 · '+esc(lesson.date||'')+' · '+esc(lesson.topic||'')+'</div><div class="sheet-duty">值日：'+(dg?'第'+dg+'组':'未指定')+' · 第'+(offset/6+1)+'张</div><table class="sheet-tb"><colgroup>'+cols+'</colgroup>'+head+groupBodies.slice(offset,offset+groupBodies.length).join('')+foot+'</table></section>');pages.push(reverse);}
     var holder=document.createElement('div');holder.innerHTML=pages.join('');

@@ -84,13 +84,13 @@
   function workbook(data) {
     if (!global.XLSX) throw new Error('Excel 组件未加载，请刷新网页。');
     var book = global.XLSX.read(data, { type: 'array', cellText: true });
-    var all = [];
+    var all = [], skipped = [];
     book.SheetNames.forEach(function (name) {
       var rows = global.XLSX.utils.sheet_to_json(book.Sheets[name], { header: 1, raw: false, defval: '' });
       if (!rows.some(function(r){return r.some(function(v){return String(v).trim();});})) return;
       rows=rows.map(function(r){return r.map(function(v){return String(v).trim();});});
       var start = rows.findIndex(function(r){return ['姓名','学号'].every(function(k){return r.indexOf(k)>=0;});});
-      if(start<0) throw new Error('工作表“'+name+'”缺少姓名、学号表头。');
+      if(start<0){skipped.push(name);return;}
       var meta=rows.slice(0,start).map(function(r){return r.join(' ');}).join(' ');
       var classMatch=meta.match(/班级\s*[：:]\s*([^\s，,；;]+)/);
       var header=rows[start].map(function(v){return String(v).trim();});
@@ -106,7 +106,8 @@
         all.push(item);
       });
     });
-    if(!all.length)throw new Error('名单为空。');
+    if(!all.length)throw new Error('没有找到学生名单页。请确保至少一页含姓名、学号表头；原始考勤表可在表头上方写班级：名称。');
+    all.skippedSheets=skipped;
     return all;
   }
   global.JFDT_ROSTER = { parse: csv, workbook: workbook, apply: apply };

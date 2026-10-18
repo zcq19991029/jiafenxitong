@@ -88,6 +88,7 @@ function validateState(data) {
         if (key.length>200 || !record || typeof record!=='object' || typeof record.status!=='string' || !/^(present|late|truant|leave|early|custom_[a-z0-9_]{1,80})$/.test(record.status) || typeof record.label!=='string' || record.label.length>60 || !Number.isInteger(record.loss) || record.loss<0 || record.loss>100 || typeof record.updatedAt!=='string' || !Number.isFinite(Date.parse(record.updatedAt))) fail(400,'考勤状态或扣单位不正确。');
       }
     }
+    if (lesson.leaderProjectNames !== undefined && (!Array.isArray(lesson.leaderProjectNames) || lesson.leaderProjectNames.length !== 10 || lesson.leaderProjectNames.some(p => typeof p !== 'string' || p.length > 80))) fail(400, '本课统一项目名称格式不正确。');
     if (lesson.leaderScores !== undefined) {
       if (!lesson.leaderScores || typeof lesson.leaderScores !== 'object' || Array.isArray(lesson.leaderScores)
           || Object.keys(lesson.leaderScores).length > 100) fail(400, '组内个人评分格式不正确。');
