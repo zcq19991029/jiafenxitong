@@ -42,4 +42,27 @@
     }
     return X.CFB.write(zip,{type:'array',fileType:'zip',compression:true});
   };
+
+  global.JFDT_GROUP_EXCEL=function(html){
+    var X=global.XLSX,box=document.createElement('div');box.innerHTML=html;var wb=X.utils.book_new(),types=[];
+    box.querySelectorAll('.leader-paper').forEach(function(paper,page){
+      var data=[],merges=[],kinds=[],width=0,heights=[];
+      paper.querySelectorAll('.leader-slip').forEach(function(slip){
+        var table=slip.querySelector('table'),rows=Array.from(table.rows),cols=rows[0].cells.length;width=cols;
+        function merged(text,kind,height){var r=data.length;data.push([text]);merges.push({s:{r:r,c:0},e:{r:r,c:cols-1}});kinds.push(kind);heights.push({hpt:height});}
+        merged(slip.querySelector('h2').textContent,0,16);merged(slip.querySelector('.slip-meta').textContent,0,12);
+        rows.forEach(function(tr,i){data.push(Array.from(tr.cells).map(function(td){var clone=td.cloneNode(true);clone.querySelectorAll('small').forEach(function(x){x.before(' / ');});var text=clone.textContent.trim();return /^-?\d+(\.\d+)?$/.test(text)?Number(text):text||' ';}));kinds.push(i===0?1:2);heights.push({hpt:paper.children.length>=6?12:paper.children.length>=4?16:22});});
+        merged(slip.querySelector('.slip-sign').textContent,0,12);merged(slip.querySelector('.slip-note').textContent,0,10);merged(' ',0,5);
+      });
+      var ws=X.utils.aoa_to_sheet(data);ws['!merges']=merges;ws['!cols']=[{wch:5},{wch:27}].concat(Array(Math.max(0,width-3)).fill({wch:Math.max(12,70/Math.max(1,width-3))}),[{wch:8}]);ws['!rows']=heights;X.utils.book_append_sheet(wb,ws,'第'+(page+1)+'页');types.push(kinds);
+    });
+    var zip=X.CFB.read(new Uint8Array(X.write(wb,{bookType:'xlsx',type:'array'})),{type:'array'}),enc=new TextEncoder(),dec=new TextDecoder();
+    function set(path,text){var i=zip.FullPaths.findIndex(function(p){return p.endsWith('/'+path);});if(i<0)throw Error('Excel结构缺失');zip.FileIndex[i].content=enc.encode(text);zip.FileIndex[i].size=zip.FileIndex[i].content.length;}
+    function get(path){return dec.decode(zip.FileIndex[zip.FullPaths.findIndex(function(p){return p.endsWith('/'+path);})].content);}
+    var fills=['FFFFFF','D9E2F3','E2EFDA','EAF2FB','FFF2CC'];
+    set('xl/styles.xml','<?xml version="1.0" encoding="UTF-8"?><styleSheet xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main"><fonts count="1"><font><sz val="9"/><name val="Microsoft YaHei"/></font></fonts><fills count="7"><fill><patternFill patternType="none"/></fill><fill><patternFill patternType="gray125"/></fill>'+fills.map(function(c){return '<fill><patternFill patternType="solid"><fgColor rgb="FF'+c+'"/><bgColor indexed="64"/></patternFill></fill>';}).join('')+'</fills><borders count="2"><border/><border><left style="thin"/><right style="thin"/><top style="thin"/><bottom style="thin"/></border></borders><cellStyleXfs count="1"><xf/></cellStyleXfs><cellXfs count="5">'+fills.map(function(_,i){return '<xf fontId="0" fillId="'+(i+2)+'" borderId="'+(i?1:0)+'" applyAlignment="1"><alignment horizontal="center" vertical="center" wrapText="1"/></xf>';}).join('')+'</cellXfs><cellStyles count="1"><cellStyle name="Normal" xfId="0" builtinId="0"/></cellStyles></styleSheet>');
+    types.forEach(function(kinds,i){var path='xl/worksheets/sheet'+(i+1)+'.xml',xml=get(path);xml=xml.replace(/<c\b([^>]*\br="([A-Z]+)(\d+)"[^>]*)>/g,function(all,attrs,col,row){var kind=kinds[Number(row)-1],id=kind===1?1:kind===2?(col==='A'||col==='B'?3:col===X.utils.encode_col(X.utils.decode_range(wb.Sheets[wb.SheetNames[i]]['!ref']).e.c)?4:2):0;return '<c'+attrs+' s="'+id+'">';});
+      xml=xml.replace(/(<worksheet[^>]*>)/,'$1<sheetPr><pageSetUpPr fitToPage="1"/></sheetPr>').replace(/<pageMargins[^>]*\/>/g,'').replace('</worksheet>','<printOptions horizontalCentered="1"/><pageMargins left="0.25" right="0.25" top="0.3" bottom="0.3" header="0" footer="0"/><pageSetup paperSize="9" orientation="portrait" fitToWidth="1" fitToHeight="1"/></worksheet>');set(path,xml);
+    });return X.CFB.write(zip,{type:'array',fileType:'zip',compression:true});
+  };
 })(window);
