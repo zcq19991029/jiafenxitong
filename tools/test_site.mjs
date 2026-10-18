@@ -106,7 +106,7 @@ q('#tabs [data-view="leader"]').click();check('new lesson defaults to four proje
 const paperGroups=Array.from({length:13},(_,i)=>({no:i+1,members:[{name:'虚构甲',sid:'paper'+i}]})),paperBefore=JSON.stringify(paperGroups);
 const batchHtml=w.JFDT_LEADER_PRINT_HTML({name:'虚构打印班'}, {seq:1,date:'2026-10-14'},paperGroups,2),batchBox=w.document.createElement('div');batchBox.innerHTML=batchHtml;
 check('13-group print creates seven sheets with no placeholder project names',batchBox.querySelectorAll('.leader-paper').length===7&&batchBox.querySelectorAll('.leader-slip').length===13&&!batchHtml.includes('项目2')&&JSON.stringify(paperGroups)===paperBefore);
-const fourPaper=w.document.createElement('div');fourPaper.innerHTML=w.JFDT_LEADER_PRINT_HTML({name:'打印样张'}, {seq:1,date:'2026-10-18'},paperGroups,4);check('13 groups fit four slips per page across four papers',fourPaper.querySelectorAll('.four-slips').length===4&&fourPaper.querySelectorAll('.leader-slip').length===13);
+const fourPaper=w.document.createElement('div');fourPaper.innerHTML=w.JFDT_LEADER_PRINT_HTML({name:'打印样张'}, {seq:1,date:'2026-10-18'},paperGroups,4);check('13 groups fit four slips per page across four papers',fourPaper.querySelectorAll('.leader-paper').length===4&&fourPaper.querySelectorAll('.leader-slip').length===13);
 const rawBeforeAttendance=JSON.stringify(JSON.parse(w.localStorage.getItem('jfdt.v1')).lessons[0].scores);
 let homeAtt=q('[data-attendance-open]'),homeAttKey=homeAtt.dataset.attendanceOpen;
 check('home attendance exposes only score buttons and no inline status selector',!q('#groupList select[data-home-att-key]')&&homeAtt.textContent==='9');
