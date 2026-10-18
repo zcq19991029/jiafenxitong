@@ -88,20 +88,22 @@ function validateState(data) {
         if (key.length>200 || !record || typeof record!=='object' || typeof record.status!=='string' || !/^(present|late|truant|leave|early|custom_[a-z0-9_]{1,80})$/.test(record.status) || typeof record.label!=='string' || record.label.length>60 || !Number.isInteger(record.loss) || record.loss<0 || record.loss>100 || typeof record.updatedAt!=='string' || !Number.isFinite(Date.parse(record.updatedAt))) fail(400,'考勤状态或扣单位不正确。');
       }
     }
-    if (lesson.leaderProjectNames !== undefined && (!Array.isArray(lesson.leaderProjectNames) || lesson.leaderProjectNames.length !== 10 || lesson.leaderProjectNames.some(p => typeof p !== 'string' || p.length > 80))) fail(400, '本课统一项目名称格式不正确。');
+    if (lesson.leaderProjectCount !== undefined && (!Number.isInteger(lesson.leaderProjectCount)||lesson.leaderProjectCount<1||lesson.leaderProjectCount>30)) fail(400,'项目列数格式不正确。');
+    if (lesson.dutyGroups !== undefined && (!Array.isArray(lesson.dutyGroups)||lesson.dutyGroups.length>100||lesson.dutyGroups.some(n=>!Number.isInteger(n)||n<1||n>999)||new Set(lesson.dutyGroups).size!==lesson.dutyGroups.length)) fail(400,'值日组列表格式不正确。');
+    if (lesson.leaderProjectNames !== undefined && (!Array.isArray(lesson.leaderProjectNames) || lesson.leaderProjectNames.length < 1 || lesson.leaderProjectNames.length > 30 || lesson.leaderProjectNames.some(p => typeof p !== 'string' || p.length > 80))) fail(400, '本课统一项目名称格式不正确。');
     if (lesson.leaderScores !== undefined) {
       if (!lesson.leaderScores || typeof lesson.leaderScores !== 'object' || Array.isArray(lesson.leaderScores)
           || Object.keys(lesson.leaderScores).length > 100) fail(400, '组内个人评分格式不正确。');
       for (const [number, record] of Object.entries(lesson.leaderScores)) {
         if (!/^[1-9]\d{0,2}$/.test(number) || !record || typeof record !== 'object'
-            || !Array.isArray(record.projects) || record.projects.length !== 10
+            || !Array.isArray(record.projects) || record.projects.length < 1 || record.projects.length > 30
             || record.projects.some(p => typeof p !== 'string' || p.length > 80)
             || !record.members || typeof record.members !== 'object' || Array.isArray(record.members)
             || Object.keys(record.members).length > 1000
             || typeof record.signedBy !== 'string' || record.signedBy.length > 100
             || typeof record.note !== 'string' || record.note.length > 500) fail(400, '组内个人评分格式不正确。');
         for (const [member, scores] of Object.entries(record.members)) {
-          if (!/^[a-zA-Z0-9_:-]{1,128}$/.test(member) || !Array.isArray(scores) || scores.length !== 10
+          if (!/^[a-zA-Z0-9_:-]{1,128}$/.test(member) || !Array.isArray(scores) || scores.length > 30
               || scores.some(n => n !== null && (!Number.isInteger(n) || n < 0 || n > 5))) fail(400, '个人评分每项须为0–5的整数或留空。');
         }
       }

@@ -290,7 +290,7 @@
           JSON 备份仍然保留，作为清理浏览器数据／迁移应用时的保险绳。</li>
       </ol>
       <p class="formula">
-        本节合计 ＝ 首个正确(0/1) ＋ 小组分(0-5) ＋ 值日分(0-5) − 手机未入袋人数<br>
+        本节项目净分 ＝ 小组项目分 ＋ 本次值日有效分 − 全组扣分；个人项目与扣分见组内评分合计<br>
         个人总分 ＝ 全组累计加分 ＋ 个人项目累计分 − 本人累计个人扣分
       </p>
     </div>
@@ -376,7 +376,7 @@
       <label class="field col"><span>课次</span><input id="nlSeq" type="number" min="1" step="1"></label>
       <label class="field col"><span>日期</span><input id="nlDate" type="date"></label>
       <label class="field col"><span>本节任务</span><input id="nlTopic" placeholder="例如：三相异步电动机正反转接线"></label>
-      <label class="field col"><span>本节值日组</span><input id="nlDuty" type="number" min="0" step="1" placeholder="留空表示无"></label>
+      <label class="field col"><span>本节值日组</span><input id="nlDuty" type="text" placeholder="例如1,2；留空表示无"></label>
     </div>
     <div class="dlg-btns">
       <button value="cancel" class="btn">取消</button>

@@ -69,10 +69,7 @@ await w.JFDT_CLOUD.flush();
 check('same-origin score edits are saved in D1', (await (await site.fetch(new Request(origin + '/api/state', { headers: { Authorization: 'Bearer ' + admin.token } }), env)).json()).data.lessons[0].scores['1'].group === 1);
 const stillPublic = await (await get('/data.js')).text();
 check('classroom sheet contains no semester badges', !q('#groupList .semester-score') && !q('#groupList [data-cum]'));
-q('[data-card="1"] [data-act="first"]').click();
-check('green check immediately adds exactly one point', q('[data-card="1"] [data-act="first"]').getAttribute('aria-pressed') === 'true' && q('[data-total="1"]').textContent === '+2');
-q('[data-card="1"] [data-act="first"]').click();
-check('second check click cancels only the first-correct reward', q('[data-total="1"]').textContent === '+1');
+check('first-correct column has been removed',!q('[data-act="first"]')&&!q('th.c-first'));
 q('[data-card="1"] [data-duty-open]').click();
 q('#dutyPeopleSelect').value = '1';
 q('#dlgDutyPeople').returnValue = 'cancel'; q('#dlgDutyPeople').dispatchEvent(new w.Event('close'));
@@ -105,18 +102,20 @@ let exportedBook;const oldWrite=w.XLSX.write;w.XLSX.write=function(book,options)
 w.URL.createObjectURL=()=> 'blob:test';w.URL.revokeObjectURL=()=>{};
 Array.from(q('#lessonMeta').querySelectorAll('button')).find(b=>b.textContent==='下载本课Excel').click();
 check('lesson Excel has scoring, individual grades and rules sheets',exportedBook&&exportedBook.SheetNames.join(',')==='本课加分表,个人成绩,规则说明');w.XLSX.write=oldWrite;
+q('#tabs [data-view="leader"]').click();check('new lesson defaults to four project columns',q('#leaderSheet').querySelectorAll('[data-project]').length===4);q('#leaderAddProject').click();check('add column grows shared template without naming a task',q('#leaderSheet').querySelectorAll('[data-project]').length===5);q('[data-remove-project="4"]').click();check('empty project column can be deleted for all groups',q('#leaderSheet').querySelectorAll('[data-project]').length===4);q('[data-remove-project="3"]').click();q('[data-remove-project="2"]').click();check('two-project scoring layout is supported',q('#leaderSheet').querySelectorAll('[data-project]').length===2);q('#tabs [data-view="score"]').click();
 const paperGroups=Array.from({length:13},(_,i)=>({no:i+1,members:[{name:'虚构甲',sid:'paper'+i}]})),paperBefore=JSON.stringify(paperGroups);
 const batchHtml=w.JFDT_LEADER_PRINT_HTML({name:'虚构打印班'}, {seq:1,date:'2026-10-14'},paperGroups,2),batchBox=w.document.createElement('div');batchBox.innerHTML=batchHtml;
 check('13-group print creates seven sheets with no placeholder project names',batchBox.querySelectorAll('.leader-paper').length===7&&batchBox.querySelectorAll('.leader-slip').length===13&&!batchHtml.includes('项目2')&&JSON.stringify(paperGroups)===paperBefore);
+const fourPaper=w.document.createElement('div');fourPaper.innerHTML=w.JFDT_LEADER_PRINT_HTML({name:'打印样张'}, {seq:1,date:'2026-10-18'},paperGroups,4);check('13 groups fit four slips per page across four papers',fourPaper.querySelectorAll('.four-slips').length===4&&fourPaper.querySelectorAll('.leader-slip').length===13);
 const rawBeforeAttendance=JSON.stringify(JSON.parse(w.localStorage.getItem('jfdt.v1')).lessons[0].scores);
 let homeAtt=q('[data-attendance-open]'),homeAttKey=homeAtt.dataset.attendanceOpen;
-check('home attendance exposes only score buttons and no inline status selector',!q('#groupList select[data-home-att-key]')&&homeAtt.textContent==='48');
+check('home attendance exposes only score buttons and no inline status selector',!q('#groupList select[data-home-att-key]')&&homeAtt.textContent==='9');
 homeAtt.click();q('#homeAttendanceStatus').value='leave';q('#homeAttendanceStatus').dispatchEvent(new w.Event('change'));q('#homeAttendanceForm').dispatchEvent(new w.Event('submit',{cancelable:true}));
 check('home leave records no deduction',JSON.parse(w.localStorage.getItem('jfdt.v1')).lessons[0].attendance[homeAttKey].loss===0);
 q('[data-attendance-open]').click();q('#homeAttendanceStatus').value='late';q('#homeAttendanceStatus').dispatchEvent(new w.Event('change'));q('#homeAttendanceLoss').value='2';q('#homeAttendanceForm').dispatchEvent(new w.Event('submit',{cancelable:true}));
 await w.JFDT_CLOUD.flush();
 const afterAttendance=JSON.parse(w.localStorage.getItem('jfdt.v1'));
-check('home attendance deducts once from attendance and refreshes grades without changing classroom points',afterAttendance.lessons[0].attendance[homeAttKey].loss===2 && JSON.stringify(afterAttendance.lessons[0].scores)===rawBeforeAttendance && parseFloat(q('[data-home-grade="regular"] strong').textContent)===46);
+check('home attendance deducts once from attendance and refreshes grades without changing classroom points',afterAttendance.lessons[0].attendance[homeAttKey].loss===2 && JSON.stringify(afterAttendance.lessons[0].scores)===rawBeforeAttendance && parseFloat(q('[data-home-grade="regular"] strong').textContent)===61.6);
 q('#tabs [data-view="attendance"]').click();
 check('home attendance is visible in the shared attendance page',q('[data-att-key]').value==='late');
 q('[name="lateEarlyConversion"]').value='1';q('[name="truantFailure"]').value='1';q('#assessmentSettingsForm').dispatchEvent(new w.Event('submit',{cancelable:true}));
@@ -147,7 +146,7 @@ check('neutral initialization never changes an existing account', existingAdmin.
 // Exercise the actual UI below the learning cap, including all three derived cells.
 q('#tabs [data-view="leader"]').click();
 function change(selector,value,event='change'){q(selector).value=value;q(selector).dispatchEvent(new w.Event(event,{bubbles:true}));}
-change('[data-project="0"]','项目甲');change('[data-project="1"]','项目乙');change('[data-project="2"]','项目丙');
+q('#leaderAddProject').click();q('#leaderAddProject').click();change('[data-project="0"]','项目甲');change('[data-project="1"]','项目乙');change('[data-project="2"]','项目丙');
 change('[data-member][data-item="0"]','4');
 q('#tabs [data-view="score"]').click();
 const gradeValues=()=>['regular','contribution','needed'].map(f=>parseFloat(q('[data-card="1"] [data-home-grade="'+f+'"] strong').textContent));
@@ -160,10 +159,17 @@ const afterAtt=gradeValues();check('attendance loss immediately changes all thre
 q('#tabs [data-view="leader"]').click();change('[data-member][data-item="0"]','5');q('#tabs [data-view="score"]').click();
 check('individual project score immediately updates home grade',gradeValues()[0]>afterAtt[0]);
 q('#tabs [data-view="leader"]').click();change('[data-project="3"]','新增全班项目');q('#tabs [data-view="score"]').click();
-check('new shared project increases denominator by five without assigning a score',q('[data-home-grade="regular"] .completion-rate').textContent.includes('25%'));
+check('new shared project increases denominator by five without assigning a score',q('[data-home-grade="regular"] .completion-rate').textContent.includes('33.3%'));
 const linkageState=JSON.parse(w.localStorage.getItem('jfdt.v1'));check('project names synchronize every group in the lesson',linkageState.classes[0].groups.every(g=>linkageState.lessons[0].leaderScores[String(g.no)].projects[3]==='新增全班项目'));
 
 teacherDom.window.close();
-if(errors.length)console.log(errors);check('packaged application has no unexpected exceptions', errors.length === 0);
+if(errors.length)console.log(errors);// Printed zeros are blank while numeric records remain untouched.
+const zeroLesson={id:'zero',seq:1,date:'2026-10-18',scores:{1:{group:0,phone:0,duty:0,personal:{}}},leaderProjectNames:['居中项目',...Array(9).fill('')],leaderScores:{1:{projects:['居中项目',...Array(9).fill('')],members:{'sid:100':[0,...Array(9).fill(null)]},signedBy:'',note:''}}};
+const printClass={name:'虚构打印验收',groups:[{no:1,members:[{name:'示例学生',sid:'100'}]}]};
+const zeroPrint=w.JFDT_LEADER_PRINT_HTML(printClass,zeroLesson,printClass.groups,2);
+check('print suppresses explicit zero scores and zero totals',!zeroPrint.includes('>0</td>')&&zeroLesson.leaderScores[1].members['sid:100'][0]===0);
+zeroLesson.scores[1].phone=3;const debtPrint=w.JFDT_LEADER_PRINT_HTML(printClass,zeroLesson,printClass.groups,2);check('printed net total keeps negative group deductions',debtPrint.includes('>-3</td>'));
+q('#tabs [data-view="score"]').click();q('#btnEditLesson').click();check('lesson settings allow multiple duty groups',q('#editLessonDuty').multiple);q('#cancelEditLesson').click();
+check('packaged application has no unexpected exceptions', errors.length === 0);
 dom.window.close(); env.sqlite.close();
 console.log(`Packaged single-site integration: ${passed} passed, 0 failed`);
