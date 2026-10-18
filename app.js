@@ -659,6 +659,7 @@ function removeMemberAt(cls, g, j) {
     $('#btnEditLesson').addEventListener('click',function(){openLessonEditor(cls,lesson);});
     $('#btnPrintLesson').addEventListener('click', function () { openLessonPrint(cls, lesson); });
     var excelButton=document.createElement('button');excelButton.className='btn';excelButton.textContent='下载本课Excel';excelButton.onclick=function(){downloadLessonExcel(cls,lesson);};$('#lessonMeta .btnrow').appendChild(excelButton);
+    var pdfButton=document.createElement('button');pdfButton.className='btn';pdfButton.textContent='下载打印版PDF';pdfButton.onclick=function(){openLessonPrint(cls,lesson,true);};$('#lessonMeta .btnrow').prepend(pdfButton);
   }
 
   var lessonEditor=document.createElement('dialog');lessonEditor.id='dlgEditLesson';lessonEditor.setAttribute('aria-labelledby','editLessonTitle');
@@ -1715,10 +1716,43 @@ function removeMemberAt(cls, g, j) {
 
   /** 打印本课：完全照着纸质《课堂分组与加分记录表》的 12 列版式 */
   var lessonPrintOptions={range:'both',orientation:'portrait'},lessonExporting=false;
-  function openLessonPrint(cls,lesson){
+  function openLessonPrint(cls,lesson,asPdf){
     var dlg=$('#dlgLessonPrint');
     if(!dlg){dlg=document.createElement('dialog');dlg.id='dlgLessonPrint';dlg.innerHTML='<form method="dialog"><h2>打印本课</h2><label class="field col">打印范围<select id="lessonPrintRange"><option value="both">加分表＋背面说明</option><option value="front">仅加分表</option><option value="rules">仅规则说明</option></select></label><label class="field col">纸张方向<select id="lessonPrintOrientation"><option value="portrait">A4 竖向</option><option value="landscape">A4 横向</option></select></label><p class="note">范围和方向在此选择。双面打印选择长边翻转；建议关闭页眉页脚。</p><div class="btnrow"><button class="btn" value="cancel">取消</button><button class="btn primary" value="ok">开始打印</button></div></form>';document.body.appendChild(dlg);}
-    dlg.onclose=function(){if(dlg.returnValue!=='ok')return;lessonPrintOptions={range:$('#lessonPrintRange').value,orientation:$('#lessonPrintOrientation').value};printLesson(cls,lesson);};dlg.returnValue='';openDlg(dlg);
+    dlg.querySelector('h2').textContent=asPdf?'下载打印版 PDF':'打印本课';dlg.querySelector('[value="ok"]').textContent=asPdf?'下载 PDF':'开始打印';
+    dlg.onclose=function(){if(dlg.returnValue!=='ok')return;lessonPrintOptions={range:$('#lessonPrintRange').value,orientation:$('#lessonPrintOrientation').value};if(asPdf)downloadLessonPdf(cls,lesson);else printLesson(cls,lesson);};dlg.returnValue='';openDlg(dlg);
+  }
+  var pdfExportBusy=false;
+  async function downloadLessonPdf(cls,lesson){
+    if(pdfExportBusy)return;pdfExportBusy=true;
+    var frame=null,pdfOrientation=lessonPrintOptions.orientation;
+    try{
+      flash('正在生成打印版 PDF…');
+      lessonExporting=true;try{printLesson(cls,lesson);}finally{lessonExporting=false;document.body.classList.remove('print-lesson');}
+      var html=$('#printArea').innerHTML,pageCss=$('#lessonPageStyle').textContent;
+      var css=await (await fetch(new URL('styles.css',location.href))).text();
+      css=(css+'\n'+pageCss).replace(/@media screen/g,'@media not all').replace(/@media print/g,'@media all');
+      css+='\nhtml,body{margin:0!important;padding:0!important;width:100%!important;height:auto!important;min-height:0!important;background:white!important}#printArea{display:block!important;position:static!important}.lesson-duplex-page{width:100%!important;margin:0!important;border:0!important}';
+      var landscape=pdfOrientation==='landscape',widthMm=landscape?277:190,heightMm=landscape?178:264,widthPx=Math.round(widthMm*96/25.4),heightPx=Math.round(heightMm*96/25.4);
+      frame=document.createElement('iframe');frame.title='生成打印PDF';frame.style.cssText='position:fixed;left:-20000px;top:0;width:'+widthPx+'px;height:'+heightPx+'px;border:0';
+      var loaded=new Promise(function(resolve){frame.onload=resolve;});
+      frame.srcdoc='<!doctype html><meta charset="utf-8"><style>'+css+'</style><body class="print-lesson"><div id="printArea">'+html+'</div></body>';
+      document.body.appendChild(frame);await loaded;await frame.contentDocument.fonts.ready;
+      var doc=frame.contentDocument,pages=Array.from(doc.querySelectorAll('.lesson-duplex-page'));
+      if(!pages.length)throw new Error('没有可导出的页面。');
+      var pdf=new window.jspdf.jsPDF({orientation:landscape?'landscape':'portrait',unit:'mm',format:'a4',compress:true});
+      for(var i=0;i<pages.length;i++){
+        var body=doc.createElement('body');body.className='print-lesson';body.setAttribute('xmlns','http://www.w3.org/1999/xhtml');body.style.cssText='margin:0;width:'+widthPx+'px;height:'+heightPx+'px;background:white';
+        var style=doc.createElement('style');style.textContent=css;
+        var area=doc.createElement('div');area.id='printArea';area.appendChild(pages[i].cloneNode(true));body.appendChild(style);body.appendChild(area);
+        var svg='<svg xmlns="http://www.w3.org/2000/svg" width="'+widthPx+'" height="'+heightPx+'"><foreignObject width="100%" height="100%">'+new XMLSerializer().serializeToString(body)+'</foreignObject></svg>';
+        var img=new Image();await new Promise(function(resolve,reject){img.onload=resolve;img.onerror=function(){reject(new Error('打印页面渲染失败。'));};img.src='data:image/svg+xml;charset=utf-8,'+encodeURIComponent(svg);});
+        var canvas=document.createElement('canvas');canvas.width=Math.round(widthPx*3.125);canvas.height=Math.round(heightPx*3.125);var context=canvas.getContext('2d');context.fillStyle='#fff';context.fillRect(0,0,canvas.width,canvas.height);context.drawImage(img,0,0,canvas.width,canvas.height);
+        if(i)pdf.addPage('a4',landscape?'landscape':'portrait');pdf.addImage(canvas.toDataURL('image/png'),'PNG',10,10,widthMm,heightMm,undefined,'FAST');canvas.width=canvas.height=1;
+      }
+      download(cls.name+'_第'+lesson.seq+'次课_打印版.pdf',pdf.output('arraybuffer'),'application/pdf');flash('打印版 PDF 已下载，换电脑可直接打印');
+    }catch(e){alert('PDF 下载失败：'+e.message+'。也可使用“打印本课”并选择另存为 PDF。');}
+    finally{if(frame)frame.remove();pdfExportBusy=false;}
   }
   function downloadLessonExcel(cls,lesson){
     var box=document.createElement('div'),original=window.print,options=lessonPrintOptions;window.print=function(){};lessonPrintOptions={range:'both',orientation:'portrait'};lessonExporting=true;
@@ -1730,7 +1764,9 @@ function removeMemberAt(cls, g, j) {
     A.rows(cls,lessonsOf(cls.id),memberTotals(cls)).forEach(function(m){rows.push([cls.name,lesson.seq,lesson.date,m.name,String(m.sid||''),m.regular,m.task.maximum?Math.round(m.task.rate*1000)/10+'%':'—',m.attendance,m.contribution,m.attendanceFailed?'不适用':m.needed>100?'无法达到':m.needed]);});
     XLSX.utils.book_append_sheet(wb,XLSX.utils.aoa_to_sheet(rows),'个人成绩');
     XLSX.utils.book_append_sheet(wb,XLSX.utils.aoa_to_sheet([['加分与换算说明'],[box.querySelector('.lesson-rules-back').textContent]]),'规则说明');
-    download(cls.name+'_第'+lesson.seq+'次课.xlsx',XLSX.write(wb,{bookType:'xlsx',type:'array'}),'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');
+    var rules=Array.from(box.querySelector('.lesson-rules-back').children).map(function(el){return {text:el.textContent,heading:/^H/.test(el.tagName)};});
+    var formatted=window.JFDT_PRINT_EXCEL(table,cls.name+' · 第'+lesson.seq+'次 · '+lesson.date+' · '+(lesson.topic||''),rows,rules);
+    download(cls.name+'_第'+lesson.seq+'次课_可编辑打印版.xlsx',formatted,'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');
   }
   function printLesson(cls, lesson) {
     var dg = lesson.dutyGroup ? +lesson.dutyGroup : null;
