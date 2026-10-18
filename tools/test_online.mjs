@@ -202,12 +202,12 @@ const failLessons=['truant','truant','late','early','late'].map((status,i)=>({id
 let failCsv;
 const failContext={cls:failClass,lessons:failLessons,raw:[{...failStudent,gno:1,total:10,project:10,groupScore:0,personal:0}],root:failRoot,openAttendance(){},log(){},save(){},message(){},export(name,rows){failCsv=rows;}};
 a.window.JFDT_ASSESSMENT.renderRank(failContext);
-check('converted absence stays visible but does not block the exam target',!failRoot.textContent.includes('考勤挂科，不适用')&&failRoot.textContent.includes('实际旷课2次 · 折算1次 · 合计3次旷课'));
+check('two actual and one converted absence block the exam target',failRoot.textContent.includes('考勤挂科，不适用')&&failRoot.textContent.includes('实际旷课2次 · 折算1次 · 合计3次旷课'));
 failLessons.push({id:'actual-third',attendance:{'sid:99001':{status:'truant',loss:3}}});
 a.window.JFDT_ASSESSMENT.renderRank(failContext);
 check('three actual truants block the exam target even with a high exam score',failRoot.textContent.includes('考勤挂科，不适用')&&failRoot.textContent.includes('实际旷课3次'));
 failRoot.querySelector('#assessmentExport').click();
-check('CSV includes actual-only attendance failure, counts and an inapplicable exam target',failCsv[0].includes('合计旷课次数')&&failCsv[1].includes('考勤挂科，不适用')&&failCsv[1].includes('考勤挂科')&&failCsv[1].at(-1)===4&&failCsv[1].at(-3)===3&&failCsv[1].length===failCsv[0].length);
+check('CSV includes combined attendance failure, counts and an inapplicable exam target',failCsv[0].includes('合计旷课次数')&&failCsv[1].includes('考勤挂科，不适用')&&failCsv[1].includes('考勤挂科')&&failCsv[1].at(-1)===4&&failCsv[1].at(-3)===3&&failCsv[1].length===failCsv[0].length);
 q(a,'#tabs button[data-view="score"]').click();
 function setDuty(present,expected){
   q(a,'[data-duty-expected="1"]').value=String(expected);

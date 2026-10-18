@@ -71,9 +71,9 @@ check('three combined late and early events convert once without a second deduct
 att=attendanceRow(['truant','truant']);
 check('two actual truants do not trigger the three occurrence threshold',att.truantCount===2&&att.attendance===42&&!att.attendanceFailed&&att.needed!==null);
 att=attendanceRow(['truant','truant','late','early','late']);
-check('converted truants do not trigger failure when actual truants are only two',att.effectiveTruants===3&&!att.attendanceFailed&&att.needed!==null&&att.learning===52&&att.regular===91);
+check('two actual and one converted truancy trigger attendance failure',att.effectiveTruants===3&&att.attendanceFailed&&att.needed===null&&att.learning===52&&att.regular===91);
 att=attendanceRow(Array(9).fill('late'));
-check('nine late events record three conversions without triggering attendance failure',att.convertedTruants===3&&att.loss===9&&!att.attendanceFailed&&att.needed!==null);
+check('nine late events trigger three converted truancies and attendance failure',att.convertedTruants===3&&att.loss===9&&att.attendanceFailed&&att.needed===null);
 att=attendanceRow(Array(8).fill('early'));
 check('eight early departures retain two conversions and two remainder events',att.convertedTruants===2&&att.loss===8&&!att.attendanceFailed);
 att=attendanceRow(['truant','truant','truant']);
