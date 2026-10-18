@@ -89,13 +89,13 @@ q('#btnEditLesson').click();q('#editLessonSeq').value='2';q('#editLessonDate').v
 await w.JFDT_CLOUD.flush();
 const editedState=JSON.parse(w.localStorage.getItem('jfdt.v1'));
 check('editing metadata preserves stable lesson identity and every score', editedState.lessons[0].id===dutyState.lessons[0].id && JSON.stringify(editedState.lessons[0].scores)===JSON.stringify(dutyState.lessons[0].scores) && editedState.lessons[0].seq===2 && editedState.lessons[0].date==='2026-10-12' && q('#lessonSel').textContent.includes('2026-10-12'));
-check('home sheet adds three individual grade columns after the lesson total',q('table.sheet thead').textContent.includes('平时成绩')&&q('table.sheet thead').textContent.includes('期末至少需考')&&q('#groupList [data-home-grade="regular"] [data-grade-student]'));
+check('home sheet adds three individual grade columns after the lesson total',q('table.sheet thead').textContent.includes('至今完成率')&&q('table.sheet thead').textContent.includes('期末至少需考')&&q('#groupList [data-home-grade="regular"] [data-grade-student]'));
 const homeRegular=q('[data-home-grade="regular"] strong').textContent;
 check('home grades use member positions without repeated names or estimate text', q('[data-home-grade="regular"] .home-grade-name').textContent==='1' && !q('[data-home-grade="regular"]').textContent.includes('预估'));
 q('#tabs [data-view="rank"]').click();
 check('home grade uses the identical assessment result as rankings',q('#memberRank td.grade-regular strong').textContent===homeRegular);
 q('#tabs [data-view="score"]').click();q('#btnPrintLesson').click();
-check('printed lesson includes the same three personal grades without group cumulative clutter',q('#printArea').textContent.includes('平时成绩')&&q('#printArea').textContent.includes('计入总评')&&q('#printArea').textContent.includes('期末至少需考')&&!q('#printArea').textContent.includes('累计至本课'));
+check('printed lesson includes the same three personal grades without group cumulative clutter',q('#printArea').textContent.includes('至今完成率')&&q('#printArea').textContent.includes('计入总评')&&q('#printArea').textContent.includes('期末至少需考')&&!q('#printArea').textContent.includes('累计至本课'));
 check('lesson sheets pair every front with a rules back',q('#printArea .lesson-duplex-front').nextElementSibling.classList.contains('lesson-rules-back')&&q('#printArea').textContent.includes('加分与成绩换算说明'));
 const paperGroups=Array.from({length:13},(_,i)=>({no:i+1,members:[{name:'虚构甲',sid:'paper'+i}]})),paperBefore=JSON.stringify(paperGroups);
 const batchHtml=w.JFDT_LEADER_PRINT_HTML({name:'虚构打印班'}, {seq:1,date:'2026-10-14'},paperGroups,2),batchBox=w.document.createElement('div');batchBox.innerHTML=batchHtml;
@@ -108,7 +108,7 @@ check('home leave records no deduction',JSON.parse(w.localStorage.getItem('jfdt.
 q('[data-attendance-open]').click();q('#homeAttendanceStatus').value='late';q('#homeAttendanceStatus').dispatchEvent(new w.Event('change'));q('#homeAttendanceLoss').value='2';q('#homeAttendanceForm').dispatchEvent(new w.Event('submit',{cancelable:true}));
 await w.JFDT_CLOUD.flush();
 const afterAttendance=JSON.parse(w.localStorage.getItem('jfdt.v1'));
-check('home attendance deducts once from attendance and refreshes grades without changing classroom points',afterAttendance.lessons[0].attendance[homeAttKey].loss===2 && JSON.stringify(afterAttendance.lessons[0].scores)===rawBeforeAttendance && q('[data-home-grade="regular"] strong').textContent==='46');
+check('home attendance deducts once from attendance and refreshes grades without changing classroom points',afterAttendance.lessons[0].attendance[homeAttKey].loss===2 && JSON.stringify(afterAttendance.lessons[0].scores)===rawBeforeAttendance && parseFloat(q('[data-home-grade="regular"] strong').textContent)===46);
 q('#tabs [data-view="attendance"]').click();
 check('home attendance is visible in the shared attendance page',q('[data-att-key]').value==='late');
 q('[name="lateEarlyConversion"]').value='1';q('[name="truantFailure"]').value='1';q('#assessmentSettingsForm').dispatchEvent(new w.Event('submit',{cancelable:true}));

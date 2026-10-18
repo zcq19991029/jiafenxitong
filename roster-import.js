@@ -88,14 +88,21 @@
     book.SheetNames.forEach(function (name) {
       var rows = global.XLSX.utils.sheet_to_json(book.Sheets[name], { header: 1, raw: false, defval: '' });
       if (!rows.some(function(r){return r.some(function(v){return String(v).trim();});})) return;
-      var start = rows.findIndex(function(r){return ['班级','姓名','学号'].every(function(k){return r.indexOf(k)>=0;});});
-      if(start<0) throw new Error('工作表“'+name+'”缺少班级、姓名、学号表头，请使用名单模板。');
+      rows=rows.map(function(r){return r.map(function(v){return String(v).trim();});});
+      var start = rows.findIndex(function(r){return ['姓名','学号'].every(function(k){return r.indexOf(k)>=0;});});
+      if(start<0) throw new Error('工作表“'+name+'”缺少姓名、学号表头。');
+      var meta=rows.slice(0,start).map(function(r){return r.join(' ');}).join(' ');
+      var classMatch=meta.match(/班级\s*[：:]\s*([^\s，,；;]+)/);
       var header=rows[start].map(function(v){return String(v).trim();});
-      var used=header.filter(Boolean);
+      var used=header.filter(function(k){return ['班级','姓名','学号','小组','班内序号','序号'].indexOf(k)>=0;});
       if(new Set(used).size!==used.length) throw new Error('工作表表头重复。');
       rows.slice(start+1).forEach(function(r){
         if(!r.some(function(v){return String(v).trim();}))return;
-        var item={}; header.forEach(function(k,i){if(k)item[k]=String(r[i] == null ? '' : r[i]).trim();});
+        if(!r[header.indexOf('学号')]&&!r[header.indexOf('姓名')])return;
+        var item={}; header.forEach(function(k,i){if(used.indexOf(k)>=0)item[k]=String(r[i] == null ? '' : r[i]).trim();});
+        if(!item['班级']&&classMatch)item['班级']=classMatch[1];
+        if(!item['班级'])throw new Error('工作表“'+name+'”未找到班级，请添加班级列或表头上方的“班级：名称”。');
+        if(!item['班内序号']&&item['序号'])item['班内序号']=item['序号'];
         all.push(item);
       });
     });
