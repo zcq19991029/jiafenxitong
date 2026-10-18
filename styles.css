@@ -1322,3 +1322,28 @@ table.sheet col.w-attendance{width:165px}.home-attendance{background:#f6eff1;pad
 @media screen{body.sidebar-layout table.sheet td.c-mem{font-size:14px;white-space:normal;overflow:visible;text-overflow:clip;word-break:keep-all}}
 
 .home-attendance-person.compact{grid-template-columns:14px 1fr}.attendance-score{width:100%;min-height:32px;border:0;background:transparent;font:700 16px inherit;color:#374151;cursor:pointer}.attendance-score:hover{background:#e8e0e5;border-radius:6px}.attendance-failed{color:#b91c1c!important;font-weight:750!important}table.sheet col.w-attendance{width:80px}#dlgHomeAttendance{width:min(420px,calc(100vw - 32px))}#dlgHomeAttendance .field{margin-bottom:14px}#dlgHomeAttendance select,#dlgHomeAttendance input{min-height:44px}
+
+#dlgLeaderPrint{width:min(420px,calc(100vw - 32px))}#dlgLeaderPrint .field{margin-bottom:14px}#dlgLeaderPrint select{min-height:44px}
+@page leaderPaper{size:A4 portrait;margin:10mm}
+@media print{
+ html:has(body.print-leader),body.print-leader{margin:0!important;padding:0!important;height:auto!important;min-height:0!important;overflow:visible!important}
+ body.print-leader>*:not(#printArea){display:none!important}
+ body.print-leader #printArea{display:block!important;position:static!important;inset:auto!important;left:auto!important;top:auto!important;width:100%!important;margin:0!important;padding:0!important;height:auto!important;min-height:0!important}
+ .leader-paper{page:leaderPaper;box-sizing:border-box;width:100%;height:276mm;display:grid;break-inside:avoid;break-after:page;overflow:hidden}
+ .leader-paper:last-child{break-after:auto}.leader-paper.two-slips{grid-template-rows:1fr 1fr}.leader-paper.one-slip{grid-template-rows:1fr}
+ .leader-slip{box-sizing:border-box;padding:4mm 0;min-height:0;break-inside:avoid;overflow:hidden;font-family:Arial,'Microsoft YaHei',sans-serif}
+ .two-slips .leader-slip:first-child{border-bottom:.3mm dashed #999}.leader-slip h2{text-align:center;font-size:13pt;margin:0 0 2mm}.leader-slip p{font-size:9pt;margin:2mm 0;line-height:1.3}
+ .leader-slip .leader-table{width:100%;min-width:0;table-layout:fixed;border-collapse:collapse;margin:2mm 0;font-size:8pt}
+ .leader-slip .leader-table th,.leader-slip .leader-table td{border:.2mm solid #777;padding:1mm .4mm;text-align:center;box-sizing:border-box;white-space:normal;overflow-wrap:anywhere}
+ .leader-slip .leader-table thead th{height:13mm;background:#dde6f1;font-size:8pt}.leader-slip .leader-table tbody td{height:8.5mm;background:#edf4e4}
+ .leader-slip .leader-table small{display:block;font-size:6.5pt;white-space:nowrap}.leader-slip .leader-table th:nth-child(2){width:auto}.leader-slip .leader-table tbody td:first-child{background:#eaf1fa}
+ .leader-slip .slip-note{min-height:8mm}.one-slip .leader-slip .leader-table tbody td{height:18mm}
+}
+
+#scoreMetrics{display:none!important}.lesson-topic-summary{font-size:13px;line-height:1.5;overflow-wrap:anywhere}.lesson-duty-summary{color:var(--muted);font-size:12px}.lesson-meta .btnrow{display:flex;gap:6px;margin-top:8px}.lesson-meta .btn{flex:1;padding:8px;font-size:12px}
+@media screen and (min-width:1000px){body.sidebar-layout .lesson-meta{display:block;padding:10px}body.sidebar-layout .lesson-bar{gap:6px}body.sidebar-layout #layoutSeg{margin-left:0}body.sidebar-layout #btnOperationLog{padding:8px 10px}}
+@media print{body.print-lesson:has(.lesson-duplex){margin:0!important;padding:0!important;min-height:0!important;height:auto!important;page:leaderPaper}body.print-lesson:has(.lesson-duplex)>*:not(#printArea){display:none!important}body.print-lesson:has(.lesson-duplex) #printArea{position:static!important;margin:0!important;padding:0!important;width:100%!important}.lesson-duplex-page{page:leaderPaper;width:100%;height:276mm;box-sizing:border-box;break-after:page;break-inside:avoid;padding:0;overflow:hidden}.lesson-duplex-page:last-child{break-after:auto}.lesson-duplex-front .sheet-tb{font-size:6pt!important}.lesson-duplex-front .sheet-tb td,.lesson-duplex-front .sheet-tb th{padding:1mm .4mm!important}.lesson-duplex-front .home-grade-person,.lesson-duplex-front .home-attendance-person{min-height:4mm!important}.lesson-duplex-front .home-grade-person strong{font-size:8pt!important}.lesson-rules-back{font-family:Arial,'Microsoft YaHei',sans-serif;font-size:10pt;line-height:1.55}.lesson-rules-back h1{font-size:17pt;text-align:center;margin:4mm 0}.lesson-rules-back h2{font-size:12pt;margin:5mm 0 2mm}.lesson-rules-back p{margin:2mm 0}.duplex-note{border-top:.2mm solid #aaa;padding-top:4mm;font-size:9pt}}
+
+@media print{#printArea .lesson-duplex-front .sheet-tb .c-mem{white-space:normal!important;overflow-wrap:anywhere;font-size:6pt;line-height:1.2}}
+
+@media print{#printArea,#printArea *{-webkit-print-color-adjust:exact!important;print-color-adjust:exact!important}#printArea .home-grade{background:#edf5ee!important;color:#236442!important}#printArea .home-grade.contribution{background:#edf2fa!important;color:#2f527a!important}#printArea .home-grade.needed{background:#fcf0e9!important;color:#a7472e!important}.lesson-rules-back h1{color:#a7472e;border-bottom:1mm solid #d97b59;padding-bottom:3mm}.lesson-rules-back h2{color:#2f527a;border-left:1mm solid #7798bc;padding-left:3mm;background:#edf2fa}.lesson-rules-back h2:nth-of-type(1){color:#236442;background:#edf5ee;border-color:#73a17e}.lesson-rules-back h2:nth-of-type(3){color:#ae303b;background:#fae6e8;border-color:#bf6570}.lesson-rules-back h2:nth-of-type(4){color:#a7472e;background:#fcf0e9;border-color:#d97b59}.lesson-rules-back .duplex-note{background:#fff3cf;color:#70541e;padding:3mm;border:0}}

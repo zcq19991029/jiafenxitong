@@ -654,28 +654,17 @@ function removeMemberAt(cls, g, j) {
       return '<option value="' + g.no + '"' + (+lesson.dutyGroup === g.no ? ' selected' : '') +
         '>第 ' + g.no + ' 组</option>';
     }).join('');
-    $('#lessonMeta').innerHTML =
-      '<span class="tag">' + esc(cls.name) + ' · 第 ' + lesson.seq + ' 次课</span>' +
-      '<div class="field"><span>上课日期</span><strong id="metaDateLabel">' + esc(lesson.date || '未填写') + '</strong></div>' +
-      '<label class="field"><span>值日组</span><select id="metaDuty">' + dutyOpts + '</select></label>' +
-      '<label class="field" style="flex:1;min-width:200px"><span>本节任务</span>' +
-      '<input type="text" class="topic" id="metaTopic" value="' + esc(lesson.topic || '') + '" placeholder="例如：三相异步电动机正反转接线"></label>' +
-      '<div class="btnrow"><button class="btn" id="btnEditLesson">修改课次</button><button class="btn" id="btnPrintLesson">打印本课</button></div>';
-
+    $('#lessonMeta').innerHTML='<div class="lesson-topic-summary" title="'+esc(lesson.topic||'未填写任务')+'">'+esc(lesson.topic||'未填写任务')+'</div>'+(lesson.dutyGroup?'<small class="lesson-duty-summary">值日：第 '+lesson.dutyGroup+' 组</small>':'')+'<div class="btnrow"><button class="btn" id="btnEditLesson">课次设置</button><button class="btn" id="btnPrintLesson">打印本课</button></div>';
     $('#btnEditLesson').addEventListener('click',function(){openLessonEditor(cls,lesson);});
-    $('#metaTopic').addEventListener('change', function () { lesson.topic = this.value; save(); });
-    $('#metaDuty').addEventListener('change', function () {
-      lesson.dutyGroup = this.value ? +this.value : null; save(); renderGroups(cls, lesson);
-    });
     $('#btnPrintLesson').addEventListener('click', function () { printLesson(cls, lesson); });
   }
 
   var lessonEditor=document.createElement('dialog');lessonEditor.id='dlgEditLesson';lessonEditor.setAttribute('aria-labelledby','editLessonTitle');
-  lessonEditor.innerHTML='<form id="editLessonForm"><h2 id="editLessonTitle">修改课次</h2><p class="note">更正课次资料，保留本课分数、项目评价和考勤。日期不参与计分。</p><label class="field col">课次序号<input id="editLessonSeq" type="number" min="1" step="1" required></label><label class="field col">上课日期<input id="editLessonDate" type="date" required></label><label class="field col">本节任务<input id="editLessonTopic" maxlength="300"></label><p id="editLessonError" role="alert" class="note"></p><div class="btnrow"><button type="button" class="btn" id="cancelEditLesson">取消</button><button type="submit" class="btn primary">保存修改</button></div></form>';
+  lessonEditor.innerHTML='<form id="editLessonForm"><h2 id="editLessonTitle">修改课次</h2><p class="note">更正课次资料，保留本课分数、项目评价和考勤。日期不参与计分。</p><label class="field col">课次序号<input id="editLessonSeq" type="number" min="1" step="1" required></label><label class="field col">上课日期<input id="editLessonDate" type="date" required></label><label class="field col">本节任务<input id="editLessonTopic" maxlength="300"></label><label class="field col">值日组<select id="editLessonDuty"></select></label><p id="editLessonError" role="alert" class="note"></p><div class="btnrow"><button type="button" class="btn" id="cancelEditLesson">取消</button><button type="submit" class="btn primary">保存修改</button></div></form>';
   document.body.appendChild(lessonEditor);wireDialog(lessonEditor);var editingLessonId=null;
-  function openLessonEditor(cls,lesson){editingLessonId=lesson.id;$('#editLessonTitle').textContent=cls.name+' · 修改课次';$('#editLessonSeq').value=lesson.seq;$('#editLessonDate').value=lesson.date||'';$('#editLessonTopic').value=lesson.topic||'';$('#editLessonError').textContent='';openDlg(lessonEditor);}
+  function openLessonEditor(cls,lesson){editingLessonId=lesson.id;$('#editLessonTitle').textContent=cls.name+' · 修改课次';$('#editLessonSeq').value=lesson.seq;$('#editLessonDate').value=lesson.date||'';$('#editLessonTopic').value=lesson.topic||'';$('#editLessonDuty').innerHTML='<option value="">无</option>'+cls.groups.map(function(g){return '<option value="'+g.no+'"'+(Number(lesson.dutyGroup)===g.no?' selected':'')+'>第'+g.no+'组</option>';}).join('');$('#editLessonError').textContent='';openDlg(lessonEditor);}
   $('#cancelEditLesson').addEventListener('click',function(){lessonEditor.close();});
-  $('#editLessonForm').addEventListener('submit',function(e){e.preventDefault();var lesson=getLesson(editingLessonId);if(!lesson)return;var seq=Number($('#editLessonSeq').value),date=$('#editLessonDate').value,topic=$('#editLessonTopic').value.trim();if(!Number.isInteger(seq)||seq<1||!/^\d{4}-\d{2}-\d{2}$/.test(date)){$('#editLessonError').textContent='请填写有效的课次序号和日期。';return;}if(S.lessons.some(function(l){return l.classId===lesson.classId&&l.id!==lesson.id&&l.seq===seq;})){$('#editLessonError').textContent='本班已有第 '+seq+' 次课，请使用其他序号。';return;}var before='第'+lesson.seq+'次 · '+lesson.date+' · '+(lesson.topic||'未填任务');if(lesson.seq===seq&&lesson.date===date&&(lesson.topic||'')===topic){lessonEditor.close();return;}lesson.seq=seq;lesson.date=date;lesson.topic=topic;var cls=S.classes.find(function(c){return c.id===lesson.classId;});addOperationLog('修改课次',cls.name+' · '+before+' → 第'+seq+'次 · '+date+' · '+(topic||'未填任务'));save();lessonEditor.close();renderScore();flash('课次资料已修改，分数和考勤已保留');});
+  $('#editLessonForm').addEventListener('submit',function(e){e.preventDefault();var lesson=getLesson(editingLessonId);if(!lesson)return;var seq=Number($('#editLessonSeq').value),date=$('#editLessonDate').value,topic=$('#editLessonTopic').value.trim(),duty=$('#editLessonDuty').value?Number($('#editLessonDuty').value):null;if(!Number.isInteger(seq)||seq<1||!/^\d{4}-\d{2}-\d{2}$/.test(date)){$('#editLessonError').textContent='请填写有效的课次序号和日期。';return;}if(S.lessons.some(function(l){return l.classId===lesson.classId&&l.id!==lesson.id&&l.seq===seq;})){$('#editLessonError').textContent='本班已有第 '+seq+' 次课，请使用其他序号。';return;}var before='第'+lesson.seq+'次 · '+lesson.date+' · '+(lesson.topic||'未填任务');if(lesson.seq===seq&&lesson.date===date&&(lesson.topic||'')===topic&&lesson.dutyGroup===duty){lessonEditor.close();return;}lesson.seq=seq;lesson.date=date;lesson.topic=topic;lesson.dutyGroup=duty;var cls=S.classes.find(function(c){return c.id===lesson.classId;});addOperationLog('修改课次',cls.name+' · '+before+' → 第'+seq+'次 · '+date+' · '+(topic||'未填任务'));save();lessonEditor.close();renderScore();flash('课次资料已修改，分数和考勤已保留');});
 
   /* ---- 记分控件（卡片视图与表格视图共用，保证两边的操作完全一致） ---- */
 
@@ -1746,22 +1735,11 @@ function removeMemberAt(cls, g, j) {
       }).join('、') : '无，全班都已分组');
     var foot='<tfoot><tr><td class="c-note" colspan="'+(GROUP_CAP+10)+'">'+note+'</td></tr><tr><td class="c-note" colspan="'+(GROUP_CAP+10)+'">右侧三列为本学期当前个人成绩，与排名页相同；按姓名逐行对应。成绩按已登记的项目和考勤计算，考勤挂科时考试目标不适用。打印后不会自动更新。</td></tr></tfoot>';
 
-    printArea(
-      '<div class="sheet">' +
-        '<div class="sheet-title">《电气接线原理》课堂分组与加分记录表</div>' +
-        '<div class="sheet-info">班级：' + esc(cls.name) +
-          '　教师：' + esc(cls.teacher || '') +
-          '　第 ' + lesson.seq + ' 次课' +
-          '　日期：' + esc(lesson.date || '') +
-          '　本节任务：' + esc(lesson.topic || '') + '</div>' +
-        '<div class="sheet-duty">本节课值日小组：' +
-          (dg ? '第 ' + dg + ' 组' : '第 ______ 组（未指定）') +
-          '　（值日生负责工具清点与场地整理，全组加「值日分」）</div>' +
-        '<div class="sheet-rule">' + esc(XL_RULE) + '</div>' +
-        '<table class="sheet-tb"><colgroup>' + cols + '</colgroup>' + head + body + foot + '</table>' +
-      '</div>',
-      'lesson'
-    );
+    var cfg=window.JFDT_ASSESSMENT.settings(cls);
+    var reverse='<section class="lesson-duplex-page lesson-rules-back"><h1>小组制课堂 · 加分与成绩换算说明</h1><p>'+esc(cls.name)+' · 第'+lesson.seq+'次课 · '+esc(lesson.date||'')+'</p><h2>1. 课堂怎么记分</h2><p>个人项目每项0–5分；项目名称为空时留给组长线下填写，教师回到网页补录名称和分数。首个正确点亮加1；小组分0–5；值日分=5×参与人数÷应到人数。全组奖励给该组每位成员；个人扣分只扣对应成员。手机未入袋按次数扣全组分。</p><h2>2. 从原始积分换算到平时成绩</h2><p>每个命名且已评分的个人项目满分5，跨课次自动累计；明确0计入满分，空白为待批改。综合比例=clamp((个人项目实得＋全组累计净加分−个人扣分)÷项目满分,0,1)。学习分=52×综合比例；考勤分=max(0,48−实际登记扣分)；平时成绩=学习分＋考勤分，满分100，不赠基础分。</p><p>例：项目80/100，净奖励10，考勤48 → 学习46.8、平时94.8、折合37.9、期末至少36.8（及格线60）。奖励持续累计，不增加项目满分；没有有效项目时学习暂按0，等补录后重算。</p><h2>3. 考勤与挂科标记</h2><p>本班默认扣分：迟到'+cfg.late+'、早退'+cfg.early+'、旷课'+cfg.truant+'、请假'+cfg.leave+'；每次可由教师更正。迟到＋早退每'+cfg.lateEarlyConversion+'次折算1次旷课，只用于挂科计数，不重复扣分。实际＋折算旷课合计'+cfg.truantFailure+'次触发标红；当前考勤挂科标记'+(cfg.attendanceFailureEnabled?'开启':'关闭')+'。门槛与开关由教师在二级设置调整，更正后自动重算。</p><h2>4. 期末还需考多少分</h2><p>平时占40%，期末占60%，本班及格线'+cfg.passScore+'。期末需考=max(0,(及格线−平时成绩×0.4)÷0.6)，向上取0.1分。折合列仅显示一位小数，计算使用未提前舍入的数值。超过100表示无法达到；考勤挂科时目标不适用，考试高分不能解除标记。</p><h2>5. 阅读与使用</h2><p>正面三列按成员序号1、2、3…对应，是打印时本学期当前个人成绩，与排名页相同；不是小组平均分。未登记考勤不自动补签到，资料未齐时供参考。纸上填写不会自动识别，教师需回网页补录；以网页最新记录为准。</p><p class="duplex-note">双面打印：A4竖向，长边翻转；关闭浏览器页眉页脚。每张加分表正面后紧跟这份规则背面。</p></section>';
+    var groupBodies=body.match(/<tbody[\s\S]*?<\/tbody>/g)||[],pages=[];
+    for(var offset=0;offset<groupBodies.length;offset+=6){pages.push('<section class="lesson-duplex-page lesson-duplex-front"><div class="sheet-title">课堂分组与加分记录表</div><div class="sheet-info">'+esc(cls.name)+' · 第'+lesson.seq+'次 · '+esc(lesson.date||'')+' · '+esc(lesson.topic||'')+'</div><div class="sheet-duty">值日：'+(dg?'第'+dg+'组':'未指定')+' · 第'+(offset/6+1)+'张</div><table class="sheet-tb"><colgroup>'+cols+'</colgroup>'+head+groupBodies.slice(offset,offset+6).join('')+foot+'</table></section>');pages.push(reverse);}
+    printArea('<div class="lesson-duplex">'+pages.join('')+'</div>','lesson');
   }
 
   function printRank() {

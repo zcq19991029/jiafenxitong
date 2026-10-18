@@ -276,7 +276,7 @@ check('selected operation can be restored',state(a).lessons[0].scores['1'].group
 q(a,'#closeOperationLog').click();
 q(a,'#btnUndo').click();q(a,'#btnUndo').click();
 q(a,'#tabs button[data-view="leader"]').click();
-q(a,'#leaderPrint').click();
+q(a,'#leaderPrint').click();q(a,'#leaderPrintScope').value='current';q(a,'#dlgLeaderPrint').returnValue='ok';q(a,'#dlgLeaderPrint').dispatchEvent(new a.window.Event('close'));
 check('leader sheet printing includes projects and the subtotal',text(a,'#printArea').includes('协作') && text(a,'#printArea').includes('小计'));
 const invalidLeader=structuredClone(leaderState.data); Object.values(invalidLeader.lessons[0].leaderScores['1'].members)[0][0]=9;
 check('backend rejects invalid individual scores',(await api(env,'/api/state','PUT',{data:invalidLeader,baseRevision:leaderState.revision},admin.token)).status===400);

@@ -6,7 +6,12 @@
   function key(member) { return member.sid ? 'sid:'+member.sid : 'id:'+member.id; }
   function total(scores) { return scores.some(function (n) { return n !== null && n !== undefined; }) ? scores.reduce(function (sum,n) { return sum+(n||0); },0) : '—'; }
   function csvCell(value) { var s=String(value == null ? '' : value); if (/^[=+\-@]/.test(s)) s="'"+s; return '"'+s.replace(/"/g,'""')+'"'; }
-  window.addEventListener('afterprint',function () { if(printing) { document.body.classList.remove('print-rank'); printing=false; } });
+  window.addEventListener('afterprint',function () { if(printing) { document.body.classList.remove('print-rank','print-leader'); printing=false; } });
+  function printableGroup(cls,lesson,g){var r=lesson.leaderScores&&lesson.leaderScores[String(g.no)]||{projects:Array(10).fill(''),members:{},signedBy:'',note:''};var projects=Array.from({length:10},function(_,i){return r.projects[i]||'';});return '<section class="leader-slip"><h2>组长课堂评分表</h2><p class="slip-meta">'+esc(cls.name)+' · 第'+g.no+'组 · 第'+lesson.seq+'次课 · '+esc(lesson.date||'')+'</p><p class="slip-rule">每项0–5分；空白项目由组长手写，教师复核。</p><table class="leader-table"><colgroup><col style="width:6%"><col style="width:22%">'+projects.map(function(){return '<col style="width:6.5%">';}).join('')+'<col style="width:7%"></colgroup><thead><tr><th>序号</th><th>成员 / 学号</th>'+projects.map(function(v){return '<th>'+esc(v)+'</th>';}).join('')+'<th>小计</th></tr></thead><tbody>'+g.members.filter(function(m){return m.name;}).map(function(m,i){var scores=r.members[key(m)]||Array(10).fill(null),sum=total(scores);return '<tr><td>'+(i+1)+'</td><td class="slip-member">'+esc(m.name)+'<small>'+esc(m.sid||'')+'</small></td>'+projects.map(function(_,j){return '<td>'+(scores[j]==null?'':scores[j])+'</td>';}).join('')+'<td>'+(sum==='—'?'':sum)+'</td></tr>';}).join('')+'</tbody></table><p class="slip-sign">组长 / 复核人：'+esc(r.signedBy||'________________')+'</p><p class="slip-note">备注：'+esc(r.note||'')+'</p></section>';}
+  function printSheets(cls,lesson,groups,perPage){var pages=[];for(var i=0;i<groups.length;i+=perPage)pages.push('<div class="leader-paper '+(perPage===2?'two-slips':'one-slip')+'">'+groups.slice(i,i+perPage).map(function(g){return printableGroup(cls,lesson,g);}).join('')+'</div>');return '<div class="leader-print-batch">'+pages.join('')+'</div>';}
+  window.JFDT_LEADER_PRINT_HTML=printSheets;
+  var printDialog=document.createElement('dialog');printDialog.id='dlgLeaderPrint';printDialog.innerHTML='<form method="dialog"><h2>打印组长评分表</h2><label class="field col">范围<select id="leaderPrintScope"><option value="all">本课全部小组</option><option value="current">当前小组</option></select></label><label class="field col">A4竖向排版<select id="leaderPrintLayout"><option value="2">每页两个组 · 对半裁开</option><option value="1">每组一页</option></select></label><p class="note">未命名项目留空供手写。建议关闭浏览器页眉页脚，按100%比例打印。</p><div class="btnrow"><button class="btn" value="cancel">取消</button><button class="btn primary" value="ok">开始打印</button></div></form>';document.body.appendChild(printDialog);var printSelection=null;
+  printDialog.addEventListener('close',function(){if(printDialog.returnValue!=='ok'||!printSelection)return;var c=printSelection,groups=document.querySelector('#leaderPrintScope').value==='all'?c.cls.groups:[c.group];document.querySelector('#printArea').innerHTML=printSheets(c.cls,c.lesson,groups,Number(document.querySelector('#leaderPrintLayout').value));document.body.classList.remove('print-lesson','print-rank');document.body.classList.add('print-leader');printing=true;window.print();});
   window.JFDT_LEADER_RENDER = function (context) {
     var root=context.root, state=context.state;
     var cls=state.classes.find(function (c) { return c.id===state.ui.classId; }) || state.classes[0];
@@ -51,11 +56,7 @@
       var blob=new Blob(['\uFEFF'+rows.map(function(row){return row.map(csvCell).join(',');}).join('\r\n')],{type:'text/csv;charset=utf-8'}), url=URL.createObjectURL(blob), a=document.createElement('a');
       a.href=url;a.download=cls.name+'_第'+group.no+'组_个人评分.csv';a.click();setTimeout(function(){URL.revokeObjectURL(url);},1000);
     };
-    sheet.querySelector('#leaderPrint').onclick=function(){
-      var headers='<tr><th>序号</th><th>成员 / 学号</th>'+record.projects.map(function(p,i){return '<th>'+esc(p||'项目'+(i+1))+'</th>';}).join('')+'<th>小计</th></tr>';
-      var rows=members.map(function(m,i){return '<tr><td>'+(i+1)+'</td><td>'+esc(m.name)+'<br>'+esc(m.sid||'')+'</td>'+scores(m).map(function(n){return '<td>'+(n==null?'':n)+'</td>';}).join('')+'<td>'+total(scores(m))+'</td></tr>';}).join('');
-      document.querySelector('#printArea').innerHTML='<div class="leader-print"><h2>组长课堂评分表</h2><p>'+esc(cls.name)+' · 第'+group.no+'组 · 第'+lesson.seq+'次课 · '+esc(lesson.date)+'</p><p>每项0–5分，项目由组长填写，教师复核。</p><table class="leader-table"><thead>'+headers+'</thead><tbody>'+rows+'</tbody></table><p>组长 / 复核人：'+esc(record.signedBy||'________________')+'</p><p>备注：'+esc(record.note)+'</p></div>';
-      document.body.classList.remove('print-lesson');document.body.classList.add('print-rank');printing=true;window.print();
-    };
+    sheet.querySelector('#leaderPrint').textContent='打印评分表';
+    sheet.querySelector('#leaderPrint').onclick=function(){printSelection={cls:cls,lesson:lesson,group:group};printDialog.returnValue='';if(printDialog.showModal)printDialog.showModal();else printDialog.setAttribute('open','');};
   };
 })();
