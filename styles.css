@@ -1421,9 +1421,11 @@ table.sheet col.w-grp,table.sheet th.c-grp,table.sheet td.c-grp,#printArea col.w
 #dlgOperationLog{width:min(920px,94vw);padding:0}
 #dlgOperationLog .dlg-body{padding:16px 22px;overflow:auto;max-height:75dvh}
 #dlgOperationLog .dlg-head h3{margin:0 0 5px}
+#dlgOperationLog .dlg-head>div{flex:1;min-width:0}
+#dlgOperationLog .dlg-x{margin-left:auto;flex-shrink:0}
 #dlgOperationLog .log-toolbar{display:flex;align-items:end;gap:12px;flex-wrap:wrap;margin-bottom:18px}
 .log-toolbar label{display:grid;gap:5px;font-size:12px;color:var(--muted)}
-.log-toolbar select,.log-toolbar input{min-height:38px;max-width:100%;font-size:14px}
+.log-toolbar select,.log-toolbar input{min-height:38px;max-width:100%;font-size:14px;border:1px solid var(--line);border-radius:8px;padding:8px 10px;background:var(--panel);color:var(--text);box-sizing:border-box}
 .log-toolbar .log-search{flex:1;min-width:160px}
 #dlgOperationLog #btnRedo{width:auto;margin:0;min-height:38px;font-size:13px}
 #operationLogList{max-height:none;overflow:visible;margin:0}
