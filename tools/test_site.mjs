@@ -170,7 +170,7 @@ const zeroLesson={id:'zero',seq:1,date:'2026-10-18',scores:{1:{group:0,phone:0,d
 const printClass={name:'虚构打印验收',groups:[{no:1,members:[{name:'示例学生',sid:'100'}]}]};
 const zeroPrint=w.JFDT_LEADER_PRINT_HTML(printClass,zeroLesson,printClass.groups,2);
 check('print suppresses explicit zero scores and zero totals',!zeroPrint.includes('>0</td>')&&zeroLesson.leaderScores[1].members['sid:100'][0]===0);
-zeroLesson.scores[1].phone=3;const debtPrint=w.JFDT_LEADER_PRINT_HTML(printClass,zeroLesson,printClass.groups,2);check('printed net total keeps negative group deductions',debtPrint.includes('>-3</td>'));
+zeroLesson.scores[1].phone=3;const debtPrint=w.JFDT_LEADER_PRINT_HTML(printClass,zeroLesson,printClass.groups,2);check('printed deductions never consume other project points',!debtPrint.includes('>-3</td>'));
 q('#tabs [data-view="score"]').click();q('#btnEditLesson').click();check('lesson settings allow multiple duty groups',q('#editLessonDuty').multiple);q('#cancelEditLesson').click();
 check('packaged application has no unexpected exceptions', errors.length === 0);
 dom.window.close(); env.sqlite.close();
