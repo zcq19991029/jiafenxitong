@@ -351,13 +351,13 @@ function removeMemberAt(cls, g, j) {
         {lessonId, gno, reset:true, old}      整组清零（old 是该组原 scores 的副本） */
   function operationEffect(op){if(op.effect)return op.effect;var l=getLesson(op.lessonId),cls=l&&getClass(l.classId),g=cls&&groupOf(cls,op.gno),now=l&&l.scores[String(op.gno)];if(op.reset&&op.old&&now&&g){function points(sc,i){return Math.max(0,Math.min(5,(+sc.group||0)+(sc.first?1:0))-(+sc.phone||0)-(+((sc.personal||{})[String(i)])||0));}var patch=g.members.map(function(m,i){return {path:'point:'+i,delta:points(now,i)-points(op.old,i)};}).filter(function(x){return x.delta;});var duty=(+now.duty||0)-(+op.old.duty||0);if(duty)patch.push({path:'duty',delta:duty});return patch;}return [{path:op.i!=null?'point:'+op.i:op.f,delta:op.i!=null?(+op.old||0)-(+op.neu||0):(+op.neu||0)-(+op.old||0)}].filter(function(x){return x.delta;});}
   function inverseEffects(a,b){return a.length===b.length&&a.every(function(x){return b.some(function(y){return x.path===y.path&&Math.abs(x.delta+y.delta)<1e-8;});});}
-  function applyEffect(op,effect,direction){var l=getLesson(op.lessonId),cls=getClass(l.classId),g=groupOf(cls,op.gno),scored=sc(l,op.gno),actual=[];effect.forEach(function(e){var old,next;if(e.path.startsWith('point:')){var i=e.path.slice(6),values=g.members.map(function(_,j){return remaining(l,g.no,j);});var base=Math.min(5,(+scored.group||0)+(scored.first?1:0));old=values[+i];next=Math.max(0,Math.min(base,old+direction*e.delta));scored.phone=0;scored.group=base;scored.first=0;g.members.forEach(function(_,j){scored.personal[String(j)]=base-(String(j)===i?next:values[j]);});}else if(e.path.startsWith('personal:')){var i=e.path.slice(9);old=+scored.personal[i]||0;next=Math.max(0,Math.min(5,old+direction*e.delta));scored.personal[i]=next;}else{old=+scored[e.path]||0;next=Math.max(0,Math.min(e.path==='phone'?1000000:5,old+direction*e.delta));scored[e.path]=next;if(e.path==='duty'){var meta=direction<0?op.oldDutyMeta:op.neuDutyMeta,target=direction<0?op.old:op.neu;if(meta&&Math.abs(next-target)<1e-8)scored.dutyParticipation=JSON.parse(JSON.stringify(meta));else delete scored.dutyParticipation;}}if(next!==old)actual.push({path:e.path,delta:next-old});});return actual;}
+  function applyEffect(op,effect,direction){var l=getLesson(op.lessonId),cls=getClass(l.classId),g=groupOf(cls,op.gno),scored=sc(l,op.gno),actual=[];effect.forEach(function(e){var old,next;if(e.path.startsWith('leader:')){var token=e.path.slice(7),cut=token.lastIndexOf('|'),mk=token.slice(0,cut),col=+token.slice(cut+1),r=l.leaderScores&&l.leaderScores[String(op.gno)];if(!r)return;var values=r.members[mk]||(r.members[mk]=[]);old=Number(values[col])||0;next=Math.max(0,Math.min(5,old+direction*e.delta));values[col]=next===0&&direction<0&&e.wasBlank?null:next;}else if(e.path.startsWith('point:')){var i=e.path.slice(6),values=g.members.map(function(_,j){return remaining(l,g.no,j);});var base=Math.min(5,(+scored.group||0)+(scored.first?1:0));old=values[+i];next=Math.max(0,Math.min(base,old+direction*e.delta));scored.phone=0;scored.group=base;scored.first=0;g.members.forEach(function(_,j){scored.personal[String(j)]=base-(String(j)===i?next:values[j]);});}else if(e.path.startsWith('personal:')){var i=e.path.slice(9);old=+scored.personal[i]||0;next=Math.max(0,Math.min(5,old+direction*e.delta));scored.personal[i]=next;}else{old=+scored[e.path]||0;next=Math.max(0,Math.min(e.path==='phone'?1000000:5,old+direction*e.delta));scored[e.path]=next;if(e.path==='duty'){var meta=direction<0?op.oldDutyMeta:op.neuDutyMeta,target=direction<0?op.old:op.neu;if(meta&&Math.abs(next-target)<1e-8)scored.dutyParticipation=JSON.parse(JSON.stringify(meta));else delete scored.dutyParticipation;}}if(next!==old)actual.push({path:e.path,delta:next-old,wasBlank:e.wasBlank});});return actual;}
   function pushUndo(op) {
     if (!S.undo) S.undo = [];
     op.id=op.id||uid('op');
     op.effect=operationEffect(op);
     var auditLesson=getLesson(op.lessonId),auditClass=auditLesson&&getClass(auditLesson.classId),auditGroup=auditClass&&groupOf(auditClass,op.gno);
-    if(auditGroup){var totals=memberTotals(auditClass),effects=op.effect,points=effects.filter(function(e){return /^(point:|personal:)/.test(e.path);}),targets=(points.length?points.map(function(e){return +e.path.split(':')[1];}):auditGroup.members.map(function(_,i){return i;})).filter(function(i,p,a){return a.indexOf(i)===p&&auditGroup.members[i]&&auditGroup.members[i].name;});var deltas=targets.map(function(i){return effects.reduce(function(sum,e){return sum+(e.path==='point:'+i?e.delta:e.path==='personal:'+i?-e.delta:['group','first','duty'].includes(e.path)?e.delta:e.path==='phone'?-e.delta:0);},0);});op.audit={source:op.f==='duty'?'值日人数':'上课记分',lesson:auditClass.name+' · 第'+auditLesson.seq+'次课 · '+auditLesson.date+' · '+(auditLesson.topic||''),student:targets.length===1?auditGroup.members[targets[0]].name:'第'+op.gno+'组 · '+targets.map(function(i){return auditGroup.members[i].name;}).join('、'),sid:targets.length===1?auditGroup.members[targets[0]].sid||'':'全组操作',delta:deltas.length&&deltas.every(function(d){return d===deltas[0];})?(deltas[0]>0?'+':'')+deltas[0]+(targets.length>1?'/人':''):'—',after:targets.map(function(i){var m=auditGroup.members[i],row=totals.find(function(t){return m.sid?t.sid===m.sid:t.gno===op.gno&&t.name===m.name;});return row?row.total:'—';}).join(' / ')};}
+    if(auditGroup&&!op.audit){var totals=memberTotals(auditClass),effects=op.effect,points=effects.filter(function(e){return /^(point:|personal:)/.test(e.path);}),targets=(points.length?points.map(function(e){return +e.path.split(':')[1];}):auditGroup.members.map(function(_,i){return i;})).filter(function(i,p,a){return a.indexOf(i)===p&&auditGroup.members[i]&&auditGroup.members[i].name;});var deltas=targets.map(function(i){return effects.reduce(function(sum,e){return sum+(e.path==='point:'+i?e.delta:e.path==='personal:'+i?-e.delta:['group','first','duty'].includes(e.path)?e.delta:e.path==='phone'?-e.delta:0);},0);});op.audit={source:op.f==='duty'?'值日人数':'上课记分',lesson:auditClass.name+' · 第'+auditLesson.seq+'次课 · '+auditLesson.date+' · '+(auditLesson.topic||''),student:targets.length===1?auditGroup.members[targets[0]].name:'第'+op.gno+'组 · '+targets.map(function(i){return auditGroup.members[i].name;}).join('、'),sid:targets.length===1?auditGroup.members[targets[0]].sid||'':'全组操作',delta:deltas.length&&deltas.every(function(d){return d===deltas[0];})?(deltas[0]>0?'+':'')+deltas[0]+(targets.length>1?'/人':''):'—',after:targets.map(function(i){var m=auditGroup.members[i],row=totals.find(function(t){return m.sid?t.sid===m.sid:t.gno===op.gno&&t.name===m.name;});return row?row.total:'—';}).join(' / ')};}
 
     op.at = new Date().toISOString();
     addOperationLog('记分', undoLabel(reverseOp(op)),op);
@@ -378,6 +378,7 @@ function removeMemberAt(cls, g, j) {
   function undoLabel(op) {
     var lesson = getLesson(op.lessonId), cls = lesson && getClass(lesson.classId);
     var g = (cls ? cls.name + ' · 第' + lesson.seq + '次课 · ' : '') + '第 ' + op.gno + ' 组';
+    if(op.projectBatch)return g+' 已命名项目全员满分（每项5分）';
     if (op.reset) return g + ' '+(op.label||'本节清零');
     if(op.f==='duty'&&Object.prototype.hasOwnProperty.call(op,'neuDutyMeta'))return g+' 值日 '+dutyLabel(op.neuDutyMeta,op.neu)+' → '+dutyLabel(op.oldDutyMeta,op.old);
     if (op.i != null) {
@@ -401,7 +402,7 @@ function removeMemberAt(cls, g, j) {
     if(S.operationLog.length>500) S.operationLog.splice(0,S.operationLog.length-500);
   }
   function canUndoAt(index) {
-    var op=(S.undo||[])[index]; if(!op || !getLesson(op.lessonId))return false;
+    var op=(S.undo||[])[index]; if(!op || !getLesson(op.lessonId))return false;if(op.projectBatch&&JSON.stringify(window.JFDT_ASSESSMENT.projectNames(getLesson(op.lessonId)))!==JSON.stringify(op.projectNames))return false;
     return true;
   }
   function renderOperationLog() {
@@ -466,7 +467,7 @@ function removeMemberAt(cls, g, j) {
     if (UI) UI.clear();
 
     var key = String(op.gno);
-    var beforeUndo=JSON.parse(JSON.stringify(l.scores[key]||{}));if(!S.redo)S.redo=[];var actual=applyEffect(op,operationEffect(op),-1);var undoChanged=actual.length>0;S.redo.push({op:JSON.parse(JSON.stringify(op)),redoEffect:actual.map(function(e){return {path:e.path,delta:-e.delta};})});
+    var beforeUndo=JSON.parse(JSON.stringify(l.scores[key]||{}));if(!S.redo)S.redo=[];var actual=applyEffect(op,operationEffect(op),-1);var undoChanged=actual.length>0;S.redo.push({op:JSON.parse(JSON.stringify(op)),redoEffect:actual.map(function(e){return {path:e.path,delta:-e.delta,wasBlank:e.wasBlank};})});
 
     var cls = getClass(l.classId);
     var sameView = cls && S.ui.classId === l.classId && S.ui.lessonId === l.id;
@@ -475,6 +476,7 @@ function removeMemberAt(cls, g, j) {
     save(false);
     renderUndoBtn();
 
+    if(op.projectBatch)renderLeader();
     if (sameView) { refreshCard(cls, l, op.gno); renderMetrics(cls, l); }
     else { renderScore(); }
 
@@ -585,6 +587,8 @@ function removeMemberAt(cls, g, j) {
       root: $('#view-leader'), state: S,
       save: function () { save(); var cls=curClass(),lesson=curLesson(cls);if(lesson)renderGroups(cls,lesson); },
       log: function(detail) { addOperationLog('个人项目评分',detail); },
+      fullMarks:function(lesson,groups,columns,names){var cls=getClass(lesson.classId),changed=0;if(!lesson.leaderScores)lesson.leaderScores={};groups.forEach(function(g){var r=lesson.leaderScores[String(g.no)]||(lesson.leaderScores[String(g.no)]={projects:names.slice(),members:{},signedBy:'',note:''}),effect=[];g.members.filter(function(m){return m.name;}).forEach(function(m){var key=m.sid?'sid:'+m.sid:'id:'+m.id,values=r.members[key]||(r.members[key]=[]);columns.forEach(function(i){var old=values[i];if(old===5)return;effect.push({path:'leader:'+key+'|'+i,delta:5-(Number(old)||0),wasBlank:old==null});values[i]=5;changed++;});});if(!effect.length)return;var totals=memberTotals(cls);pushUndo({lessonId:lesson.id,gno:g.no,projectBatch:true,projectNames:names.slice(),effect:effect,audit:{source:'项目批量满分',lesson:cls.name+' · 第'+lesson.seq+'次课 · '+lesson.date+' · '+(lesson.topic||''),student:'第'+g.no+'组全员，'+columns.length+'项各5分',sid:'全组操作',delta:'+'+effect.reduce(function(a,e){return a+e.delta;},0)+'（全组合计）',after:g.members.filter(function(m){return m.name;}).map(function(m){var t=totals.find(function(t){return m.sid?t.sid===m.sid:t.gno===g.no&&t.name===m.name;});return t?t.total:'—';}).join(' / ')}});});save();renderGroups(cls,lesson);flash(changed?'已将'+changed+'个项目成绩填为5分':'所选项目已全部满分，无需修改');},
+
       select: function (classId, lessonId) {
         S.ui.classId = classId; S.ui.lessonId = lessonId;
         fillClassSelects(); save(false); renderLeader();
@@ -1925,7 +1929,7 @@ function removeMemberAt(cls, g, j) {
   $('#btnUndo').addEventListener('click', function () {
     undo();
   });
-  function redo(index) {if(typeof index!=='number')index=(S.redo||[]).length-1;var entry=(S.redo||[]).splice(index,1)[0];if(!entry)return false;var l=getLesson(entry.op.lessonId);if(!l)return false;var effect=entry.redoEffect||operationEffect(entry.op),actual=applyEffect(entry.op,effect,1);entry.op.effect=actual;S.undo.push(entry.op);S.ui.classId=l.classId;S.ui.lessonId=l.id;addOperationLog('重做',undoLabel(reverseOp(entry.op)));save(false);renderScore();renderUndoBtn();flash('已恢复所选操作');return true;}
+  function redo(index) {if(typeof index!=='number')index=(S.redo||[]).length-1;var entry=(S.redo||[]).splice(index,1)[0];if(!entry)return false;var l=getLesson(entry.op.lessonId);if(!l)return false;var effect=entry.redoEffect||operationEffect(entry.op),actual=applyEffect(entry.op,effect,1);entry.op.effect=actual;S.undo.push(entry.op);S.ui.classId=l.classId;S.ui.lessonId=l.id;addOperationLog('重做',undoLabel(reverseOp(entry.op)));save(false);renderScore();if(entry.op.projectBatch)renderLeader();renderUndoBtn();flash('已恢复所选操作');return true;}
   $('#btnRedo').addEventListener('click', redo);
   var specialDialog=document.createElement('dialog');specialDialog.id='dlgSpecialRecords';specialDialog.innerHTML='<div id="specialContent"></div>';document.body.appendChild(specialDialog);wireDialog(specialDialog);var specialClassId=null,specialEditing=null;
   function specialMembers(cls){var map=new Map();cls.groups.forEach(function(g){g.members.forEach(function(m){if(m.name)map.set(window.JFDT_ASSESSMENT.key(m),m);});});(cls.roster||[]).forEach(function(m){if(m.name&&!map.has(window.JFDT_ASSESSMENT.key(m)))map.set(window.JFDT_ASSESSMENT.key(m),m);});return Array.from(map.entries()).map(function(pair){return {key:pair[0],name:pair[1].name,sid:pair[1].sid||''};});}
