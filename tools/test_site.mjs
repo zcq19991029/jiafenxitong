@@ -188,7 +188,7 @@ searchMember.value='02';searchMember.dispatchEvent(new w.Event('input'));q('[dat
 const groupingAfter=JSON.parse(w.localStorage.getItem('jfdt.v1'));
 check('quick add updates canonical group with exact full identifier',groupingAfter.classes[0].groups[0].members.some(m=>m.sid==='26000000302'));
 check('quick add preserves every existing lesson score and personal project',JSON.stringify(groupingBefore.lessons)===JSON.stringify(groupingAfter.lessons));
-q('[data-pick-exit]').click();check('exit selection removes all editable member controls',!q('.group-pick-box')&&!q('[data-pick-editor]')&&q('[data-card="1"] .group-pick-lock').textContent==='解锁分组');
+q('[data-pick-exit]').click();check('exit selection removes all editable member controls',!q('.group-pick-box')&&!q('[data-pick-editor]')&&q('[data-card="1"] .group-pick-lock').title==='解锁分组');
 await w.JFDT_CLOUD.flush();const groupingCloud=await(await site.fetch(new Request(origin+'/api/state',{headers:{Authorization:'Bearer '+admin.token}}),env)).json();check('quick grouping survives cloud sync',groupingCloud.data.classes[0].groups[0].members.some(m=>m.sid==='26000000302'));
 q('#tabs [data-view="pool"]').click();check('quick assigned student disappears from pending list',!q('#poolList').textContent.includes('26000000302'));
 q('#tabs [data-view="score"]').click();q('[data-card="1"] .group-pick-lock').click();q('#tabs [data-view="leader"]').click();q('#tabs [data-view="score"]').click();check('leaving scoring view relocks membership',!q('[data-pick-add]'));

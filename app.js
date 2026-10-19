@@ -745,7 +745,7 @@ function removeMemberAt(cls, g, j) {
     cls.groups.forEach(function(g){
       var card=$('[data-card="'+g.no+'"]');if(!card)return;
       var unlocked=groupPicking&&groupPicking.no===g.no;
-      var lock=document.createElement('button');lock.type='button';lock.className='btn tiny group-pick-lock';lock.textContent=unlocked?'完成分组':'解锁分组';lock.setAttribute('aria-label','第'+g.no+'组'+lock.textContent);
+      var lock=document.createElement('button');lock.type='button';lock.className='btn tiny group-pick-lock';lock.textContent=unlocked?'✓':'🔒';lock.title=unlocked?'完成分组':'解锁分组';lock.setAttribute('aria-label','第'+g.no+'组'+lock.title);
       var target=scoreLayout==='table'?card.querySelector('.c-no'):card.querySelector('.group-identity');target.appendChild(lock);
       lock.onclick=function(e){e.stopPropagation();groupPicking=unlocked?null:{classId:cls.id,lessonId:lesson.id,no:g.no};renderGroups(cls,lesson);};
       if(!unlocked)return;
