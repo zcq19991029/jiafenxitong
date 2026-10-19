@@ -5,7 +5,7 @@
   var client = null, profile = null, ready = false, handlers = {};
   var listeners = [], pendingFn = null, revision = 0, remoteRevision = null;
   var inFlight = null, pushTimer = null, retryTimer = null, lastPushed = 0;
-  var syncedAt = null, conflicted = false;
+  var syncedAt = null, conflicted = false, syncedFingerprint=null, lastChecked=0, serverTime=null, checking=null;
   var st = { mode: 'idle', text: '' };
   var apiBase = '';
   try {
@@ -17,7 +17,7 @@
   } catch (e) { apiBase = ''; }
 
   function status(mode, text) {
-    st = { mode: mode, text: text, at: Date.now() };
+    st = { mode: mode, text: text, at: Date.now(), cloudVersion:remoteRevision, checkedAt:lastChecked, serverTime:serverTime, pending:!!pendingFn };
     listeners.forEach(function (cb) { try { cb(st); } catch (e) {} });
   }
   function readSession() {
@@ -31,16 +31,16 @@
   function storeRevision(value, updatedAt) {
     remoteRevision = value;
     if (updatedAt !== undefined) syncedAt = updatedAt;
-    try { global.localStorage.setItem(baseKey(), JSON.stringify({ revision: value, updatedAt: syncedAt })); } catch (e) {}
+    try { global.localStorage.setItem(baseKey(), JSON.stringify({ revision: value, updatedAt: syncedAt, fingerprint:syncedFingerprint })); } catch (e) {}
   }
   function acceptRemote(rec) {
     if (rec && Number.isInteger(rec.revision)) {
-      storeRevision(rec.revision, rec.data ? rec.data.updatedAt : null);
+      if(rec.data)syncedFingerprint=fingerprint(rec.data);serverTime=rec.updated_at||rec.data&&rec.data.updatedAt||serverTime;storeRevision(rec.revision, rec.data ? rec.data.updatedAt : null);
       conflicted = false;
     }
   }
   function hasConflict(rec, state) {
-    return !!(rec && remoteRevision !== null && rec.revision !== remoteRevision && state.updatedAt !== syncedAt);
+    return !!(rec && remoteRevision !== null && rec.revision !== remoteRevision && isDirty(state));
   }
   function reportConflict() {
     conflicted = true;
@@ -77,6 +77,9 @@
       classes: state.classes || [], lessons: state.lessons || [], undo: state.undo || [],
       redo: state.redo || [], operationLog: state.operationLog || [] };
   }
+  function fingerprint(state){var value=payloadOf(state);delete value.updatedAt;return JSON.stringify(value);}
+  function isDirty(state){return syncedFingerprint!==null?fingerprint(state)!==syncedFingerprint:state.updatedAt!==syncedAt;}
+  function checkLatest(getState,applyRemote){if(checking)return checking;if(!profile)return Promise.resolve(false);var started=fingerprint(getState()),startRevision=revision;status('checking','正在核对云端版本…');checking=request('/api/state').then(function(rec){if(revision!==startRevision||fingerprint(getState())!==started){status('saving','本机有新改动，等待同步后核对');return false;}lastChecked=Date.now();serverTime=rec.updated_at||serverTime;if(rec.revision!==remoteRevision){if(isDirty(getState())||pendingFn||inFlight){reportConflict();return false;}if(rec.data&&applyRemote){applyRemote(rec);acceptRemote(rec);}}else if(pendingFn){return flush().then(function(){lastChecked=Date.now();status('ok','已核对最新版 · 云端v'+remoteRevision);return true;});}else if(isDirty(getState())){touch(getState);return flush().then(function(){lastChecked=Date.now();status('ok','已核对最新版 · 云端v'+remoteRevision);return true;});}if(!conflicted)status('ok','已核对最新版 · 云端v'+remoteRevision);return !conflicted;}).catch(function(e){if(e.code==='version_conflict')reportConflict();else status('offline','无法核对云端最新版，本机记录保留');return false;}).finally(function(){checking=null;});return checking;}
   function pull() {
     return request('/api/state').then(function (record) {
       if (remoteRevision === null) acceptRemote(record);
@@ -106,7 +109,7 @@
         if (sent === revision) pendingFn = null;
         clearTimeout(retryTimer);
         lastPushed = Date.now();
-        status('ok', '已同步到云端');
+        lastChecked=Date.now();status('ok', '已同步到云端 · v'+remoteRevision);
         return result;
       }).catch(function (e) {
         clearTimeout(retryTimer);
@@ -142,13 +145,13 @@
   function completeLogin(session) {
     storeSession(session);
     profile = session.user;
-    remoteRevision = null; syncedAt = null; conflicted = false;
+    remoteRevision = null; syncedAt = null; syncedFingerprint=null; conflicted = false;
     try {
       var saved = global.localStorage.getItem(baseKey());
       if (saved !== null) {
         var base = JSON.parse(saved);
         if (typeof base === 'number') remoteRevision = base;
-        else if (base && Number.isInteger(base.revision)) { remoteRevision = base.revision; syncedAt = base.updatedAt; }
+        else if (base && Number.isInteger(base.revision)) { remoteRevision = base.revision; syncedAt = base.updatedAt;syncedFingerprint=base.fingerprint||null; }
       }
     } catch (e) {}
     return pull().then(function (record) {
@@ -205,7 +208,7 @@
     },
     resetPassword: function (username, code, password) { return request('/api/auth/reset-password', 'POST', {username:username, code:code, password:password}); },
     available: function () { return ready; }, profile: function () { return profile; },
-    pull: pull, touch: touch, flush: flush, cancelPending: cancelPending, acceptRemote: acceptRemote, forcePush: forcePush,
+    checkLatest:checkLatest,isDirty:isDirty,version:function(){return remoteRevision;},pull: pull, touch: touch, flush: flush, cancelPending: cancelPending, acceptRemote: acceptRemote, forcePush: forcePush,
     hasConflict: hasConflict, reportConflict: reportConflict,
     status: function () { return st; }, lastPushedAt: function () { return lastPushed; },
     onStatus: function (callback) { listeners.push(callback); callback(st); },

@@ -2148,19 +2148,19 @@ function removeMemberAt(cls, g, j) {
 
   function renderCloudStatus(st) {
     st = st || (CLOUD && CLOUD.status()) || { mode: 'idle', text: '' };
-    var map = { ok: 'ok', saving: 'saving', connecting: 'saving', offline: 'offline', error: 'error', conflict: 'error' };
+    var map = { checking:'saving',ok: 'ok', saving: 'saving', connecting: 'saving', offline: 'offline', error: 'error', conflict: 'error' };
     var cls = map[st.mode] || '';
     var text = st.mode === 'idle' ? '未连接云端' : st.text;
 
     var chip = $('#cloudChip');
     chip.className = 'chip ' + cls;
-    chip.textContent = text;
+    chip.textContent = text;chip.title='云端版本：'+(st.cloudVersion==null?'未核对':st.cloudVersion)+'；最近核对：'+(st.checkedAt?new Date(st.checkedAt).toLocaleString():'尚未核对')+'；云端保存：'+(st.serverTime?new Date(st.serverTime).toLocaleString():'未知');
     chip.hidden = false;
 
     var row = $('.sync-row');
     if (row) {
       row.className = 'sync-row ' + cls;
-      $('#syncText').textContent = text;
+      $('#syncText').textContent = text+(st.checkedAt?' · 核对时间 '+new Date(st.checkedAt).toLocaleTimeString():'');
     }
 
     /* 进了应用但云端没连上：在页面顶部挂一条明确的提示，别让人以为已经在同步 */
@@ -2180,34 +2180,9 @@ function removeMemberAt(cls, g, j) {
   }
 
   /** 云端有更新就拉下来覆盖本机（只在本机没更新时） */
-  function refreshCloud() {
-    if (!CLOUD_ON || !CLOUD || !CLOUD.profile()) { bootCloud(); return; }
-    if (!CLOUD || !CLOUD.available()) { renderCloudStatus(); return; }
-    CLOUD.pull().then(function (rec) {
-      CLOUD_ON = true;
-      renderCloudStatus();
-      if (!rec || !rec.data || !rec.data.classes) { renderLocalBanner(); return; }
-      var cAt = Date.parse(rec.updated_at || '') || 0;
-      var lAt = S.updatedAt ? Date.parse(S.updatedAt) : 0;
-      if (cAt > lAt) {
-        if (CLOUD.hasConflict && CLOUD.hasConflict(rec, S)) { CLOUD.reportConflict(); return; }
-        var keep = JSON.parse(JSON.stringify(S.ui || {}));
-        S = migrate(JSON.parse(JSON.stringify(rec.data)));
-        if (CLOUD.acceptRemote) CLOUD.acceptRemote(rec);
-        if (!S.ui) S.ui = {};
-        if (keep) { S.ui.classId = keep.classId; S.ui.lessonId = keep.lessonId; S.ui.scoreLayout = keep.scoreLayout; }
-        writeLocal();
-        fillClassSelects();
-        switchView(view);
-        flash('已从云端拉取最新记录');
-      } else if (lAt > cAt) {
-        CLOUD.touch(function () { return S; });
-        CLOUD.flush().catch(function () { renderCloudStatus(); });
-      }
-      renderLocalBanner();
-    }).catch(function () { renderCloudStatus(); });
-  }
-
+  function editingGrade(){var el=document.activeElement;return !!(el&&el.matches('input,textarea,select')&&!el.disabled&&!el.readOnly);}
+  function refreshCloud() {if(!CLOUD_ON||!CLOUD||!CLOUD.profile())return Promise.resolve(false);if(editingGrade()){renderCloudStatus({mode:'checking',text:'请完成当前输入后核对云端最新版'});return Promise.resolve(false);}return CLOUD.checkLatest(function(){return S;},function(rec){var keep=JSON.parse(JSON.stringify(S.ui||{}));S=migrate(JSON.parse(JSON.stringify(rec.data)));S.ui=Object.assign({},S.ui||{},keep);writeLocal();fillClassSelects();switchView(view);renderUndoBtn();});}
+  window.addEventListener('focus',function(){if(S&&CLOUD_ON)refreshCloud();});document.addEventListener('visibilitychange',function(){if(document.visibilityState==='visible'&&S&&CLOUD_ON)refreshCloud();});setInterval(function(){if(document.visibilityState!=='hidden'&&S&&CLOUD_ON)refreshCloud();},30000);
   var cloudUiBackup = null;
 
   function renderLocalBanner() {
@@ -2387,12 +2362,14 @@ function removeMemberAt(cls, g, j) {
     if (syncConflict) CLOUD.reportConflict();
     renderPoolBanner(curClass());
     switchView('score');
+    if(CLOUD_ON)setTimeout(function(){refreshCloud();},0);
   }
 
   /* ================= 启动 ================= */
 
   /* 云端状态 → 顶栏小圆点 + 数据页同步条 */
   if (CLOUD) CLOUD.onStatus(renderCloudStatus);
+  var checkCloudButton=document.createElement('button');checkCloudButton.id='btnCheckCloudLatest';checkCloudButton.className='btn';checkCloudButton.textContent='核对云端最新版';checkCloudButton.onclick=function(){refreshCloud();};$('#btnSyncNow').parentElement.appendChild(checkCloudButton);
 
   /* 闸门上的按钮 */
   $('#btnAccountLogin').addEventListener('click', doLogin);
@@ -2423,7 +2400,7 @@ function removeMemberAt(cls, g, j) {
   /* 数据页的同步按钮 */
   $('#btnSyncNow').addEventListener('click', function () {
     if (!CLOUD || !CLOUD.available()) { alert('云端组件没加载出来，请检查网络后刷新页面。'); return; }
-    CLOUD.flush().then(function () { refreshCloud(); }).catch(function (e) {
+    refreshCloud().then(function (verified) { if(verified)return CLOUD.flush(); }).catch(function (e) {
       alert('同步失败：' + (e && e.message ? e.message : e));
     });
   });
