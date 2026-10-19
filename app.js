@@ -202,7 +202,7 @@
 
   /* ================= 全班名单 / 待分配 ================= */
 
-var GROUP_CAP = 6;          // 一张小组卡最多 6 个成员位
+var GROUP_CAP = 7;          // 一张小组卡最多 6 个成员位
 
 function rosterOf(cls) {
   if (!cls.roster) cls.roster = [];
@@ -764,10 +764,10 @@ function removeMemberAt(cls, g, j) {
       lock.onclick=function(e){e.stopPropagation();groupPicking=unlocked?null:{classId:cls.id,lessonId:lesson.id,no:g.no};renderGroups(cls,lesson);};
       if(!unlocked)return;
       var slot=scoreLayout==='table'?Array.from(card.querySelectorAll('.gname td.c-mem')).find(function(el,i){return !g.members[i]||!g.members[i].name;}):card.querySelector('.gnames');
-      if(!slot){lock.title='本组已满6人，请到名单与分组调整';return;}
+      if(!slot){lock.title='本组已满7人，请到名单与分组调整';return;}
       var box=document.createElement('div');box.className='group-pick-box';box.innerHTML='<button type="button" class="btn tiny" data-pick-add aria-label="第'+g.no+'组新增成员">＋</button><div data-pick-editor hidden><input type="search" autocomplete="off" aria-label="第'+g.no+'组检索学号" placeholder="学号或后两位"><div class="group-pick-results" role="list"></div><button type="button" class="btn tiny" data-pick-exit>退出选人</button></div>';slot.appendChild(box);
       var editor=box.querySelector('[data-pick-editor]'),input=box.querySelector('input'),results=box.querySelector('.group-pick-results');
-      function matches(){var query=input.value.trim().toLowerCase(),pending=pendingList(cls),list=pending.filter(function(r){return !query||String(r.sid||'').includes(query)||r.name.toLowerCase().includes(query);});results.innerHTML='';if(!list.length){results.textContent='没有匹配的待分配成员';return;}list.forEach(function(r){var button=document.createElement('button');button.type='button';button.className='btn tiny';button.textContent=r.name+' '+(r.sid||'');button.setAttribute('data-pick-sid',r.sid||'');button.onclick=function(e){e.stopPropagation();if(!groupPicking||groupPicking.no!==g.no||curClass().id!==cls.id)return;if(memberCount(g)>=GROUP_CAP){flash('本组已满6人');return;}if(!pendingList(cls).some(function(p){return p===r;})){matches();return;}pushMember(g,{id:uid('m'),name:r.name,sid:r.sid||'',no:studentNo(cls,r.name,r.sid)});addOperationLog('分组',cls.name+' · '+r.name+'加入第'+g.no+'组');save();renderScore();renderPoolBanner(cls);flash('已加入第'+g.no+'组，分组已全局同步');};results.appendChild(button);});}
+      function matches(){var query=input.value.trim().toLowerCase(),pending=pendingList(cls),list=pending.filter(function(r){return !query||String(r.sid||'').includes(query)||r.name.toLowerCase().includes(query);});results.innerHTML='';if(!list.length){results.textContent='没有匹配的待分配成员';return;}list.forEach(function(r){var button=document.createElement('button');button.type='button';button.className='btn tiny';button.textContent=r.name+' '+(r.sid||'');button.setAttribute('data-pick-sid',r.sid||'');button.onclick=function(e){e.stopPropagation();if(!groupPicking||groupPicking.no!==g.no||curClass().id!==cls.id)return;if(memberCount(g)>=GROUP_CAP){flash('本组已满7人');return;}if(!pendingList(cls).some(function(p){return p===r;})){matches();return;}pushMember(g,{id:uid('m'),name:r.name,sid:r.sid||'',no:studentNo(cls,r.name,r.sid)});addOperationLog('分组',cls.name+' · '+r.name+'加入第'+g.no+'组');save();renderScore();renderPoolBanner(cls);flash('已加入第'+g.no+'组，分组已全局同步');};results.appendChild(button);});}
       box.onclick=function(e){e.stopPropagation();};box.querySelector('[data-pick-add]').onclick=function(){editor.hidden=false;this.hidden=true;matches();input.focus();};input.oninput=matches;box.querySelector('[data-pick-exit]').onclick=function(){groupPicking=null;renderGroups(cls,lesson);};
     });
   }
@@ -828,6 +828,7 @@ function removeMemberAt(cls, g, j) {
 
   /** 表格式：照着纸质记录表的 12 列版式（组号 + 成员1-6 + 全组四列 + 本节合计） */
   function groupsTable(cls, lesson) {
+    var GROUP_CAP=Math.max(6,...cls.groups.map(function(g){return memberCount(g)+(groupPicking&&groupPicking.no===g.no&&memberCount(g)<7?1:0);}));
     var cols = '<col class="w-no">';
     for (var c = 0; c < GROUP_CAP; c++) cols += '<col class="w-mem">';
     cols += '<col class="w-attendance"><col class="w-phone"><col class="w-grp">' +
@@ -1449,7 +1450,7 @@ function removeMemberAt(cls, g, j) {
       '<span class="spacer"></span>' +
       '<button class="btn tiny" id="btnAddGroup">＋ 添加一组</button></div>';
 
-    var cols = 6;
+    var cols = GROUP_CAP;
     var body = '<table class="data"><thead><tr><th>组号</th>';
     for (var i = 1; i <= cols; i++) body += '<th>成员' + i + '</th>';
     body += '<th>操作</th></tr></thead><tbody>';
@@ -1795,6 +1796,7 @@ function removeMemberAt(cls, g, j) {
     download(cls.name+'_第'+lesson.seq+'次课_可编辑打印版.xlsx',formatted,'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');
   }
   function printLesson(cls, lesson) {
+    var GROUP_CAP=Math.max(6,...cls.groups.map(memberCount));
     var dg = lesson.dutyGroup ? +lesson.dutyGroup : null;
 
     var cols = '<col class="w-no">';

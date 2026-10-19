@@ -20,3 +20,8 @@ for(const format of ['xlsx','xls','ods']){
   assert.equal(ctx.JFDT_ROSTER.workbook(ctx.XLSX.write(wb,{bookType:format,type:'array'})).length,3);
   console.log('PASS',format,'roundtrip, leading zero, same names, groups, pending, multi-sheet and lesson protection');
 }
+
+const sevenRows=Array.from({length:7},(_,i)=>({'班级':'七人测试','姓名':'成员'+i,'学号':'9000'+i,'小组':'1','班内序号':String(i+1)}));
+assert.equal(ctx.JFDT_ROSTER.apply({classes:[],lessons:[],undo:[]},sevenRows,'').state.classes[0].groups[0].members.length,7);
+assert.throws(()=>ctx.JFDT_ROSTER.apply({classes:[],lessons:[],undo:[]},sevenRows.concat([{'班级':'七人测试','姓名':'八','学号':'90008','小组':'1','班内序号':'8'}]),''),/超过 7 人/);
+console.log('PASS seven-member import and eighth-member limit');

@@ -71,7 +71,7 @@ function validateState(data) {
     const numbers = new Set();
     for (const group of cls.groups) {
       if (!Number.isInteger(group.no) || group.no < 1 || numbers.has(group.no)
-          || !Array.isArray(group.members) || group.members.length > 6) fail(400, '小组数据格式不正确。');
+          || !Array.isArray(group.members) || group.members.length > 7) fail(400, '小组数据格式不正确。');
       numbers.add(group.no);
       for (const member of group.members) if (!member || typeof member.name !== 'string') fail(400, '成员数据格式不正确。');
     }

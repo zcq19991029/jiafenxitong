@@ -66,7 +66,7 @@
         if (group) {
           groups[group] = groups[group] || [];
           groups[group].push({ id: uid('m'), name: member.name, sid: member.sid, no: no });
-          if (groups[group].length > 6) throw new Error(className + ' 第 ' + group + ' 组超过 6 人。');
+          if (groups[group].length > 7) throw new Error(className + ' 第 ' + group + ' 组超过 7 人。');
         }
       });
       var count = Math.max.apply(null, [existing ? existing.groups.length : 13].concat(Object.keys(groups).map(Number)));
