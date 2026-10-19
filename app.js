@@ -349,12 +349,16 @@ function removeMemberAt(cls, g, j) {
         {lessonId, gno, f, old, neu}          标量（first / group / phone / duty）
         {lessonId, gno, i, old, neu, name}    个人扣分（第 i 个成员）
         {lessonId, gno, reset:true, old}      整组清零（old 是该组原 scores 的副本） */
+  function operationEffect(op){if(op.effect)return op.effect;var l=getLesson(op.lessonId),cls=l&&getClass(l.classId),g=cls&&groupOf(cls,op.gno),now=l&&l.scores[String(op.gno)];if(op.reset&&op.old&&now&&g){function points(sc,i){return Math.max(0,Math.min(5,(+sc.group||0)+(sc.first?1:0))-(+sc.phone||0)-(+((sc.personal||{})[String(i)])||0));}var patch=g.members.map(function(m,i){return {path:'point:'+i,delta:points(now,i)-points(op.old,i)};}).filter(function(x){return x.delta;});var duty=(+now.duty||0)-(+op.old.duty||0);if(duty)patch.push({path:'duty',delta:duty});return patch;}return [{path:op.i!=null?'point:'+op.i:op.f,delta:op.i!=null?(+op.old||0)-(+op.neu||0):(+op.neu||0)-(+op.old||0)}].filter(function(x){return x.delta;});}
+  function inverseEffects(a,b){return a.length===b.length&&a.every(function(x){return b.some(function(y){return x.path===y.path&&Math.abs(x.delta+y.delta)<1e-8;});});}
+  function applyEffect(op,effect,direction){var l=getLesson(op.lessonId),cls=getClass(l.classId),g=groupOf(cls,op.gno),scored=sc(l,op.gno),actual=[];effect.forEach(function(e){var old,next;if(e.path.startsWith('point:')){var i=e.path.slice(6),values=g.members.map(function(_,j){return remaining(l,g.no,j);});var base=Math.min(5,(+scored.group||0)+(scored.first?1:0));old=values[+i];next=Math.max(0,Math.min(base,old+direction*e.delta));scored.phone=0;scored.group=base;scored.first=0;g.members.forEach(function(_,j){scored.personal[String(j)]=base-(String(j)===i?next:values[j]);});}else if(e.path.startsWith('personal:')){var i=e.path.slice(9);old=+scored.personal[i]||0;next=Math.max(0,Math.min(5,old+direction*e.delta));scored.personal[i]=next;}else{old=+scored[e.path]||0;next=Math.max(0,Math.min(e.path==='phone'?1000000:5,old+direction*e.delta));scored[e.path]=next;if(e.path==='duty'){var meta=direction<0?op.oldDutyMeta:op.neuDutyMeta,target=direction<0?op.old:op.neu;if(meta&&Math.abs(next-target)<1e-8)scored.dutyParticipation=JSON.parse(JSON.stringify(meta));else delete scored.dutyParticipation;}}if(next!==old)actual.push({path:e.path,delta:next-old});});return actual;}
   function pushUndo(op) {
     if (!S.undo) S.undo = [];
+    op.effect=operationEffect(op);
     op.at = new Date().toISOString();
     addOperationLog('记分', undoLabel(reverseOp(op)));
-    S.redo = [];
-    S.undo.push(op);
+    var opposite=-1;for(var oi=S.undo.length-1;oi>=0&&op.f!=='group'&&(+sc(getLesson(op.lessonId),op.gno).group===5);oi--){var previous=S.undo[oi];if(previous.lessonId===op.lessonId&&previous.gno===op.gno&&operationEffect(previous).some(function(e){return op.effect.some(function(x){return e.path===x.path;});})){if(inverseEffects(operationEffect(previous),op.effect))opposite=oi;break;}}
+    if(opposite>=0)S.undo.splice(opposite,1);else S.undo.push(op);
     if (S.undo.length > UNDO_MAX) S.undo.shift();
     renderUndoBtn();
   }
@@ -394,10 +398,7 @@ function removeMemberAt(cls, g, j) {
   }
   function canUndoAt(index) {
     var op=(S.undo||[])[index]; if(!op || !getLesson(op.lessonId))return false;
-    return !S.undo.slice(index+1).some(function(later){
-      return later.lessonId===op.lessonId && later.gno===op.gno &&
-        (op.reset || later.reset || (op.i!=null ? later.i===op.i : later.i==null && later.f===op.f));
-    });
+    return true;
   }
   function renderOperationLog() {
     var list=$('#operationLogList'); if(!list) return;
@@ -407,7 +408,7 @@ function removeMemberAt(cls, g, j) {
       var op=row.op, allowed=canUndoAt(row.index);
       return '<article class="operation-row"><div><small>'+esc(op.at?new Date(op.at).toLocaleString():'历史记录：时间、来源未记录')+'</small><div>'+esc(undoLabel(op))+'</div></div><button class="btn log-undo" data-undo-index="'+row.index+'" '+(!allowed?'disabled':'')+' title="'+(allowed?'撤销此项记分':'同一分数有后续修改，请先撤销较新的相关记录')+'">↶ 撤销</button></article>';
     }).join('') : '<p class="note">暂无可撤销记分。</p>')+
-      '<h4>已撤销 · 可恢复</h4>'+((S.redo||[]).length ? S.redo.map(function(entry,index){return '<article class="operation-row"><div><small>已撤销</small><div>'+esc(undoLabel(entry.op))+'</div></div><button class="btn log-restore" data-redo-index="'+index+'" '+(index!==S.redo.length-1?'disabled title="请先恢复最近撤销的一项"':'')+'>↷ 恢复</button></article>';}).reverse().join(''):'<p class="note">暂无待恢复记录。</p>')+
+      '<h4>已撤销 · 可恢复</h4>'+((S.redo||[]).length ? S.redo.map(function(entry,index){return '<article class="operation-row"><div><small>已撤销</small><div>'+esc(undoLabel(entry.op))+'</div></div><button class="btn log-restore" data-redo-index="'+index+'" '+''+'>↷ 恢复</button></article>';}).reverse().join(''):'<p class="note">暂无待恢复记录。</p>')+
       '<details><summary>完整操作流水（仅核对）</summary>'+entries.map(function(e){return '<article class="operation-row"><div><small>'+esc(new Date(e.at).toLocaleString())+' · '+esc(e.kind)+'</small><div>'+esc(e.detail)+'</div></div></article>';}).join('')+'</details>';
     var entry=(S.redo || []).slice(-1)[0];
     $('#redoDetail').textContent=entry ? '下一步重做：'+undoLabel(reverseOp(entry.op)) : '暂无可重做操作';
@@ -455,19 +456,7 @@ function removeMemberAt(cls, g, j) {
     if (UI) UI.clear();
 
     var key = String(op.gno);
-    var beforeUndo = l.scores[key] || {};
-    if (!S.redo) S.redo = [];
-    S.redo.push({op: JSON.parse(JSON.stringify(op)), scores: JSON.parse(JSON.stringify(beforeUndo))});
-    var undoChanged = op.reset ? JSON.stringify(beforeUndo) !== JSON.stringify(op.old)
-      : +(op.i != null ? (beforeUndo.personal || {})[op.i] || 0 : beforeUndo[op.f] || 0) !== +op.old;
-    if (op.reset) {
-      l.scores[key] = op.old;
-    } else {
-      var s = sc(l, op.gno);
-      if (op.i != null) s.personal[op.i] = op.old;
-      else s[op.f] = op.old;
-      if(op.f==='duty' && Object.prototype.hasOwnProperty.call(op,'oldDutyMeta')){if(op.oldDutyMeta)s.dutyParticipation=op.oldDutyMeta;else delete s.dutyParticipation;}
-    }
+    var beforeUndo=JSON.parse(JSON.stringify(l.scores[key]||{}));if(!S.redo)S.redo=[];var actual=applyEffect(op,operationEffect(op),-1);var undoChanged=actual.length>0;S.redo.push({op:JSON.parse(JSON.stringify(op)),redoEffect:actual.map(function(e){return {path:e.path,delta:-e.delta};})});
 
     var cls = getClass(l.classId);
     var sameView = cls && S.ui.classId === l.classId && S.ui.lessonId === l.id;
@@ -1906,14 +1895,7 @@ function removeMemberAt(cls, g, j) {
   $('#btnUndo').addEventListener('click', function () {
     undo();
   });
-  function redo() {
-    var entry = (S.redo || []).pop(); if(!entry) return false;
-    var l = getLesson(entry.op.lessonId); if(!l) {renderUndoBtn();return false;}
-    l.scores[String(entry.op.gno)] = entry.scores;
-    S.undo.push(entry.op); S.ui.classId=l.classId; S.ui.lessonId=l.id;
-    addOperationLog('重做',undoLabel(reverseOp(entry.op)));
-    save(false); renderScore(); renderUndoBtn(); flash('已重做：' + undoLabel(entry.op)); return true;
-  }
+  function redo(index) {if(typeof index!=='number')index=(S.redo||[]).length-1;var entry=(S.redo||[]).splice(index,1)[0];if(!entry)return false;var l=getLesson(entry.op.lessonId);if(!l)return false;var effect=entry.redoEffect||operationEffect(entry.op),actual=applyEffect(entry.op,effect,1);entry.op.effect=actual;S.undo.push(entry.op);S.ui.classId=l.classId;S.ui.lessonId=l.id;addOperationLog('重做',undoLabel(reverseOp(entry.op)));save(false);renderScore();renderUndoBtn();flash('已恢复所选操作');return true;}
   $('#btnRedo').addEventListener('click', redo);
   $('#btnOperationLog').addEventListener('click',function(){renderUndoBtn();openDlg($('#dlgOperationLog'));});
   $('#closeOperationLog').addEventListener('click',function(){$('#dlgOperationLog').close();});
@@ -1955,7 +1937,7 @@ function removeMemberAt(cls, g, j) {
       var index=+button.dataset.undoIndex; if(!canUndoAt(index))return;
       fadeLogRow(button.closest('.operation-row'));
       var op=S.undo.splice(index,1)[0]; S.undo.push(op); undo();
-    } else {fadeLogRow(button.closest('.operation-row'));redo();}
+    } else {fadeLogRow(button.closest('.operation-row'));redo(+button.dataset.redoIndex);}
   });
 
 
