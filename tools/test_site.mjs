@@ -200,6 +200,8 @@ check('log hides redundant global undo and next-step details',q('#btnUndo').hidd
 check('log has compact columns and secondary audit details',q('.log-table-head').textContent.includes('北京时间')&&!q('.log-audit').open&&!q('.log-help').open);
 check('log follows the bubble project seven-column audit table',Array.from(q('.bubble-audit-table').querySelectorAll('th')).map(el=>el.textContent).join(',')==='北京时间,来源,课次,学生,加减分,操作后总分,操作');
 check('new score operations save historical total and delta snapshots',JSON.parse(w.localStorage.getItem('jfdt.v1')).undo.some(op=>op.audit&&op.audit.after&&op.audit.delta&&op.audit.source));
+check('full audit trail uses seven-column table instead of articles',q('.log-audit .bubble-audit-table').querySelectorAll('th').length===7&&!q('.log-audit article'));
+const lessonFilter=q('#logLessonFilter');check('log exposes lesson filter',lessonFilter.options.length>1);lessonFilter.value=lessonFilter.options[1].value;lessonFilter.dispatchEvent(new w.Event('change'));check('lesson filter remains selected after rendering',q('#logLessonFilter').value===lessonFilter.options[1].value);q('#logLessonFilter').value='';q('#logLessonFilter').dispatchEvent(new w.Event('change'));
 const visibleLogCount=q('#operationLogList').querySelectorAll('[data-undo-index]').length;
 q('#logSearch').value='不存在的日志测试词';q('#logSearch').dispatchEvent(new w.Event('input'));
 check('log search shows an empty state without dropping stored operations',!q('[data-undo-index]')&&q('.log-empty').textContent.includes('没有匹配')&&JSON.parse(w.localStorage.getItem('jfdt.v1')).undo.length===visibleLogCount);
