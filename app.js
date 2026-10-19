@@ -109,7 +109,11 @@
 
   /** 老数据迁移：补上全班名单（roster），并把分组成员的完整学号/班内序号补齐。
       老版本只存了「姓名 + 短序号」，这里按姓名与官方名单对上。 */
+  // Keep legacy remaining points while restoring an immutable five-point base.
+  function normalizeProjectBase(score,members){if(!score)return;var base=Math.min(5,(+score.group||0)+(score.first?1:0)),phone=+score.phone||0,personal=score.personal||{},next={};members.forEach(function(m,i){if(!m.name)return;var remain=Math.max(0,base-phone-(+personal[String(i)]||0));next[String(i)]=5-remain;});score.group=5;score.first=0;score.phone=0;score.personal=next;}
+  function migrateProjectBases(state){var legacyIds=new Set((state.lessons||[]).filter(function(l){return l.memberProjectBase!==5;}).map(function(l){return l.id;}));(state.lessons||[]).forEach(function(l){if(l.memberProjectBase===5)return;var cls=(state.classes||[]).find(function(c){return c.id===l.classId;});if(!cls)return;(cls.groups||[]).forEach(function(g){normalizeProjectBase((l.scores||{})[String(g.no)],g.members||[]);});l.memberProjectBase=5;});function obsolete(op){return op&&(op.f==='group'||op.f==='first'||(legacyIds.has(op.lessonId)&&(op.i!=null||op.f==='phone'||op.reset)));}state.projectLegacyUndoArchive=(state.projectLegacyUndoArchive||[]).concat((state.undo||[]).filter(obsolete).map(function(op){return {kind:'undo',op:op};}),(state.redo||[]).filter(function(e){return obsolete(e.op);}).map(function(e){return {kind:'redo',entry:e};}));state.undo=(state.undo||[]).filter(function(op){return !obsolete(op);});state.redo=(state.redo||[]).filter(function(e){return !obsolete(e.op);});function snapshot(op,score){var l=(state.lessons||[]).find(function(l){return l.id===op.lessonId;}),cls=l&&(state.classes||[]).find(function(c){return c.id===l.classId;}),g=cls&&(cls.groups||[]).find(function(g){return g.no===op.gno;});if(g)normalizeProjectBase(score,g.members||[]);}state.undo.forEach(function(op){if(op.reset&&op.old)snapshot(op,op.old);});state.redo.forEach(function(e){if(e.op.reset&&e.op.old)snapshot(e.op,e.op.old);if(e.scores)snapshot(e.op,e.scores);});return state;}
   function migrate(s) {
+    migrateProjectBases(s);
     var seed = window.SEED_DATA;
     if (!s.undo) s.undo = [];
     if (!s.ui) s.ui = {};
@@ -187,7 +191,7 @@
 
   function sc(lesson, gno) {
     var k = String(gno);
-    if (!lesson.scores[k]) lesson.scores[k] = { first: 0, group: 0, phone: 0, duty: 0, personal: {} };
+    if (!lesson.scores[k]) lesson.scores[k] = { first: 0, group: lesson.memberProjectBase===5?5:0, phone: 0, duty: 0, personal: {} };
     return lesson.scores[k];
   }
 
@@ -1011,7 +1015,7 @@ function removeMemberAt(cls, g, j) {
     if (!confirm('把第 ' + gno + ' 组这节课的分数全部归零？（其它组不受影响，清错了可以撤销）')) return;
     var old = JSON.parse(JSON.stringify(lesson.scores[key] ||
       { first: 0, group: 0, phone: 0, duty: 0, personal: {} }));
-    lesson.scores[key] = { first: 0, group: 0, phone: 0, duty: 0, personal: {} };
+    lesson.scores[key] = { first: 0, group: lesson.memberProjectBase===5?5:0, phone: 0, duty: 0, personal: {} };
     pushUndo({ lessonId: lesson.id, gno: gno, reset: true, old: old });
     save();
     refreshCard(cls, lesson, gno);
@@ -2004,7 +2008,7 @@ function removeMemberAt(cls, g, j) {
       date: $('#nlDate').value || today(),
       topic: $('#nlTopic').value.trim(),
       dutyGroup: isNaN(duty) ? null : duty, dutyGroups:Array.from(new Set(duties)),
-      scores: {}
+      scores: {}, memberProjectBase:5
     };
     cls.groups.forEach(function(g){l.scores[String(g.no)]={first:0,group:5,phone:0,duty:0,personal:{}};});
     S.lessons.push(l);
