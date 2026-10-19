@@ -1417,3 +1417,26 @@ table.sheet col.w-grp,table.sheet th.c-grp,table.sheet td.c-grp,#printArea col.w
 .group-pick-results{max-height:180px;overflow:auto;display:flex;flex-direction:column;gap:4px;background:var(--card,#fff);font-size:12px;overflow-wrap:anywhere}
 .group-pick-results button{white-space:normal;text-align:left}
 @media print{.group-pick-lock,.group-pick-box{display:none!important}}
+/* 操作记录：主列表清晰，核对内容二级展开。 */
+#dlgOperationLog{width:min(920px,94vw);padding:0}
+#dlgOperationLog .dlg-body{padding:16px 22px;overflow:auto;max-height:75dvh}
+#dlgOperationLog .dlg-head h3{margin:0 0 5px}
+#dlgOperationLog .log-toolbar{display:flex;align-items:end;gap:12px;flex-wrap:wrap;margin-bottom:18px}
+.log-toolbar label{display:grid;gap:5px;font-size:12px;color:var(--muted)}
+.log-toolbar select,.log-toolbar input{min-height:38px;max-width:100%;font-size:14px}
+.log-toolbar .log-search{flex:1;min-width:160px}
+#dlgOperationLog #btnRedo{width:auto;margin:0;min-height:38px;font-size:13px}
+#operationLogList{max-height:none;overflow:visible;margin:0}
+.log-section-title,.log-restored>summary{font-weight:650;font-size:15px;margin:12px 0}
+.log-section-title span,.log-restored summary span,.log-audit summary span{font-size:12px;border-radius:12px;padding:2px 8px;background:var(--line);margin-left:5px}
+#operationLogList .operation-row,.log-table-head{display:grid;grid-template-columns:106px minmax(0,1fr) 78px;gap:14px;align-items:center}
+.log-table-head{font-size:12px;color:var(--muted);padding:9px 0;background:var(--panel)}
+#operationLogList .operation-row{padding:12px 0;font-size:14px}
+.operation-row .log-time{font-size:12px;color:var(--muted);font-variant-numeric:tabular-nums;line-height:1.6}
+.log-change small{font-size:12px;display:block;margin-bottom:3px}
+#operationLogList .operation-row button{font-size:13px;min-height:34px;padding:6px 10px;color:var(--accent)}
+.log-empty{padding:24px 8px;text-align:center;color:var(--muted);font-size:14px}
+.log-restored,.log-audit,.log-help{margin-top:16px;border-top:1px solid var(--line);padding-top:12px}
+.log-audit summary,.log-help summary{font-size:13px;color:var(--muted);cursor:pointer}
+.log-help p{font-size:13px;line-height:1.7;color:var(--muted)}
+@media(max-width:600px){#dlgOperationLog .dlg-body{padding:12px}#operationLogList .operation-row{grid-template-columns:minmax(0,1fr) 68px;gap:4px 8px}.operation-row .log-time{grid-column:1}.operation-row .log-change{grid-column:1}.operation-row button{grid-column:2;grid-row:1/3}.log-table-head{display:none}.log-toolbar label{flex:1}.log-toolbar #btnRedo{margin-left:auto!important}}

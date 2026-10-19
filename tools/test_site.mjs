@@ -195,6 +195,16 @@ q('#tabs [data-view="score"]').click();q('[data-card="1"] .group-pick-lock').cli
 q('#layoutSeg [data-l="card"]').click();q('[data-card="1"] .group-pick-lock').click();
 check('card layout supports the same locked add-member channel',!!q('[data-card="1"] .gnames [data-pick-add]'));
 q('[data-pick-add]').click();q('[data-pick-exit]').click();check('card exit also restores locked member display',!q('.group-pick-box'));
+q('#btnOperationLog').click();
+check('log hides redundant global undo and next-step details',q('#btnUndo').hidden&&q('#undoDetail').hidden&&q('#redoDetail').hidden);
+check('log has compact columns and secondary audit details',q('.log-table-head').textContent.includes('北京时间')&&!q('.log-audit').open&&!q('.log-help').open);
+const visibleLogCount=q('#operationLogList').querySelectorAll('[data-undo-index]').length;
+q('#logSearch').value='不存在的日志测试词';q('#logSearch').dispatchEvent(new w.Event('input'));
+check('log search shows an empty state without dropping stored operations',!q('[data-undo-index]')&&q('.log-empty').textContent.includes('没有匹配')&&JSON.parse(w.localStorage.getItem('jfdt.v1')).undo.length===visibleLogCount);
+q('#logSearch').value='';q('#logSearch').dispatchEvent(new w.Event('input'));
+check('clearing log search restores original indexed actions',q('#operationLogList').querySelectorAll('[data-undo-index]').length===visibleLogCount);
+check('log no longer claims sequential-only undo',!q('.log-help').textContent.includes('先撤销较新'));
+q('#closeOperationLog').click();
 if(errors.length)console.log(errors);check('packaged application has no unexpected exceptions', errors.length === 0);
 dom.window.close(); env.sqlite.close();
 console.log(`Packaged single-site integration: ${passed} passed, 0 failed`);
