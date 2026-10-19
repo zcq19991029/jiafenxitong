@@ -538,6 +538,7 @@ function removeMemberAt(cls, g, j) {
   var view = 'score';
 
   function switchView(v) {
+    groupPicking=null;
     if(view==='attendance' && v!=='attendance' && attendanceContext && attendanceContext.isDirty && attendanceContext.isDirty()){flash('请先保存本课考勤，再切换页面。');return;}
     if (v === 'admin' && !(CLOUD && CLOUD.profile() && CLOUD.profile().isAdmin)) v = 'score';
     view = v;
@@ -738,11 +739,30 @@ function removeMemberAt(cls, g, j) {
       (compact ? '↺' : '↺ 清零') + '</button>';
   }
 
+  var groupPicking = null;
+  function mountGroupPicker(cls,lesson){
+    if(groupPicking&&(groupPicking.classId!==cls.id||groupPicking.lessonId!==lesson.id))groupPicking=null;
+    cls.groups.forEach(function(g){
+      var card=$('[data-card="'+g.no+'"]');if(!card)return;
+      var unlocked=groupPicking&&groupPicking.no===g.no;
+      var lock=document.createElement('button');lock.type='button';lock.className='btn tiny group-pick-lock';lock.textContent=unlocked?'完成分组':'解锁分组';lock.setAttribute('aria-label','第'+g.no+'组'+lock.textContent);
+      var target=scoreLayout==='table'?card.querySelector('.c-no'):card.querySelector('.group-identity');target.appendChild(lock);
+      lock.onclick=function(e){e.stopPropagation();groupPicking=unlocked?null:{classId:cls.id,lessonId:lesson.id,no:g.no};renderGroups(cls,lesson);};
+      if(!unlocked)return;
+      var slot=scoreLayout==='table'?Array.from(card.querySelectorAll('.gname td.c-mem')).find(function(el,i){return !g.members[i]||!g.members[i].name;}):card.querySelector('.gnames');
+      if(!slot){lock.title='本组已满6人，请到名单与分组调整';return;}
+      var box=document.createElement('div');box.className='group-pick-box';box.innerHTML='<button type="button" class="btn tiny" data-pick-add aria-label="第'+g.no+'组新增成员">＋</button><div data-pick-editor hidden><input type="search" autocomplete="off" aria-label="第'+g.no+'组检索学号" placeholder="学号或后两位"><div class="group-pick-results" role="list"></div><button type="button" class="btn tiny" data-pick-exit>退出选人</button></div>';slot.appendChild(box);
+      var editor=box.querySelector('[data-pick-editor]'),input=box.querySelector('input'),results=box.querySelector('.group-pick-results');
+      function matches(){var query=input.value.trim().toLowerCase(),pending=pendingList(cls),list=pending.filter(function(r){return !query||String(r.sid||'').includes(query)||r.name.toLowerCase().includes(query);});results.innerHTML='';if(!list.length){results.textContent='没有匹配的待分配成员';return;}list.forEach(function(r){var button=document.createElement('button');button.type='button';button.className='btn tiny';button.textContent=r.name+' '+(r.sid||'');button.setAttribute('data-pick-sid',r.sid||'');button.onclick=function(e){e.stopPropagation();if(!groupPicking||groupPicking.no!==g.no||curClass().id!==cls.id)return;if(memberCount(g)>=GROUP_CAP){flash('本组已满6人');return;}if(!pendingList(cls).some(function(p){return p===r;})){matches();return;}pushMember(g,{id:uid('m'),name:r.name,sid:r.sid||'',no:studentNo(cls,r.name,r.sid)});addOperationLog('分组',cls.name+' · '+r.name+'加入第'+g.no+'组');save();renderScore();renderPoolBanner(cls);flash('已加入第'+g.no+'组，分组已全局同步');};results.appendChild(button);});}
+      box.onclick=function(e){e.stopPropagation();};box.querySelector('[data-pick-add]').onclick=function(){editor.hidden=false;this.hidden=true;matches();input.focus();};input.oninput=matches;box.querySelector('[data-pick-exit]').onclick=function(){groupPicking=null;renderGroups(cls,lesson);};
+    });
+  }
   function renderGroups(cls, lesson) {
     var host = $('#groupList');
     host.innerHTML = scoreLayout === 'table'
       ? groupsTable(cls, lesson)
       : groupsCards(cls, lesson);
+    mountGroupPicker(cls,lesson);
   }
 
   function groupsCards(cls, lesson) {
