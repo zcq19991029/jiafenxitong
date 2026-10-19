@@ -79,6 +79,7 @@ q(a, '#dlgLesson').returnValue = 'ok';
 q(a, '#dlgLesson').dispatchEvent(new a.window.Event('close'));
 q(a, '#dlgLesson').removeAttribute('open');
 check('a real new-lesson UI action creates a lesson', state(a).lessons.length === 1);
+check('new lesson groups all begin with five points',Object.values(state(a).lessons[0].scores).every(s=>s.group===5));for(const g of state(a).classes[0].groups)for(let i=0;i<5;i++)q(a,'[data-card="'+g.no+'"] button[data-f="group"][data-act="d"]').click();
 const add = dom => q(dom, '[data-card="1"] button[data-f="group"][data-act="i"]').click();
 for (let i = 0; i < 3; i++) add(a);
 check('group scoring updates immediately', text(a, '[data-total="1"]') === '+3');

@@ -64,6 +64,8 @@ w.document.querySelector('#tabs [data-view="score"]').click();
 q('#btnNewLesson').click();
 for (const [key, value] of Object.entries({ nlSeq: '1', nlDate: '2026-10-17', nlTopic: '同站验收', nlDuty: '1' })) q('#' + key).value = value;
 q('#dlgLesson').returnValue = 'ok'; q('#dlgLesson').dispatchEvent(new w.Event('close'));
+check('new lesson grants every group five initial project points',JSON.parse(w.localStorage.getItem('jfdt.v1')).classes[0].groups.every(g=>JSON.parse(w.localStorage.getItem('jfdt.v1')).lessons[0].scores[String(g.no)].group===5));
+for(let i=0;i<5;i++)q('[data-card="1"] button[data-f="group"][data-act="d"]').click();
 q('[data-card="1"] button[data-f="group"][data-act="i"]').click();
 await w.JFDT_CLOUD.flush();
 check('same-origin score edits are saved in D1', (await (await site.fetch(new Request(origin + '/api/state', { headers: { Authorization: 'Bearer ' + admin.token } }), env)).json()).data.lessons[0].scores['1'].group === 1);

@@ -1999,6 +1999,7 @@ function removeMemberAt(cls, g, j) {
       dutyGroup: isNaN(duty) ? null : duty, dutyGroups:Array.from(new Set(duties)),
       scores: {}
     };
+    cls.groups.forEach(function(g){l.scores[String(g.no)]={first:0,group:5,phone:0,duty:0,personal:{}};});
     S.lessons.push(l);
     S.ui.lessonId = l.id;
     save();
