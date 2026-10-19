@@ -1408,3 +1408,5 @@ table.sheet th.c-phone{word-break:keep-all;overflow-wrap:normal;line-height:1.45
 
 /* Shared original project score is retained only for compatibility. */
 table.sheet col.w-grp,table.sheet th.c-grp,table.sheet td.c-grp,#printArea col.w-grp,#printArea th.c-grp,#printArea td.c-grp{display:none!important}.gctl>div:has(.legacy-group-control){display:none!important}.legacy-group-total[hidden]{display:none!important}.c-sum [data-member-lesson-totals]{min-width:65px}.c-sum .home-grade-person{min-height:34px}
+
+#dlgSpecialRecords{width:min(760px,calc(100vw - 24px));max-height:90dvh;overflow:auto}.special-members{display:grid;grid-template-columns:repeat(auto-fit,minmax(180px,1fr));max-height:220px;overflow:auto;border:1px solid var(--line);padding:10px;gap:8px}.special-members label{display:flex;gap:6px;align-items:center}.special-members label[hidden]{display:none}.special-history article{padding:12px 0;border-top:1px solid var(--line)}.special-history p{margin:5px 0}

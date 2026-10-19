@@ -48,6 +48,8 @@ function validateState(data) {
   const validId = x => typeof x === 'string' && /^[a-zA-Z0-9_-]{1,100}$/.test(x);
   const ids = new Set();
   for (const cls of data.classes) {
+    for(const field of ['specialRecords','specialRecordsTrash'])if(cls[field]!==undefined){if(!Array.isArray(cls[field])||cls[field].length>10000)fail(400,'特殊表现记录数量不正确。');for(const r of cls[field])if(!r||typeof r.id!=='string'||r.id.length>100||!/^\d{4}-\d{2}-\d{2}$/.test(r.date)||!Number.isFinite(r.points)||r.points<=0||r.points>1000||typeof r.reason!=='string'||!r.reason.trim()||r.reason.length>300||!Array.isArray(r.members)||!r.members.length||r.members.length>1000||r.members.some(m=>!m||typeof m.key!=='string'||m.key.length>200||typeof m.name!=='string'||m.name.length>100||typeof m.sid!=='string'||m.sid.length>100)||new Set(r.members.map(m=>m.key)).size!==r.members.length)fail(400,'特殊表现记录内容不正确。');}
+
     if (!validId(cls.id) || ids.has(cls.id) || !text(cls.name) || !Array.isArray(cls.groups)
         || !Array.isArray(cls.roster) || cls.groups.length > 100 || cls.roster.length > 1000) fail(400, '班级数据格式不正确。');
     ids.add(cls.id);
