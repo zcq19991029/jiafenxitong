@@ -705,8 +705,9 @@ function removeMemberAt(cls, g, j) {
     return '';
   }
 
+  function lessonMemberTotals(cls,lesson,g){var s=sc(lesson,g.no),net=window.JFDT_ASSESSMENT.groupNet(lesson,g.no,lessonsOf(cls.id)),base=Math.max(0,Math.min(5,(+s.group||0)+(s.first?1:0))-(+s.phone||0)),duty=net-base;return '<div data-member-lesson-totals="'+g.no+'">'+g.members.map(function(m,i){if(!m.name)return '';var value=Math.round((remaining(lesson,g.no,i)+projectScore(lesson,g.no,m)+duty)*100)/100;return '<div class="home-grade-person" data-lesson-member="'+i+'"><span class="home-grade-name">'+(i+1)+'</span><strong>'+value+'</strong></div>';}).join('')+'</div>';}
   function ctlSum(gno, total, cumVal) {
-    return '<div class="v '+signClass(total)+'" data-total="'+gno+'">'+fmt(total)+'</div>';
+    return '<div hidden class="legacy-group-total v '+signClass(total)+'" data-total="'+gno+'">'+fmt(total)+'</div>'+lessonMemberTotals(curClass(),curLesson(curClass()),groupOf(curClass(),gno));
 
   }
 
@@ -781,7 +782,7 @@ function removeMemberAt(cls, g, j) {
         '<div class="gcard-secondary"><span class="card-feedback-space" aria-hidden="true"></span>' + ctlClear(g.no, false) + '</div>' +
         '<div class="gctl">' +
           '<div>' +
-            '<div class="lbl">小组分 0-5</div>' +
+            '<div class="lbl legacy-group-control">小组项目原分</div>' +
             ctlStep(g.no, 'group', s, maxOf('group', maxPhone), '小组分') +
           '</div>' +
           '<div>' +
@@ -886,7 +887,7 @@ function removeMemberAt(cls, g, j) {
     var t = groupTotal(lesson, gno);
     var v = $('[data-total="' + gno + '"]', card);
     v.textContent = fmt(t);
-    v.className = 'v ' + signClass(t);var gradeCells=$$('[data-home-grade]',card);if(gradeCells.length){var holder=document.createElement('tr');holder.innerHTML=homeGradeCells(cls,groupOf(cls,gno));gradeCells.forEach(function(cell,i){cell.innerHTML=holder.children[i].innerHTML;});}
+    v.className = 'legacy-group-total v ' + signClass(t);var memberTotalsEl=$('[data-member-lesson-totals]',card);if(memberTotalsEl)memberTotalsEl.outerHTML=lessonMemberTotals(cls,lesson,groupOf(cls,gno));var gradeCells=$$('[data-home-grade]',card);if(gradeCells.length){var holder=document.createElement('tr');holder.innerHTML=homeGradeCells(cls,groupOf(cls,gno));gradeCells.forEach(function(cell,i){cell.innerHTML=holder.children[i].innerHTML;});}
     
     var totals=memberTotals(cls);
     $$('[data-semester-group]',card).forEach(function(el){var member=cls.groups.find(function(g){return g.no===gno;}).members[+el.dataset.semesterIndex];var total=totals.find(function(m){return m.gno===gno && m.name===member.name && m.sid===member.sid;});el.querySelector('b').textContent=fmt(total?total.total:0);});
@@ -1805,7 +1806,7 @@ function removeMemberAt(cls, g, j) {
           '<td class="c-grp" rowspan="2">' + (+s.group || '') + '</td>' +
           '<td class="c-duty" rowspan="2">' + (+s.duty || '') + (s.dutyParticipation?'<br><small>'+s.dutyParticipation.present+'/'+s.dutyParticipation.expected+'人</small>':'') + '</td>' +
           '<td class="c-sum" rowspan="2">' +
-            (touched(lesson, g.no) ? fmt(groupTotal(lesson, g.no)) : '') + '</td>'+homeGradeCells(cls,g) +
+            lessonMemberTotals(cls,lesson,g) + '</td>'+homeGradeCells(cls,g) +
         '</tr>' +
         '<tr class="gded">' + deds + '</tr>' +
       '</tbody>';
