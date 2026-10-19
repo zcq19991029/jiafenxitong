@@ -28,9 +28,10 @@ function page(storage = {}) {
   w.JFDT_CONFIG = { apiBase: 'https://api.example.test' };
   w.SEED_DATA = structuredClone(seed);
   Object.entries(storage).forEach(([key, value]) => w.localStorage.setItem(key, value));
-  const network = { offline: false, writes: 0, hold: null, alerts: [] };
+  const network = { offline: false, writes: 0, hold: null, holdGet:null, alerts: [] };
   w.fetch = async (url, options) => {
     if (network.offline) throw new TypeError('Failed to fetch');
+    if((!options.method||options.method==='GET')&&String(url).endsWith('/api/state')&&network.holdGet){const wait=network.holdGet;network.holdGet=null;await wait;}
     if (options.method === 'PUT' && String(url).endsWith('/api/state')) {
       network.writes++;
       if (network.hold) { const wait = network.hold; network.hold = null; await wait; }
@@ -302,6 +303,7 @@ await b.window.JFDT_CLOUD.flush();
 await assert.rejects(a.window.JFDT_CLOUD.flush());
 check('concurrent device edits show a conflict instead of overwriting', a.window.JFDT_CLOUD.status().mode === 'conflict');
 check('conflicting local edits are retained', state(a).lessons[0].scores['1'].group === 4);
+check('conflict pauses classroom editing without hiding backups',q(a,'#view-score').hasAttribute('inert')&&!q(a,'#syncEditGate').hidden&&!q(a,'#btnBackup').disabled);
 check('conflict chip is a concise actionable entry',text(a,'#cloudChip')==='同步冲突 · 点击处理'&&q(a,'#cloudChip').getAttribute('role')==='button');
 q(a,'#cloudChip').click();
 check('full conflict message appears in a separate readable dialog',q(a,'#dlgSyncConflict').open&&text(a,'#dlgSyncConflict').includes('暂停上传')&&q(a,'#backupConflictLocal')&&q(a,'#openSyncConflictTools'));
@@ -327,10 +329,12 @@ check('editing during upload sends a second immutable snapshot', a.network.write
 a.network.offline = true;
 add(a); await assert.rejects(a.window.JFDT_CLOUD.flush());
 check('network failure leaves scores in browser storage', state(a).lessons[0].scores['1'].group === 5 && a.window.JFDT_CLOUD.status().mode === 'offline');
+check('network failure locks edits instead of offering offline grading',q(a,'#view-score').hasAttribute('inert')&&!q(a,'#syncEditGate').hidden);
 a.network.offline = false;
 a.window.dispatchEvent(new a.window.Event('online'));
 await until(() => a.window.JFDT_CLOUD.status().mode === 'ok');
 check('restoring the network retries the pending score', (await api(env, '/api/state', 'GET', undefined, admin.token)).data.data.lessons[0].scores['1'].group === 5);
+check('successful cloud confirmation reopens editing',!q(a,'#view-score').hasAttribute('inert')&&q(a,'#syncEditGate').hidden);
 const rosterText = '\uFEFF班级,姓名,学号,小组,班内序号\r\n导入测试班,王五,26000000101,1,1\r\n导入测试班,王五,26000000102,,2\r\n';
 const imported = a.window.JFDT_ROSTER.apply(state(a), a.window.JFDT_ROSTER.parse(rosterText), '示例教师');
 check('CSV keeps same-name students distinct by student identifier', imported.students === 2 && imported.state.classes.at(-1).roster.length === 2);
@@ -405,6 +409,15 @@ const rangeHtml=a.window.JFDT_LEADER_PRINT_HTML({name:'分页测试'}, {seq:1,da
 const parsedRange=new JSDOM(rangeHtml).window.document;
 check('print and Excel source contain exactly two pages and all 13 slips',parsedRange.querySelectorAll('.leader-paper').length===2&&parsedRange.querySelectorAll('.leader-slip').length===13);
 check('requested group 7 starts page two',parsedRange.querySelectorAll('.leader-paper')[1].querySelector('.slip-meta').textContent.includes('第7组'));
+const startupRecord=(await api(env,'/api/state','GET',undefined,admin.token)).data;
+const restartStorage=storage(a),dirtyStartup=structuredClone(startupRecord.data),baseCopy=structuredClone(startupRecord.data);delete baseCopy.updatedAt;
+restartStorage[Object.keys(restartStorage).find(k=>k.startsWith('jfdt.base.v2.'))]=JSON.stringify({revision:startupRecord.revision,updatedAt:startupRecord.data.updatedAt,fingerprint:JSON.stringify(baseCopy)});
+const startupPersonal=dirtyStartup.lessons[0].scores['1'].personal;startupPersonal['0']=(startupPersonal['0']||0)+1;dirtyStartup.updatedAt='2099-01-01T00:00:00Z';dirtyStartup.ui=state(a).ui;restartStorage['jfdt.v1']=JSON.stringify(dirtyStartup);
+const remoteStartup=structuredClone(startupRecord.data);remoteStartup.lessons[0].scores['1'].personal['1']=(remoteStartup.lessons[0].scores['1'].personal['1']||0)+1;
+await api(env,'/api/state','PUT',{baseRevision:startupRecord.revision,data:remoteStartup},admin.token);
+const mergedRestart=page(restartStorage);await until(()=>q(mergedRestart,'#gate').hidden);await mergedRestart.window.JFDT_CLOUD.flush();
+check('restart automatically reconciles unrelated saved local and cloud edits',mergedRestart.window.JFDT_CLOUD.status().mode==='ok'&&state(mergedRestart).lessons[0].scores['1'].personal['0']===startupPersonal['0']&&state(mergedRestart).lessons[0].scores['1'].personal['1']===remoteStartup.lessons[0].scores['1'].personal['1']);
+let releaseCheck;mergedRestart.network.holdGet=new Promise(r=>releaseCheck=r);mergedRestart.window.dispatchEvent(new mergedRestart.window.Event('blur'));check('leaving device immediately pauses editing',q(mergedRestart,'#view-score').hasAttribute('inert'));mergedRestart.window.dispatchEvent(new mergedRestart.window.Event('focus'));check('returning device stays locked until cloud reply',q(mergedRestart,'#view-score').hasAttribute('inert'));releaseCheck();await until(()=>mergedRestart.window.JFDT_CLOUD.status().mode==='ok'&&!q(mergedRestart,'#view-score').hasAttribute('inert'));check('latest cloud confirmation unlocks returned device',!q(mergedRestart,'#view-score').hasAttribute('inert'));
 if(errors.length)console.log(errors);check('no unexpected frontend exceptions', errors.length === 0);
 doms.forEach(dom => dom.window.close()); env.sqlite.close();
 console.log(`Frontend and Worker integration: ${passed} passed, 0 failed`);

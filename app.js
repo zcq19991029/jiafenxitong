@@ -354,7 +354,11 @@ function removeMemberAt(cls, g, j) {
   function applyEffect(op,effect,direction){var l=getLesson(op.lessonId),cls=getClass(l.classId),g=groupOf(cls,op.gno),scored=sc(l,op.gno),actual=[];effect.forEach(function(e){var old,next;if(e.path.startsWith('point:')){var i=e.path.slice(6),values=g.members.map(function(_,j){return remaining(l,g.no,j);});var base=Math.min(5,(+scored.group||0)+(scored.first?1:0));old=values[+i];next=Math.max(0,Math.min(base,old+direction*e.delta));scored.phone=0;scored.group=base;scored.first=0;g.members.forEach(function(_,j){scored.personal[String(j)]=base-(String(j)===i?next:values[j]);});}else if(e.path.startsWith('personal:')){var i=e.path.slice(9);old=+scored.personal[i]||0;next=Math.max(0,Math.min(5,old+direction*e.delta));scored.personal[i]=next;}else{old=+scored[e.path]||0;next=Math.max(0,Math.min(e.path==='phone'?1000000:5,old+direction*e.delta));scored[e.path]=next;if(e.path==='duty'){var meta=direction<0?op.oldDutyMeta:op.neuDutyMeta,target=direction<0?op.old:op.neu;if(meta&&Math.abs(next-target)<1e-8)scored.dutyParticipation=JSON.parse(JSON.stringify(meta));else delete scored.dutyParticipation;}}if(next!==old)actual.push({path:e.path,delta:next-old});});return actual;}
   function pushUndo(op) {
     if (!S.undo) S.undo = [];
+    op.id=op.id||uid('op');
     op.effect=operationEffect(op);
+    var auditLesson=getLesson(op.lessonId),auditClass=auditLesson&&getClass(auditLesson.classId),auditGroup=auditClass&&groupOf(auditClass,op.gno);
+    if(auditGroup){var totals=memberTotals(auditClass),effects=op.effect,points=effects.filter(function(e){return /^(point:|personal:)/.test(e.path);}),targets=(points.length?points.map(function(e){return +e.path.split(':')[1];}):auditGroup.members.map(function(_,i){return i;})).filter(function(i,p,a){return a.indexOf(i)===p&&auditGroup.members[i]&&auditGroup.members[i].name;});var deltas=targets.map(function(i){return effects.reduce(function(sum,e){return sum+(e.path==='point:'+i?e.delta:e.path==='personal:'+i?-e.delta:['group','first','duty'].includes(e.path)?e.delta:e.path==='phone'?-e.delta:0);},0);});op.audit={source:op.f==='duty'?'值日人数':'上课记分',lesson:auditClass.name+' · 第'+auditLesson.seq+'次课 · '+auditLesson.date+' · '+(auditLesson.topic||''),student:targets.length===1?auditGroup.members[targets[0]].name:'第'+op.gno+'组 · '+targets.map(function(i){return auditGroup.members[i].name;}).join('、'),sid:targets.length===1?auditGroup.members[targets[0]].sid||'':'全组操作',delta:deltas.length&&deltas.every(function(d){return d===deltas[0];})?(deltas[0]>0?'+':'')+deltas[0]+(targets.length>1?'/人':''):'—',after:targets.map(function(i){var m=auditGroup.members[i],row=totals.find(function(t){return m.sid?t.sid===m.sid:t.gno===op.gno&&t.name===m.name;});return row?row.total:'—';}).join(' / ')};}
+
     op.at = new Date().toISOString();
     addOperationLog('记分', undoLabel(reverseOp(op)));
     var opposite=-1;for(var oi=S.undo.length-1;oi>=0&&op.f!=='group'&&(+sc(getLesson(op.lessonId),op.gno).group===5);oi--){var previous=S.undo[oi];if(previous.lessonId===op.lessonId&&previous.gno===op.gno&&operationEffect(previous).some(function(e){return op.effect.some(function(x){return e.path===x.path;});})){if(inverseEffects(operationEffect(previous),op.effect))opposite=oi;break;}}
@@ -393,7 +397,7 @@ function removeMemberAt(cls, g, j) {
 
   function addOperationLog(kind, detail) {
     if (!S.operationLog) S.operationLog=[];
-    S.operationLog.push({at:new Date().toISOString(),kind:kind,detail:detail});
+    S.operationLog.push({id:uid('log'),at:new Date().toISOString(),kind:kind,detail:detail});
     if(S.operationLog.length>500) S.operationLog.splice(0,S.operationLog.length-500);
   }
   function canUndoAt(index) {
@@ -404,12 +408,13 @@ function removeMemberAt(cls, g, j) {
     var list=$('#operationLogList'); if(!list) return;
     var classFilter=$('#logClassFilter'),savedClass=classFilter.value,search=$('#logSearch').value.trim().toLowerCase();
     classFilter.innerHTML='<option value="">全部班级</option>'+S.classes.map(function(c){return '<option value="'+esc(c.id)+'">'+esc(c.name)+'</option>';}).join('');classFilter.value=savedClass;
-    function matches(op){var lesson=getLesson(op.lessonId);return (!classFilter.value||lesson&&lesson.classId===classFilter.value)&&(!search||undoLabel(op).toLowerCase().includes(search));}
-    function when(at){return at?new Date(at).toLocaleString('zh-CN',{timeZone:'Asia/Shanghai',month:'2-digit',day:'2-digit',hour:'2-digit',minute:'2-digit',second:'2-digit',hour12:false}):'历史记录';}
-    function row(op,index,restored){var lesson=getLesson(op.lessonId),cls=lesson&&getClass(lesson.classId),allowed=restored||canUndoAt(index),label=undoLabel(reverseOp(op));if(cls)label=label.replace(cls.name+' · 第'+lesson.seq+'次课 · ','');return '<article class="operation-row"><div class="log-time">'+esc(when(op.at))+'</div><div class="log-change"><small>'+esc(cls?cls.name:'历史班级')+' · '+(lesson?'第'+lesson.seq+'次课':'历史课次')+'</small><div>'+esc(label)+'</div></div><button class="btn '+(restored?'log-restore':'log-undo')+'" '+(restored?'data-redo-index':'data-undo-index')+'="'+index+'" '+(!allowed?'disabled':'')+' title="'+(allowed?(restored?'恢复此项实际效果':'仅撤销此项实际效果'):'当前记录已无法撤销')+'">'+(restored?'↷ 恢复':'↶ 撤销')+'</button></article>';}
+    function matches(op){var lesson=getLesson(op.lessonId);return (!classFilter.value||lesson&&lesson.classId===classFilter.value)&&(!search||(undoLabel(op)+' '+JSON.stringify(op.audit||{})).toLowerCase().includes(search));}
+    function when(at){return at?new Date(at).toLocaleString('zh-CN',{timeZone:'Asia/Shanghai',year:'numeric',month:'2-digit',day:'2-digit',hour:'2-digit',minute:'2-digit',second:'2-digit',hour12:false}):'历史记录';}
+    function row(op,index,restored){var lesson=getLesson(op.lessonId),cls=lesson&&getClass(lesson.classId),allowed=restored||canUndoAt(index),meta=op.audit||{},label=undoLabel(reverseOp(op)),title=meta.lesson||(cls?cls.name+' · 第'+lesson.seq+'次课 · '+(lesson.date||'')+' · '+(lesson.topic||''):'历史课次');return '<tr class="operation-row"><td title="'+esc(when(op.at))+'">'+esc(when(op.at))+'</td><td>'+esc(meta.source||'课堂记分')+'</td><td title="'+esc(title+'；'+label)+'">'+esc(title)+'</td><td class="log-student" title="'+esc(meta.student||label)+'"><span class="log-no">'+esc(meta.sid||'第'+op.gno+'组')+'</span><b>'+esc(meta.student||op.name||'小组记分')+'</b></td><td class="delta '+(String(meta.delta||'').startsWith('-')?'minus':'plus')+'" title="'+esc(label)+'">'+esc(meta.delta||'—')+'</td><td title="当时的累计原始积分；多人操作按成员顺序排列">'+esc(meta.after||'—')+'</td><td><button class="edit-log-btn '+(restored?'log-restore':'log-undo')+'" '+(restored?'data-redo-index':'data-undo-index')+'="'+index+'" '+(!allowed?'disabled':'')+' title="'+esc((meta.sid==='全组操作'?'整笔全组操作：':'')+(restored?'恢复实际效果':'撤销实际效果'))+'">'+(restored?'恢复':'撤销')+'</button></td></tr>';}
+    function table(rows,restored){return '<div class="bubble-audit-scroll"><table class="bubble-audit-table"><thead class="log-table-head"><tr><th>北京时间</th><th>来源</th><th>课次</th><th>学生</th><th>加减分</th><th>操作后总分</th><th>操作</th></tr></thead><tbody>'+rows.map(function(r){return row(r.op,r.index,restored);}).join('')+'</tbody></table></div>';}
     var pending=(S.undo||[]).map(function(op,i){return {op:op,index:i};}).filter(function(r){return matches(r.op);}).reverse(),redo=(S.redo||[]).map(function(e,i){return {op:e.op,index:i};}).filter(function(r){return matches(r.op);}).reverse();
     var entries=(S.operationLog||[]).slice().reverse().filter(function(e){return (!classFilter.value||(e.detail||'').includes((getClass(classFilter.value)||{}).name))&&(!search||(e.detail||'').toLowerCase().includes(search));});
-    list.innerHTML='<div class="log-section-title">有效记分 <span>'+pending.length+'</span></div>'+(pending.length?'<div class="log-table-head"><span>北京时间</span><span>班级课次 · 变更内容</span><span>操作</span></div>'+pending.map(function(r){return row(r.op,r.index,false);}).join(''):'<div class="log-empty">'+(search||classFilter.value?'没有匹配的记录':'暂无可撤销记分')+'</div>')+'<details class="log-restored"'+(redo.length?' open':'')+'><summary>已撤销，可恢复 <span>'+redo.length+'</span></summary>'+(redo.length?redo.map(function(r){return row(r.op,r.index,true);}).join(''):'<div class="log-empty">暂无已撤销记录</div>')+'</details><details class="log-audit"><summary>完整流水 <span>'+entries.length+'</span></summary>'+entries.map(function(e){return '<article class="operation-row audit-row"><div class="log-time">'+esc(when(e.at))+'</div><div class="log-change"><small>'+esc(e.kind)+'</small><div>'+esc(e.detail)+'</div></div></article>';}).join('')+'</details>';
+    list.innerHTML=(pending.length?table(pending,false):'<div class="log-empty">'+(search||classFilter.value?'没有匹配的记录':'暂无可撤销记分')+'</div>')+'<details class="log-restored"'+(redo.length?' open':'')+'><summary>已撤销，可恢复 <span>'+redo.length+'</span></summary>'+(redo.length?table(redo,true):'<div class="log-empty">暂无已撤销记录</div>')+'</details><details class="log-audit"><summary>完整流水 <span>'+entries.length+'</span></summary>'+entries.map(function(e){return '<article class="audit-row"><small>'+esc(when(e.at))+' · '+esc(e.kind)+'</small><div>'+esc(e.detail)+'</div></article>';}).join('')+'</details>';
     var entry=(S.redo || []).slice(-1)[0];
     $('#redoDetail').textContent=entry ? '下一步重做：'+undoLabel(reverseOp(entry.op)) : '暂无可重做操作';
   }
@@ -2167,13 +2172,18 @@ function removeMemberAt(cls, g, j) {
     });
   });
 
-  var conflictNotice=document.createElement('dialog');conflictNotice.id='dlgSyncConflict';conflictNotice.innerHTML='<div class="dlg"><div class="dlg-head"><h3>两台设备的记录不同</h3><button type="button" class="dlg-x" id="closeSyncConflict" aria-label="关闭同步冲突提示">✕</button></div><div class="dlg-body"><p>本机改动还没有上传，云端也有更新。系统已暂停上传，避免覆盖另一台设备的记录。</p><p class="note">先保存本机备份，再到“数据与备份”核对。分数不同不代表默认规则改变，请不要直接用旧记录覆盖云端。</p><div class="btnrow"><button class="btn" id="backupConflictLocal">下载本机备份</button><button class="btn primary" id="openSyncConflictTools">查看同步处理</button></div></div></div>';document.body.appendChild(conflictNotice);wireDialog(conflictNotice);var conflictNoticeShown=false;
+  var syncEditBlocked=true;
+  function setSyncEditGate(blocked,message){syncEditBlocked=blocked;if(!S)return;['#view-score','#view-leader','#view-attendance','#view-pool','#scoreTools','#rosterCard','#lessonListCard'].forEach(function(selector){var el=$(selector);if(el)el.toggleAttribute('inert',blocked);});['#btnImportRoster','#btnRestore','#btnWipe'].forEach(function(selector){var b=$(selector);if(b)b.disabled=blocked;});var gate=$('#syncEditGate');if(!gate){gate=document.createElement('div');gate.id='syncEditGate';gate.className='sync-edit-gate';gate.setAttribute('role','status');$('#main').prepend(gate);}gate.hidden=!blocked;gate.textContent=message||'正在核对云端，确认后开放编辑';}
+  var conflictNotice=document.createElement('dialog');conflictNotice.id='dlgSyncConflict';conflictNotice.innerHTML='<div class="dlg"><div class="dlg-head"><h3>两台设备的记录不同</h3><button type="button" class="dlg-x" id="closeSyncConflict" aria-label="关闭同步冲突提示">✕</button></div><div class="dlg-body"><p>本机改动还没有上传，云端也有更新。系统已暂停上传，避免覆盖另一台设备的记录。</p><div id="syncConflictDetails"></div><p class="note">先保存本机备份，再到“数据与备份”核对。分数不同不代表默认规则改变，请不要直接用旧记录覆盖云端。</p><div class="btnrow"><button class="btn" id="backupConflictLocal">下载本机备份</button><button class="btn primary" id="openSyncConflictTools">查看同步处理</button></div></div></div>';document.body.appendChild(conflictNotice);wireDialog(conflictNotice);var conflictNoticeShown=false;
   $('#closeSyncConflict').onclick=function(){conflictNotice.close();};$('#backupConflictLocal').onclick=function(){$('#btnBackup').click();};$('#openSyncConflictTools').onclick=function(){conflictNotice.close();switchView('data');$('.sync-row').scrollIntoView({block:'center',behavior:'smooth'});};
   $('#cloudChip').onclick=function(){if(CLOUD&&CLOUD.status().mode==='conflict')openDlg(conflictNotice);};$('#cloudChip').setAttribute('tabindex','0');$('#cloudChip').setAttribute('role','button');$('#cloudChip').onkeydown=function(e){if(e.key==='Enter'||e.key===' '){e.preventDefault();this.click();}};
   function renderCloudStatus(st) {
     st = st || (CLOUD && CLOUD.status()) || { mode: 'idle', text: '' };
     var map = { checking:'saving',ok: 'ok', saving: 'saving', connecting: 'saving', offline: 'offline', error: 'error', conflict: 'error' };
     var cls = map[st.mode] || '';
+    if(st.mode==='conflict'&&S){var conflictNames=(st.conflicts||[]).map(function(path){var parts=path.split('/'),lesson=parts[1]==='lessons'&&getLesson(parts[2]),c=lesson&&getClass(lesson.classId);if(!lesson)return '班级分组、课次或名单同时发生变动';var prefix=c.name+' · 第'+lesson.seq+'次课';if(parts[3]==='scores'){var g=groupOf(c,+parts[4]),m=g&&g.members[+parts[6]];return prefix+' · 第'+parts[4]+'组 · '+(parts[5]==='personal'?(m?m.name:'成员')+'项目分':parts[5]==='duty'||parts[5]==='dutyParticipation'?'值日分':'小组项目分');}if(parts[3]==='leaderScores')return prefix+' · 第'+parts[4]+'组 · 个人项目评分';if(parts[3]==='attendance')return prefix+' · 考勤';return prefix+' · 课次或项目设置';});$('#syncConflictDetails').textContent=Array.from(new Set(conflictNames)).slice(0,6).join('；');}
+
+    if(CLOUD_ON&&S){if(st.mode==='ok')setSyncEditGate(false);else if(['checking','connecting','offline','error','conflict'].includes(st.mode))setSyncEditGate(true,st.mode==='conflict'?'记录存在冲突，请先处理后再编辑':st.mode==='offline'||st.mode==='error'?'同步未完成，已暂停编辑；恢复连接并核对成功后开放':'正在核对云端，确认后开放编辑');}
     var text = st.mode === 'idle' ? '未连接云端' : st.text;
 
     var chip = $('#cloudChip');
@@ -2206,8 +2216,10 @@ function removeMemberAt(cls, g, j) {
 
   /** 云端有更新就拉下来覆盖本机（只在本机没更新时） */
   function editingGrade(){var el=document.activeElement;return !!(el&&el.matches('input,textarea,select')&&!el.disabled&&!el.readOnly);}
-  function refreshCloud() {if(!CLOUD_ON||!CLOUD||!CLOUD.profile())return Promise.resolve(false);if(editingGrade()){renderCloudStatus({mode:'checking',text:'请完成当前输入后核对云端最新版'});return Promise.resolve(false);}return CLOUD.checkLatest(function(){return S;},function(rec){var keep=JSON.parse(JSON.stringify(S.ui||{}));S=migrate(JSON.parse(JSON.stringify(rec.data)));S.ui=Object.assign({},S.ui||{},keep);writeLocal();fillClassSelects();switchView(view);renderUndoBtn();});}
-  window.addEventListener('focus',function(){if(S&&CLOUD_ON)refreshCloud();});document.addEventListener('visibilitychange',function(){if(document.visibilityState==='visible'&&S&&CLOUD_ON)refreshCloud();});setInterval(function(){if(document.visibilityState!=='hidden'&&S&&CLOUD_ON)refreshCloud();},30000);
+  function applyCloudState(data){var keep=JSON.parse(JSON.stringify(S.ui||{}));S=migrate(JSON.parse(JSON.stringify(data)));S.ui=Object.assign({},S.ui||{},keep);writeLocal();fillClassSelects();switchView(view);renderUndoBtn();}
+  function refreshCloud() {if(!CLOUD_ON||!CLOUD||!CLOUD.profile())return Promise.resolve(false);if(editingGrade())return Promise.resolve(false);return CLOUD.checkLatest(function(){return S;},function(rec){applyCloudState(rec.data);}).then(function(verified){if(verified)renderCloudStatus(CLOUD.status());return verified;});}
+  function pauseForDeviceSwitch(){if(S&&CLOUD_ON){if(editingGrade())document.activeElement.blur();setSyncEditGate(true,'切回页面后先核对云端，再开放编辑');}}
+  window.addEventListener('blur',pauseForDeviceSwitch);window.addEventListener('focus',function(){if(S&&CLOUD_ON){if(editingGrade())document.activeElement.blur();refreshCloud();}});document.addEventListener('visibilitychange',function(){if(document.visibilityState==='hidden')pauseForDeviceSwitch();else if(S&&CLOUD_ON){if(editingGrade())document.activeElement.blur();refreshCloud();}});setInterval(function(){if(document.visibilityState!=='hidden'&&S&&CLOUD_ON)refreshCloud();},30000);
   var cloudUiBackup = null;
 
   function renderLocalBanner() {
@@ -2353,8 +2365,10 @@ function removeMemberAt(cls, g, j) {
     var localAt = S.updatedAt ? Date.parse(S.updatedAt) : 0;
     var cloudAt = rec && rec.updated_at ? Date.parse(rec.updated_at) : 0;
     var syncConflict = !!(hadLocalState && CLOUD && CLOUD.hasConflict && CLOUD.hasConflict(rec, S));
+    var mergedOnStart=false;if(syncConflict&&CLOUD.mergeRecord){var merged=CLOUD.mergeRecord(rec,S);if(merged&&!merged.conflicts.length){var keepUi=S.ui;S=migrate(merged.data);S.ui=keepUi;CLOUD.acceptRemote(rec);syncConflict=false;mergedOnStart=true;}}
+    if(CLOUD&&CLOUD.bindState)CLOUD.bindState({get:function(){return S;},apply:applyCloudState,canApply:function(){return !editingGrade();}});
 
-    if (!syncConflict && cloudData && cloudData.classes && (!hadLocalState || cloudAt > localAt)) {
+    if (!syncConflict && !mergedOnStart && cloudData && cloudData.classes && (!hadLocalState || cloudAt > localAt)) {
       S = migrate(JSON.parse(JSON.stringify(cloudData)));   // 云端更新 → 以云端为准
       if (CLOUD.acceptRemote) CLOUD.acceptRemote(rec);
       writeLocal();
@@ -2378,13 +2392,14 @@ function removeMemberAt(cls, g, j) {
       openMe();
     }
     gateHide();
+    setSyncEditGate(true,'正在核对云端，确认后开放编辑');
 
     /* 本机比云端新（含"第一次登录，把本机旧记录搬上云"）→ 推上去 */
-    if (!syncConflict && CLOUD_ON && (!cloudData || (hadLocalState && localAt > cloudAt))) {
+    if (!syncConflict && CLOUD_ON && (mergedOnStart || !cloudData || (hadLocalState && localAt > cloudAt))) {
       CLOUD.touch(function () { return S; });
     }
     renderCloudStatus();
-    if (syncConflict) CLOUD.reportConflict();
+    if (syncConflict) CLOUD.reportConflict(merged&&merged.conflicts);
     renderPoolBanner(curClass());
     switchView('score');
     if(CLOUD_ON)setTimeout(function(){refreshCloud();},0);
@@ -2402,7 +2417,7 @@ function removeMemberAt(cls, g, j) {
   $('#btnShowRegister').addEventListener('click', function () { gateShow('invite'); });
   $('#btnShowLogin').addEventListener('click', function () { gateShow('login'); });
   $('#btnLocalOnly').addEventListener('click', function () {
-    startApp(null, null);   // 明确进入"仅本机"模式，界面上会一直挂着未同步提示
+    gateShow('login','请连接云端并核对成功后记分。',true);
   });
   $('#btnRedeem').addEventListener('click', function () {
     var code = $('#inviteCode').value.trim();
@@ -2500,7 +2515,7 @@ function removeMemberAt(cls, g, j) {
 
   /* 进入应用：有云端就走云端，没有就降级成本机模式（页面顶部会写明） */
   function bootCloud() {
-    if (!CLOUD) { startApp(null, null); return; }
+    if (!CLOUD) { gateShow('login','云端组件未加载，暂停编辑，请刷新重试。',true); return; }
     gateShow('login', '正在连接账号服务…', true);
     CLOUD.boot({
       onReady: function (profile, rec) { renderUserBox(profile); startApp(profile, rec); },
@@ -2509,20 +2524,8 @@ function removeMemberAt(cls, g, j) {
         renderUserBox(null);
         gateShow('login', msg ? ('登录没能完成：' + msg) : null);
       },
-      onOffline: function (why) {
-        offlineWhy = why;
-        if (hasLocalData()) {
-          /* 断网 / CDN 被拦时照常上课，页面顶部会挂着"还没连上云端"的提示条 */
-          startApp(null, null);
-          renderCloudStatus({ mode: 'offline', text: '未连接云端' });
-        } else {
-          document.body.classList.add('gated');
-          renderUserBox(null);
-          $('#offlineWhy').textContent = why;
-          $('#btnLocalOnly').hidden = true;
-          gateShow('offline', null);
-        }
-      }
+      onOffline: function (why) {offlineWhy=why;document.body.classList.add('gated');renderUserBox(null);$('#btnLocalOnly').hidden=true;gateShow('login','无法核对云端，暂停编辑。请恢复连接后刷新重试。本机未上传改动仍保留。',true);}
+
     });
   }
   bootCloud();

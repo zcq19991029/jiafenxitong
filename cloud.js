@@ -6,6 +6,7 @@
   var listeners = [], pendingFn = null, revision = 0, remoteRevision = null;
   var inFlight = null, pushTimer = null, retryTimer = null, lastPushed = 0;
   var syncedAt = null, conflicted = false, syncedFingerprint=null, lastChecked=0, serverTime=null, checking=null;
+  var stateBinding=null, mergeAttempts=0, conflictPaths=[];
   var st = { mode: 'idle', text: '' };
   var apiBase = '';
   try {
@@ -17,7 +18,7 @@
   } catch (e) { apiBase = ''; }
 
   function status(mode, text) {
-    st = { mode: mode, text: text, at: Date.now(), cloudVersion:remoteRevision, checkedAt:lastChecked, serverTime:serverTime, pending:!!pendingFn };
+    st = { mode: mode, text: text, at: Date.now(), cloudVersion:remoteRevision, checkedAt:lastChecked, serverTime:serverTime, pending:!!pendingFn, conflicts:conflictPaths.slice() };
     listeners.forEach(function (cb) { try { cb(st); } catch (e) {} });
   }
   function readSession() {
@@ -36,13 +37,14 @@
   function acceptRemote(rec) {
     if (rec && Number.isInteger(rec.revision)) {
       if(rec.data)syncedFingerprint=fingerprint(rec.data);serverTime=rec.updated_at||rec.data&&rec.data.updatedAt||serverTime;storeRevision(rec.revision, rec.data ? rec.data.updatedAt : null);
-      conflicted = false;
+      conflicted = false;conflictPaths=[];
     }
   }
   function hasConflict(rec, state) {
     return !!(rec && remoteRevision !== null && rec.revision !== remoteRevision && isDirty(state));
   }
-  function reportConflict() {
+  function reportConflict(paths) {
+    if(paths)conflictPaths=paths.slice();
     conflicted = true;
     status('conflict', '同步冲突：本机已保留，请先备份，再选择拉取或覆盖云端');
   }
@@ -77,9 +79,39 @@
       classes: state.classes || [], lessons: state.lessons || [], undo: state.undo || [],
       redo: state.redo || [], operationLog: state.operationLog || [] };
   }
-  function fingerprint(state){var value=payloadOf(state);delete value.updatedAt;return JSON.stringify(value);}
-  function isDirty(state){return syncedFingerprint!==null?fingerprint(state)!==syncedFingerprint:state.updatedAt!==syncedAt;}
-  function checkLatest(getState,applyRemote){if(checking)return checking;if(!profile)return Promise.resolve(false);var started=fingerprint(getState()),startRevision=revision;status('checking','正在核对云端版本…');checking=request('/api/state').then(function(rec){if(revision!==startRevision||fingerprint(getState())!==started){status('saving','本机有新改动，等待同步后核对');return false;}lastChecked=Date.now();serverTime=rec.updated_at||serverTime;if(rec.revision!==remoteRevision){if(isDirty(getState())||pendingFn||inFlight){reportConflict();return false;}if(rec.data&&applyRemote){applyRemote(rec);acceptRemote(rec);}}else if(pendingFn){return flush().then(function(){lastChecked=Date.now();status('ok','已核对最新版 · 云端v'+remoteRevision);return true;});}else if(isDirty(getState())){touch(getState);return flush().then(function(){lastChecked=Date.now();status('ok','已核对最新版 · 云端v'+remoteRevision);return true;});}if(!conflicted)status('ok','已核对最新版 · 云端v'+remoteRevision);return !conflicted;}).catch(function(e){if(e.code==='version_conflict')reportConflict();else status('offline','无法核对云端最新版，本机记录保留');return false;}).finally(function(){checking=null;});return checking;}
+  function copy(value){return value===undefined?undefined:JSON.parse(JSON.stringify(value));}
+  function equal(a,b){return JSON.stringify(a)===JSON.stringify(b);}
+  function normalized(state){var value=copy(payloadOf(state));delete value.updatedAt;(value.lessons||[]).forEach(function(l){Object.values(l.scores||{}).forEach(function(score){Object.keys(score.personal||{}).forEach(function(k){if(score.personal[k]===0)delete score.personal[k];});});});return value;}
+  function fingerprint(state){return JSON.stringify(normalized(state));}
+  function isDirty(state){return syncedFingerprint!==null?fingerprint(state)!==JSON.stringify(normalized(JSON.parse(syncedFingerprint))):state.updatedAt!==syncedAt;}
+  function mergeStates(base,local,remote){
+    var conflicts=[],seenLocal=(local.operationLog||[]).filter(function(op){return op.id&&!((base.operationLog||[]).some(function(b){return b.id===op.id;}));}),alreadyApplied=seenLocal.length>0&&seenLocal.every(function(op){return (remote.operationLog||[]).some(function(r){return r.id===op.id;});});
+    base=normalized(base);local=normalized(local);remote=normalized(remote);
+    function fail(path){conflicts.push(path);}
+    (base.classes||[]).forEach(function(c){var l=(local.classes||[]).find(function(x){return x.id===c.id;}),r=(remote.classes||[]).find(function(x){return x.id===c.id;});if(!l||!r)return;function lessonChanges(state){return (state.lessons||[]).filter(function(x){return x.classId===c.id;});}if((!equal(c.groups,l.groups)&&!equal(lessonChanges(base),lessonChanges(remote)))||(!equal(c.groups,r.groups)&&!equal(lessonChanges(base),lessonChanges(local))))fail('/classes/'+c.id+'/groups');});
+    (base.lessons||[]).forEach(function(b){var l=local.lessons.find(function(x){return x.id===b.id;}),r=remote.lessons.find(function(x){return x.id===b.id;});if(!l||!r)return;var count=function(x){return (x.leaderProjectNames||[]).length;};if((count(l)<count(b)&&!equal(b.leaderScores,r.leaderScores))||(count(r)<count(b)&&!equal(b.leaderScores,l.leaderScores)))fail('/lessons/'+b.id+'/project-columns');});
+    function merge(b,l,r,path){
+      if(equal(l,b))return copy(r);if(equal(r,b))return copy(l);
+      if(path.endsWith('/updatedAt'))return [l,r].filter(Boolean).sort().pop();
+      if(equal(l,r)&&(l===null||typeof l!=='object')){if(!alreadyApplied&&/^\/lessons\/[^/]+\/(scores|leaderScores|attendance)\//.test(path)&&l!==null&&typeof l!=='object')fail(path);return copy(l);}
+      if(l===undefined||r===undefined){fail(path);return copy(l);}
+      if(Array.isArray(l)&&Array.isArray(r)){
+        var field=path.split('/').pop(),history=['undo','redo','operationLog'].includes(field),idField=['classes','lessons','specialRecords','specialRecordsTrash'].includes(field)?'id':field==='groups'?'no':null;
+        if(history||idField){var key=function(v){return history?(v.id||(v.op&&v.op.id)||JSON.stringify(v)):String(v[idField]);},bm=new Map((b||[]).map(function(v){return [key(v),v];})),lm=new Map(l.map(function(v){return [key(v),v];})),rm=new Map(r.map(function(v){return [key(v),v];}));if(lm.size!==l.length||rm.size!==r.length){fail(path);return copy(l);}var out=[];new Set([].concat(Array.from(bm.keys()),Array.from(lm.keys()),Array.from(rm.keys()))).forEach(function(k){var v=merge(bm.get(k),lm.get(k),rm.get(k),path+'/'+k);if(v!==undefined)out.push(v);});if(history){out.sort(function(a,b){return String(a.at||a.op&&a.op.at||'').localeCompare(String(b.at||b.op&&b.op.at||''));});out=out.slice(field==='operationLog'?-500:-60);}return out;}
+        if(field==='members'||field==='roster'){if(!equal(l,r))fail(path);return copy(l);}
+        if((b||[]).length>Math.min(l.length,r.length)){fail(path);return copy(l);}var values=[];for(var i=0;i<Math.max(l.length,r.length);i++)values[i]=merge((b||[])[i],l[i],r[i],path+'/'+i);return values;
+      }
+      if(l&&r&&typeof l==='object'&&typeof r==='object'&&!Array.isArray(l)&&!Array.isArray(r)){var out={};new Set(Object.keys(b||{}).concat(Object.keys(l),Object.keys(r))).forEach(function(k){var v=merge(b&&b[k],l[k],r[k],path+'/'+k);if(v!==undefined)Object.defineProperty(out,k,{value:v,writable:true,enumerable:true,configurable:true});});return out;}
+      fail(path);return copy(l);
+    }
+    var data=merge(base,local,remote,'');
+    var classIds=new Set(data.classes.map(function(c){return c.id;})),lessonKeys=new Set();data.lessons.forEach(function(l){if(!classIds.has(l.classId))fail('/lessons/'+l.id+'/deleted-class');var key=l.classId+':'+l.seq;if(lessonKeys.has(key)&&(base.lessons||[]).filter(function(b){return b.classId===l.classId&&b.seq===l.seq;}).length<2)fail('/lessons/duplicate-sequence/'+key);lessonKeys.add(key);});
+    data.classes.forEach(function(c){var assigned=new Set();c.groups.forEach(function(g){g.members.forEach(function(m){if(!m.name)return;var key=m.sid||m.id||m.name;if(assigned.has(key))fail('/classes/'+c.id+'/duplicate-member/'+key);assigned.add(key);});});});
+    data.updatedAt=new Date().toISOString();return {data:data,conflicts:Array.from(new Set(conflicts))};
+  }
+  function mergeRecord(rec,state){if(!syncedFingerprint||!rec||!rec.data)return null;try{return mergeStates(JSON.parse(syncedFingerprint),state,rec.data);}catch(e){return null;}}
+  function useMerged(rec,state){var merged=mergeRecord(rec,state);if(!merged||merged.conflicts.length){reportConflict(merged&&merged.conflicts);return false;}if(!stateBinding||stateBinding.canApply&&!stateBinding.canApply()){status('saving','等待完成当前输入后合并云端');return false;}stateBinding.apply(merged.data);acceptRemote(rec);pendingFn=stateBinding.get;revision++;conflicted=false;status('saving','已合并不同项目改动，正在同步…');return true;}
+  function checkLatest(getState,applyRemote){if(checking)return checking;if(!profile)return Promise.resolve(false);var started=fingerprint(getState()),startRevision=revision;status('checking','正在核对云端版本…');checking=request('/api/state').then(function(rec){if(revision!==startRevision||fingerprint(getState())!==started){status('saving','本机有新改动，等待同步后核对');return false;}lastChecked=Date.now();serverTime=rec.updated_at||serverTime;if(rec.revision!==remoteRevision){if(inFlight)return inFlight.then(function(){return !conflicted;});if(isDirty(getState())||pendingFn){if(!useMerged(rec,getState()))return false;return flush().then(function(){return true;});}if(rec.data&&applyRemote){applyRemote(rec);acceptRemote(rec);}}else if(pendingFn||isDirty(getState())){if(!pendingFn)touch(getState);return flush().then(function(){return true;});}if(!conflicted)status('ok','已核对最新版 · 云端v'+remoteRevision);return !conflicted;}).catch(function(e){if(e.code==='version_conflict')reportConflict();else status('offline','无法核对云端最新版，暂停编辑并保留本机改动');return false;}).finally(function(){checking=null;});return checking;}
   function pull() {
     return request('/api/state').then(function (record) {
       if (remoteRevision === null) acceptRemote(record);
@@ -93,7 +125,7 @@
     if (conflicted) { reportConflict(); return; }
     status('saving', '正在同步…');
     clearTimeout(pushTimer);
-    pushTimer = setTimeout(function () { flush().catch(function () {}); }, 1200);
+    pushTimer = setTimeout(function () { flush().catch(function () {}); }, 250);
   }
   function flush() {
     clearTimeout(pushTimer);
@@ -108,12 +140,13 @@
         acceptRemote({ revision: result.revision, data: snapshot });
         if (sent === revision) pendingFn = null;
         clearTimeout(retryTimer);
-        lastPushed = Date.now();
+        mergeAttempts=0;lastPushed = Date.now();
         lastChecked=Date.now();status('ok', '已同步到云端 · v'+remoteRevision);
         return result;
       }).catch(function (e) {
         clearTimeout(retryTimer);
         if (e.code === 'version_conflict') {
+          if(mergeAttempts<3&&stateBinding){mergeAttempts++;return request('/api/state').then(function(rec){if(useMerged(rec,stateBinding.get()))return {merged:true};if(!conflicted){mergeAttempts--;retryTimer=setTimeout(function(){flush().catch(function(){});},500);var wait=new Error('等待完成输入后同步');wait.code='merge_deferred';throw wait;}throw e;});}
           reportConflict();
         } else if (e.status) {
           status('error', '同步失败：' + e.message);
@@ -193,7 +226,7 @@
     });
   }
   global.addEventListener('online', function () {
-    if (profile && pendingFn && st.mode !== 'conflict') flush().catch(function () {});
+    if(profile&&st.mode!=='conflict'){if(pendingFn)flush().catch(function(){});else if(stateBinding)checkLatest(stateBinding.get,function(rec){stateBinding.apply(rec.data);});}
   });
   global.JFDT_CLOUD = {
     generation: 2, boot: boot, login: login, register: register, signOut: signOut,
@@ -208,7 +241,7 @@
     },
     resetPassword: function (username, code, password) { return request('/api/auth/reset-password', 'POST', {username:username, code:code, password:password}); },
     available: function () { return ready; }, profile: function () { return profile; },
-    checkLatest:checkLatest,isDirty:isDirty,version:function(){return remoteRevision;},pull: pull, touch: touch, flush: flush, cancelPending: cancelPending, acceptRemote: acceptRemote, forcePush: forcePush,
+    bindState:function(binding){stateBinding=binding;},mergeRecord:mergeRecord,_mergeStates:mergeStates,checkLatest:checkLatest,isDirty:isDirty,version:function(){return remoteRevision;},pull: pull, touch: touch, flush: flush, cancelPending: cancelPending, acceptRemote: acceptRemote, forcePush: forcePush,
     hasConflict: hasConflict, reportConflict: reportConflict,
     status: function () { return st; }, lastPushedAt: function () { return lastPushed; },
     onStatus: function (callback) { listeners.push(callback); callback(st); },
