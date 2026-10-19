@@ -1440,3 +1440,10 @@ table.sheet col.w-grp,table.sheet th.c-grp,table.sheet td.c-grp,#printArea col.w
 .log-audit summary,.log-help summary{font-size:13px;color:var(--muted);cursor:pointer}
 .log-help p{font-size:13px;line-height:1.7;color:var(--muted)}
 @media(max-width:600px){#dlgOperationLog .dlg-body{padding:12px}#operationLogList .operation-row{grid-template-columns:minmax(0,1fr) 68px;gap:4px 8px}.operation-row .log-time{grid-column:1}.operation-row .log-change{grid-column:1}.operation-row button{grid-column:2;grid-row:1/3}.log-table-head{display:none}.log-toolbar label{flex:1}.log-toolbar #btnRedo{margin-left:auto!important}}
+#cloudChip{max-width:100%;white-space:normal;overflow-wrap:anywhere;box-sizing:border-box;line-height:1.5}
+#cloudChip.conflict-action{cursor:pointer;font-weight:650}
+.local-warn{position:relative;z-index:35;white-space:normal;overflow-wrap:anywhere;line-height:1.6;max-width:100%;box-sizing:border-box}
+#dlgSyncConflict{width:min(520px,94vw);padding:0}
+#dlgSyncConflict p{line-height:1.7;overflow-wrap:anywhere}
+#dlgSyncConflict .btnrow{display:flex;flex-wrap:wrap;gap:10px}
+#dlgSyncConflict .btn{flex:1 1 160px;white-space:normal}

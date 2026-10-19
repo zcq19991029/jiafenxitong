@@ -2167,6 +2167,9 @@ function removeMemberAt(cls, g, j) {
     });
   });
 
+  var conflictNotice=document.createElement('dialog');conflictNotice.id='dlgSyncConflict';conflictNotice.innerHTML='<div class="dlg"><div class="dlg-head"><h3>两台设备的记录不同</h3><button type="button" class="dlg-x" id="closeSyncConflict" aria-label="关闭同步冲突提示">✕</button></div><div class="dlg-body"><p>本机改动还没有上传，云端也有更新。系统已暂停上传，避免覆盖另一台设备的记录。</p><p class="note">先保存本机备份，再到“数据与备份”核对。分数不同不代表默认规则改变，请不要直接用旧记录覆盖云端。</p><div class="btnrow"><button class="btn" id="backupConflictLocal">下载本机备份</button><button class="btn primary" id="openSyncConflictTools">查看同步处理</button></div></div></div>';document.body.appendChild(conflictNotice);wireDialog(conflictNotice);var conflictNoticeShown=false;
+  $('#closeSyncConflict').onclick=function(){conflictNotice.close();};$('#backupConflictLocal').onclick=function(){$('#btnBackup').click();};$('#openSyncConflictTools').onclick=function(){conflictNotice.close();switchView('data');$('.sync-row').scrollIntoView({block:'center',behavior:'smooth'});};
+  $('#cloudChip').onclick=function(){if(CLOUD&&CLOUD.status().mode==='conflict')openDlg(conflictNotice);};$('#cloudChip').setAttribute('tabindex','0');$('#cloudChip').setAttribute('role','button');$('#cloudChip').onkeydown=function(e){if(e.key==='Enter'||e.key===' '){e.preventDefault();this.click();}};
   function renderCloudStatus(st) {
     st = st || (CLOUD && CLOUD.status()) || { mode: 'idle', text: '' };
     var map = { checking:'saving',ok: 'ok', saving: 'saving', connecting: 'saving', offline: 'offline', error: 'error', conflict: 'error' };
@@ -2176,6 +2179,7 @@ function removeMemberAt(cls, g, j) {
     var chip = $('#cloudChip');
     chip.className = 'chip ' + cls;
     chip.textContent = text;chip.title='云端版本：'+(st.cloudVersion==null?'未核对':st.cloudVersion)+'；最近核对：'+(st.checkedAt?new Date(st.checkedAt).toLocaleString():'尚未核对')+'；云端保存：'+(st.serverTime?new Date(st.serverTime).toLocaleString():'未知');
+    if(st.mode==='conflict'){chip.textContent='同步冲突 · 点击处理';chip.title=text;chip.classList.add('conflict-action');if(!conflictNoticeShown){conflictNoticeShown=true;setTimeout(function(){if(!document.querySelector('dialog[open]')&&CLOUD.status().mode==='conflict')openDlg(conflictNotice);},0);}}else{chip.classList.remove('conflict-action');if(st.mode==='ok')conflictNoticeShown=false;}
     chip.hidden = false;
 
     var row = $('.sync-row');
