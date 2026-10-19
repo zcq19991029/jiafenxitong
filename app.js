@@ -366,7 +366,7 @@ function removeMemberAt(cls, g, j) {
   function undoLabel(op) {
     var lesson = getLesson(op.lessonId), cls = lesson && getClass(lesson.classId);
     var g = (cls ? cls.name + ' · 第' + lesson.seq + '次课 · ' : '') + '第 ' + op.gno + ' 组';
-    if (op.reset) return g + ' 本节清零';
+    if (op.reset) return g + ' '+(op.label||'本节清零');
     if(op.f==='duty'&&Object.prototype.hasOwnProperty.call(op,'neuDutyMeta'))return g+' 值日 '+dutyLabel(op.neuDutyMeta,op.neu)+' → '+dutyLabel(op.oldDutyMeta,op.old);
     if (op.i != null) {
       return g + ' ' + (op.name || '成员') + ' 个人扣分 ' + op.neu + ' → ' + op.old;
@@ -728,11 +728,14 @@ function removeMemberAt(cls, g, j) {
   }
 
   /** 个人扣分格：点一次 +1；右键 / 长按 −1 */
+  function remaining(lesson,gno,i){var s=sc(lesson,gno);return Math.max(0,Math.min(5,(+s.group||0)+(s.first?1:0))-(+s.phone||0)-(+s.personal[String(i)]||0));}
+  function ctlBatch(gno){return '<button class="btn" data-g="'+gno+'" data-act="batch-deduct">全组 −1</button>';}
   function ctlPersonal(gno, m, i, n, fullName) {
+    n=remaining(curLesson(curClass()),gno,i);
     var attrs = ' data-g="' + gno + '" data-i="' + i + '"';
-    return '<span class="personal-control"><button class="pchip' + (n ? ' hit' : '') + '"' + attrs + ' data-act="p" title="' + esc(m.name) + '：点击扣1分">' +
+    return '<span class="personal-control"><button class="pchip' + (n<5 ? ' hit' : '') + '"' + attrs + ' data-act="p" title="' + esc(m.name) + '：点击扣1分">' +
       (fullName ? '<span class="pname">' + esc(m.name) + '</span>' : '') + '<span class="n">' + n + '</span><span class="deduct-action" aria-hidden="true">−</span></button>' +
-      '<button class="personal-refund"' + attrs + ' data-act="pr" title="' + esc(m.name) + '：返还1分">+</button>' +
+      '<button class="personal-refund"' + attrs + ' data-act="pr" title="' + esc(m.name) + '：恢复项目1分">+</button>' +
       '<button class="personal-reset"' + attrs + ' data-act="pz" title="' + esc(m.name) + '：清空个人扣分">清零</button></span>';
   }
 
@@ -760,7 +763,7 @@ function removeMemberAt(cls, g, j) {
         : '<span style="color:var(--muted);font-weight:400">（未录入名单）</span>';
 
       var personal = cnt
-        ? '<div class="personals"><span class="plabel">个人扣分次数 <small>每次 −1 分</small></span>' +
+        ? '<div class="personals"><span class="plabel">本节小组项目分 <small>0–5分</small></span>' +
           g.members.slice(0, cnt).map(function (m, i) {
             return ctlPersonal(g.no, m, i, +s.personal[String(i)] || 0, true);
           }).join('') + '</div>'
@@ -782,8 +785,8 @@ function removeMemberAt(cls, g, j) {
             ctlStep(g.no, 'group', s, maxOf('group', maxPhone), '小组分') +
           '</div>' +
           '<div>' +
-            '<div class="lbl" title="手机未入袋：增加次数即扣分，每次扣1分">手机扣分次数</div><div class="deduction-note">每次 −1 分</div>' +
-            ctlStep(g.no, 'phone', s, maxPhone, '全组扣分') +
+            '<div class="lbl" title="手机未入袋：增加次数即扣分，每次扣1分">全组扣分</div><div class="deduction-note">每次 −1 分</div>' +
+            ctlBatch(g.no) +
           '</div>' +
           '<div>' +
             '<div class="lbl">值日分</div>' +
@@ -808,7 +811,7 @@ function removeMemberAt(cls, g, j) {
     var head = '<thead>' +
       '<tr>' +
         '<th class="c-no" rowspan="2">组<br>号</th>' +
-        '<th class="c-mem" colspan="' + GROUP_CAP + '">小组成员姓名 / 个人扣分（-1/次）</th>' +
+        '<th class="c-mem" colspan="' + GROUP_CAP + '">小组成员姓名 / 本节项目分（0–5）</th>' +
         '<th class="home-attendance" rowspan="2">考勤分<br>/9</th><th class="c-phone" rowspan="2">全组扣分<br>（每人扣1）</th>' +
         '<th class="c-grp" rowspan="2">全组·小组分<br>(0-5)</th>' +
         '<th class="c-duty" rowspan="2">全组·值日<br>(0-5)</th>' +
@@ -835,7 +838,7 @@ function removeMemberAt(cls, g, j) {
         '<tr class="gname">' +
           '<td class="c-no" rowspan="2">' + g.no + '</td>' +
           names + attendanceCell(cls,lesson,g,false) +
-          '<td class="c-phone" rowspan="2">' + ctlStep(g.no, 'phone', s, maxPhone, '全组扣分') + '</td>' +
+          '<td class="c-phone" rowspan="2">' + ctlBatch(g.no) + '</td>' +
           '<td class="c-grp" rowspan="2">' + ctlStep(g.no, 'group', s, maxOf('group', maxPhone), '小组分') + '</td>' +
           '<td class="c-duty" rowspan="2">' + ctlDuty(g.no,s,cnt) + '</td>' +
           '<td class="c-sum" rowspan="2">' + ctlSum(g.no, groupTotal(lesson, g.no), groupCumThrough(cls, g.no, lesson)) +
@@ -897,8 +900,8 @@ function removeMemberAt(cls, g, j) {
     var tg = $('[data-act="first"]', card);
     if(tg){tg.classList.toggle('on', !!s.first);tg.textContent='✓';tg.setAttribute('aria-pressed',String(!!s.first));}
     $$('.pchip', card).forEach(function (c) {
-      var n = (+s.personal[c.dataset.i] || 0);
-      c.classList.toggle('hit', !!n);
+      var n = remaining(lesson,gno,c.dataset.i);
+      c.classList.toggle('hit', n<5);
       $('.n', c).textContent = n;
     });
   }
@@ -923,6 +926,7 @@ function removeMemberAt(cls, g, j) {
     var gno = +btn.dataset.g;
     var s = sc(lesson, gno);
     var act = btn.dataset.act;
+    if(act==='batch-deduct'){changeMemberPoints(cls,lesson,gno,null,-1);return;}
     if (act === 'pr' || act === 'pz') {
       var chip = btn.parentElement.querySelector('.pchip');
       if (act === 'pr') bumpPersonal(cls, lesson, chip, -1);
@@ -957,11 +961,13 @@ function removeMemberAt(cls, g, j) {
 
   /** 个人扣分走这里，±1 和归零都记录、都可撤销。
       纸质表上「犯几次写几次」，所以不封 5，只封 99 防手滑。 */
+  function changeMemberPoints(cls,lesson,gno,index,delta){var s=sc(lesson,gno),old=JSON.parse(JSON.stringify(s)),g=groupOf(cls,gno),base=Math.min(5,(+s.group||0)+(s.first?1:0)),values=g.members.map(function(_,i){return remaining(lesson,gno,i);});s.phone=0;g.members.forEach(function(m,i){if(!m.name)return;var value=values[i];if(index===null||String(i)===String(index))value=Math.max(0,Math.min(base,value+delta));s.personal[String(i)]=base-value;});if(JSON.stringify(old)===JSON.stringify(s))return;pushUndo({lessonId:lesson.id,gno:gno,reset:true,old:old,label:index===null?'全组项目各扣1分':'成员'+(+index+1)+'项目分调整'});save();refreshCard(cls,lesson,gno);renderMetrics(cls,lesson);}
   function bumpPersonal(cls, lesson, chip, delta) {
     var gno = +chip.dataset.g, i = String(chip.dataset.i);
     var s = sc(lesson, gno);
+    if(+s.phone>0){changeMemberPoints(cls,lesson,gno,i,-delta);return;}
     var old = +s.personal[i] || 0;
-    var neu = clamp(old + delta, 0, 99);
+    var neu = clamp(old + delta, 0, Math.min(5,(+s.group||0)+(s.first?1:0)));
     if (neu === old) return;
     s.personal[i] = neu;
     pushUndo({
@@ -1773,7 +1779,7 @@ function removeMemberAt(cls, g, j) {
 
     var head = '<thead><tr>' +
       '<th class="c-no" rowspan="2">组<br>号</th>' +
-      '<th class="c-mem" colspan="' + GROUP_CAP + '">小组成员姓名 / 个人扣分（-1/次）</th>' +
+      '<th class="c-mem" colspan="' + GROUP_CAP + '">小组成员姓名 / 本节项目分（0–5）</th>' +
       '<th class="home-attendance" rowspan="2">考勤分<br>/9</th><th class="c-phone" rowspan="2">全组扣分<br>（每人扣1）</th>' +
       '<th class="c-grp" rowspan="2">全组·小组分<br>(0-5)</th>' +
       '<th class="c-duty" rowspan="2">全组·值日<br>(0-5)</th>' +
@@ -1788,7 +1794,7 @@ function removeMemberAt(cls, g, j) {
         var m = g.members[i];
         names += '<td class="c-mem'+(m&&m.name?attendanceNameClass(cls,m):'')+'">' +
           ((m && m.name) ? esc(m.name) + ' ' + two(m.no == null ? null : m.no) : '') + '</td>';
-        var dv = +s.personal[String(i)] || 0;
+        var dv = m&&m.name ? remaining(lesson,g.no,i) : 0;
         deds += '<td class="c-ded">' + (dv ? dv : '') + '</td>';
       }
       return '<tbody data-pg="' + g.no + '"' + (isDuty ? ' class="is-duty"' : '') + '>' +
