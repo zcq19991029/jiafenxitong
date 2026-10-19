@@ -277,7 +277,7 @@ check('selected operation can be restored',state(a).lessons[0].scores['1'].group
 q(a,'#closeOperationLog').click();
 q(a,'#btnUndo').click();q(a,'#btnUndo').click();
 q(a,'#tabs button[data-view="leader"]').click();
-q(a,'#leaderPrint').click();q(a,'#leaderPrintScope').value='current';q(a,'#dlgLeaderPrint').returnValue='ok';q(a,'#dlgLeaderPrint').dispatchEvent(new a.window.Event('close'));
+q(a,'#leaderPrint').click();q(a,'#leaderPrintScope').value='current';q(a,'#leaderPrintScope').dispatchEvent(new a.window.Event('change'));q(a,'#dlgLeaderPrint').returnValue='ok';q(a,'#dlgLeaderPrint').dispatchEvent(new a.window.Event('close'));
 check('leader sheet printing includes projects and the subtotal',text(a,'#printArea').includes('协作') && text(a,'#printArea').includes('合计'));
 const invalidLeader=structuredClone(leaderState.data); Object.values(invalidLeader.lessons[0].leaderScores['1'].members)[0][0]=9;
 check('backend rejects invalid individual scores',(await api(env,'/api/state','PUT',{data:invalidLeader,baseRevision:leaderState.revision},admin.token)).status===400);
@@ -390,6 +390,17 @@ const freshSession = resetUi.window.localStorage.getItem('jfdt.session.v2');
 switched.window.localStorage.setItem('jfdt.session.v2', freshSession);
 await assert.rejects(switched.window.JFDT_CLOUD.pull());
 check('expired tab cannot erase a newer login stored by another tab', switched.window.localStorage.getItem('jfdt.session.v2') === freshSession);
+const printGroups=Array.from({length:13},(_,i)=>({no:i+1,members:[]}));
+const rangePages=a.window.JFDT_LEADER_PAGE_RANGES(printGroups,['1-6','7-13']);
+check('explicit page ranges allocate 13 groups as six and seven',rangePages.length===2&&rangePages[0].length===6&&rangePages[1].length===7&&rangePages[1][6].no===13);
+for(const [name,ranges] of Object.entries({duplicate:['1-7','7-13'],missing:['1-6','8-13'],unknown:['1-6','7-14'],reverse:['6-1','7-13'],empty:['','1-13'],overfull:['1-9','10-13']})){
+  assert.throws(()=>a.window.JFDT_LEADER_PAGE_RANGES(printGroups,ranges));check('page ranges reject '+name,true);
+}
+check('noncontiguous group ranges preserve requested page order',a.window.JFDT_LEADER_PAGE_RANGES([{no:1},{no:3},{no:5}],['5,1','3'])[0].map(g=>g.no).join(',')==='5,1');
+const rangeHtml=a.window.JFDT_LEADER_PRINT_HTML({name:'分页测试'}, {seq:1,date:'2026-10-19',leaderProjectNames:['甲','乙']},printGroups,rangePages);
+const parsedRange=new JSDOM(rangeHtml).window.document;
+check('print and Excel source contain exactly two pages and all 13 slips',parsedRange.querySelectorAll('.leader-paper').length===2&&parsedRange.querySelectorAll('.leader-slip').length===13);
+check('requested group 7 starts page two',parsedRange.querySelectorAll('.leader-paper')[1].querySelector('.slip-meta').textContent.includes('第7组'));
 if(errors.length)console.log(errors);check('no unexpected frontend exceptions', errors.length === 0);
 doms.forEach(dom => dom.window.close()); env.sqlite.close();
 console.log(`Frontend and Worker integration: ${passed} passed, 0 failed`);
