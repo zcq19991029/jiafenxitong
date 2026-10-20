@@ -1505,3 +1505,52 @@ table.sheet col.w-grp,table.sheet th.c-grp,table.sheet td.c-grp,#printArea col.w
 @media screen {table.sheet .home-grade-person {grid-template-columns:minmax(0,1fr)}table.sheet .home-grade-person strong {text-align:center}}
 @media screen {table.sheet .home-grade,table.sheet .home-attendance,table.sheet td.c-sum {vertical-align:top}table.sheet td.c-sum {position:relative;padding-bottom:18px}table.sheet td.c-sum .mini {position:absolute;bottom:0;right:0;min-height:16px;padding:0 4px}}
 @media print {#printArea .sheet-tb .home-grade-person {grid-template-columns:minmax(0,1fr)!important}}
+
+/* One canonical member row across the website and printable sheet. */
+@media screen {
+ body.sidebar-layout table.sheet.sheet-vertical,table.sheet.sheet-vertical {width:100%;min-width:1100px!important;height:auto!important;min-height:0!important}
+ table.sheet.sheet-vertical col.w-mem {width:150px}
+ table.sheet.sheet-vertical col.w-project {width:116px}
+ table.sheet.sheet-vertical col.w-attendance {width:76px}
+ table.sheet.sheet-vertical col.w-phone {width:84px}
+ table.sheet.sheet-vertical col.w-duty {width:70px}
+ table.sheet.sheet-vertical col.w-sum {width:84px}
+ table.sheet.sheet-vertical .vertical-member-row td {padding:2px 6px;vertical-align:middle}
+ table.sheet.sheet-vertical td.c-no,table.sheet.sheet-vertical td.c-phone,table.sheet.sheet-vertical td.c-duty {vertical-align:middle}
+ table.sheet.sheet-vertical td.c-sum {position:static;padding:2px 6px}
+ table.sheet.sheet-vertical .personal-control .pchip,table.sheet.sheet-vertical .personal-refund {min-height:28px}
+ table.sheet.sheet-vertical .pchip .n,table.sheet.sheet-vertical .pchip .deduct-action {height:28px}
+ table.sheet.sheet-vertical .attendance-score {min-height:28px}
+ table.sheet.sheet-vertical .home-grade-person {min-height:20px}
+ .sheet-vertical .member-name-cell {font-size:15px;white-space:nowrap!important}
+ .sheet-vertical .member-name-cell small {font:inherit;color:var(--muted)}
+ .sheet-vertical .group-pick-toggle {cursor:pointer}
+ .sheet-vertical .group-pick-toggle>.btn {display:block;margin:5px auto;font-size:11px}
+ .sheet-vertical .group-pick-row td {padding:8px;background:var(--panel-soft)}
+}
+@media (pointer:coarse) {table.sheet.sheet-vertical .personal-control .pchip,table.sheet.sheet-vertical .personal-refund,table.sheet.sheet-vertical .attendance-score {min-height:40px}}
+@media print {
+ #printArea .lesson-duplex-front .sheet-vertical {table-layout:fixed;font-size:var(--print-font,8.5pt)!important}
+ #printArea .lesson-duplex-front .sheet-vertical col.w-no {width:4%!important}
+ #printArea .lesson-duplex-front .sheet-vertical col.w-mem {width:15%!important}
+ #printArea .lesson-duplex-front .sheet-vertical col.w-project {width:9%!important}
+ #printArea .lesson-duplex-front .sheet-vertical col.w-attendance {width:8%!important}
+ #printArea .lesson-duplex-front .sheet-vertical col.w-phone {width:8%!important}
+ #printArea .lesson-duplex-front .sheet-vertical col.w-duty {width:7%!important}
+ #printArea .lesson-duplex-front .sheet-vertical col.w-sum {width:9%!important}
+ #printArea .lesson-duplex-front .sheet-vertical col.w-grade {width:13.333%!important}
+ #printArea .lesson-duplex-front .sheet-vertical td,#printArea .lesson-duplex-front .sheet-vertical th {padding:.35mm .25mm!important;line-height:1.1!important;white-space:normal}
+ #printArea .lesson-duplex-front .sheet-vertical .vertical-member-row {height:var(--print-line,3.5mm)}
+ #printArea .lesson-duplex-front .sheet-vertical .home-grade-person {min-height:0!important;line-height:1.1!important}
+ #printArea .lesson-duplex-front .sheet-vertical .home-grade-person strong,#printArea .lesson-duplex-front .sheet-vertical .home-attendance strong {font-size:var(--print-font,8.5pt)!important}
+ #printArea .lesson-duplex-front .sheet-vertical .completion-rate {display:inline;font-size:.7em!important}
+ #printArea .sheet-vertical .member-name-cell small {font-size:.85em}
+}
+
+/* Each vertical student row has a thin divider; only groups have a strong divider. */
+table.sheet.sheet-vertical tbody + tbody tr:not(:first-child) td {border-top:1px solid var(--xl-line);}
+@media print {#printArea .sheet-tb.sheet-vertical tbody + tbody tr:not(:first-child) td {border-top:.35pt solid #aab3c2;}}
+
+@media print {html:has(.lesson-duplex),body.print-lesson:has(.lesson-duplex) #printArea,body.print-lesson .lesson-duplex {page:leaderPaper!important;} body.print-lesson:has(.lesson-duplex)::before,body.print-lesson:has(.lesson-duplex)::after {display:none!important;}}
+
+@media print {#printArea .sheet-vertical .home-grade-person {display:flex!important;justify-content:center;align-items:center;gap:1mm;white-space:nowrap!important;height:auto!important;} #printArea .sheet-vertical .home-grade-person strong {display:inline!important;} #printArea .sheet-vertical td.home-grade {padding:.1mm .2mm!important;} #printArea .sheet-vertical .vertical-member-row td {height:3.65mm!important;padding:.12mm .2mm!important;font-size:7pt!important;} #printArea .sheet-vertical .vertical-member-row .home-grade-person strong {font-size:7pt!important;} }

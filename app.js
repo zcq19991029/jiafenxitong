@@ -763,9 +763,9 @@ function removeMemberAt(cls, g, j) {
       target.classList.add('group-pick-toggle');target.title=unlocked?'双击组号结束分组编辑':'双击组号编辑分组';target.tabIndex=0;target.setAttribute('aria-label','第'+g.no+'组，'+target.title);
       function toggleGroup(e){e.preventDefault();e.stopPropagation();groupPicking=unlocked?null:{classId:cls.id,lessonId:lesson.id,no:g.no};renderGroups(cls,lesson);}
       target.ondblclick=toggleGroup;target.onkeydown=function(e){if(e.key==='Enter')toggleGroup(e);};
-      if(unlocked){var done=document.createElement('button');done.type='button';done.className='btn tiny';done.textContent='完成';done.onclick=toggleGroup;target.appendChild(done);}
-      if(!unlocked)return;
-      var slot=scoreLayout==='table'?Array.from(card.querySelectorAll('.gname td.c-mem')).find(function(el,i){return !g.members[i]||!g.members[i].name;}):card.querySelector('.gnames');
+      if(unlocked){var done=document.createElement('button');done.type='button';done.className='btn tiny';done.textContent='完成';done.onclick=toggleGroup;target.appendChild(done);if(scoreLayout==='table'){var clear=document.createElement('button');clear.type='button';clear.className='btn tiny';clear.textContent='清零本组';clear.dataset.cleargroup=g.no;target.appendChild(clear);}}
+      if(!unlocked)return;if(memberCount(g)>=GROUP_CAP){var full=card.querySelector('[data-group-picker-slot]');if(full)full.textContent='本组已满7人';return;}
+      var slot=scoreLayout==='table'?card.querySelector('[data-group-picker-slot]'):card.querySelector('.gnames');
       if(!slot){target.title='本组已满7人，请到名单与分组调整';return;}
       var box=document.createElement('div');box.className='group-pick-box';box.innerHTML='<button type="button" class="btn tiny" data-pick-add aria-label="第'+g.no+'组新增成员">＋</button><div data-pick-editor hidden><input type="search" autocomplete="off" aria-label="第'+g.no+'组检索学号" placeholder="学号或后两位"><div class="group-pick-results" role="list"></div><button type="button" class="btn tiny" data-pick-exit>退出选人</button></div>';slot.appendChild(box);
       var editor=box.querySelector('[data-pick-editor]'),input=box.querySelector('input'),results=box.querySelector('.group-pick-results');
@@ -829,59 +829,26 @@ function removeMemberAt(cls, g, j) {
   }
 
   /** 表格式：照着纸质记录表的 12 列版式（组号 + 成员1-6 + 全组四列 + 本节合计） */
-  function groupsTable(cls, lesson) {
-    var GROUP_CAP=Math.max(6,...cls.groups.map(function(g){return memberCount(g)+(groupPicking&&groupPicking.no===g.no&&memberCount(g)<7?1:0);}));
-    var cols = '<col class="w-no">';
-    for (var c = 0; c < GROUP_CAP; c++) cols += '<col class="w-mem">';
-    cols += '<col class="w-attendance"><col class="w-phone"><col class="w-grp">' +
-      '<col class="w-duty"><col class="w-sum"><col class="w-grade"><col class="w-grade"><col class="w-grade">';
-
-    var sub = '';
-    for (var k = 0; k < GROUP_CAP; k++) sub += '<th class="c-mem">成员' + (k + 1) + '</th>';
-
-    var head = '<thead>' +
-      '<tr>' +
-        '<th class="c-no" rowspan="2">组<br>号</th>' +
-        '<th class="c-mem" colspan="' + GROUP_CAP + '">小组成员姓名 / 本节项目分（0–5）</th>' +
-        '<th class="home-attendance" rowspan="2">考勤分<br>/9</th><th class="c-phone" rowspan="2">全组扣分<br>（每人扣1）</th>' +
-        '<th class="c-grp" rowspan="2">全组·小组分<br>(0-5)</th>' +
-        '<th class="c-duty" rowspan="2">值日分</th>' +
-        '<th class="c-sum" rowspan="2">本节<br>合计</th>'+homeGradeHead() +
-      '</tr><tr>' + sub + '</tr>' +
-    '</thead>';
-
-    var body = cls.groups.map(function (g) {
-      var s = sc(lesson, g.no);
-      var duty = dutyGroups(lesson).includes(g.no);
-      var cnt = memberCount(g);
-      var maxPhone = 1000000;
-      var names = '', deds = '';
-
-      for (var i = 0; i < GROUP_CAP; i++) {
-        var m = g.members[i];
-        names += '<td class="c-mem'+(m&&m.name?attendanceNameClass(cls,m):'')+'">' + ((m && m.name)
-          ? esc(m.name) + (m.no == null ? '' : ' ' + two(m.no)) + semesterBadge(cls,g.no,i) : '') + '</td>';
-        deds += '<td class="c-ded">' + (i < cnt ? ctlPersonal(g.no, m, i, +s.personal[String(i)] || 0) : '') + '</td>';
-      }
-
-      return '<tbody class="' + (duty ? 'is-duty ' : '') + (touched(lesson, g.no) ? 'touched' : '') +
-          '" data-card="' + g.no + '">' +
-        '<tr class="gname">' +
-          '<td class="c-no" rowspan="2">' + g.no + '</td>' +
-          names + attendanceCell(cls,lesson,g,false) +
-          '<td class="c-phone" rowspan="2">' + ctlBatch(g.no) + '</td>' +
-          '<td class="c-grp" rowspan="2">' + ctlStep(g.no, 'group', s, maxOf('group', maxPhone), '小组分') + '</td>' +
-          '<td class="c-duty" rowspan="2">' + ctlDuty(g.no,s,cnt) + '</td>' +
-          '<td class="c-sum" rowspan="2">' + ctlSum(g.no, groupTotal(lesson, g.no), groupCumThrough(cls, g.no, lesson)) +
-            ctlClear(g.no, true) + '</td>' + homeGradeCells(cls,g) +
-        '</tr>' +
-        '<tr class="gded">' + deds + '</tr>' +
-      '</tbody>';
+  function verticalColumns(){return '<col class="w-no"><col class="w-mem"><col class="w-project"><col class="w-attendance"><col class="w-phone"><col class="w-duty"><col class="w-sum"><col class="w-grade"><col class="w-grade"><col class="w-grade">';}
+  function verticalHead(){return '<thead><tr><th class="c-no">组号</th><th class="c-mem">成员</th><th class="c-ded">本节项目分</th><th class="home-attendance">考勤分 /9</th><th class="c-phone">全组扣分</th><th class="c-duty">值日分</th><th class="c-sum">本节合计</th><th class="home-grade regular">平时分<br>（至今完成率）</th><th class="home-grade contribution">计入总评 /40</th><th class="home-grade needed">期末至少需考 /100</th></tr></thead>';}
+  function verticalGroup(cls,lesson,g,printing){
+    var A=window.JFDT_ASSESSMENT,grades=A.rows(cls,lessonsOf(cls.id),memberTotals(cls)),scored=sc(lesson,g.no),net=A.groupNet(lesson,g.no,lessonsOf(cls.id)),base=Math.max(0,Math.min(5,(+scored.group||0)+(scored.first?1:0))-(+scored.phone||0)),duty=net-base;
+    var entries=g.members.map(function(m,i){return {m:m,i:i};}).filter(function(x){return !!x.m.name;}),editing=!printing&&groupPicking&&groupPicking.classId===cls.id&&groupPicking.lessonId===lesson.id&&groupPicking.no===g.no;
+    var display=entries.length?entries:[{m:null,i:-1}],span=display.length+(editing?1:0),rows=display.map(function(x,j){var m=x.m,i=x.i,key=m&&A.key(m),grade=m&&grades.find(function(r){return r.key===key;}),total=m?Math.round((remaining(lesson,g.no,i)+projectScore(lesson,g.no,m)+duty)*100)/100:'';
+      var out='<tr class="vertical-member-row"'+(m?' data-member-index="'+i+'" data-member-key="'+esc(key)+'"':'')+'>';
+      if(!j)out+='<td class="c-no" rowspan="'+span+'">'+g.no+'</td>';
+      out+='<td class="c-mem member-name-cell'+(m?attendanceNameClass(cls,m):'')+'" title="'+esc(m?(m.name+' '+(m.sid||'')):'双击组号添加成员')+'">'+(m?esc(m.name)+(m.no==null?'':' <small>'+two(m.no)+'</small>'):'未分配成员')+'</td>';
+      out+='<td class="c-ded">'+(m?(printing?remaining(lesson,g.no,i):ctlPersonal(g.no,m,i,0)):'')+'</td>';
+      out+='<td class="home-attendance">'+(grade?(printing?'<strong>'+grade.attendance+'</strong>':'<button type="button" class="attendance-score" data-attendance-open="'+esc(key)+'" aria-label="'+esc(m.name)+' 考勤'+grade.attendance+'分，点击修改">'+grade.attendance+'</button>'):'')+'</td>';
+      if(!j)out+='<td class="c-phone" rowspan="'+span+'">'+(printing?(scored.phone||''):ctlBatch(g.no))+'</td><td class="c-duty" rowspan="'+span+'">'+(printing?(scored.duty||''):ctlDuty(g.no,scored,entries.length))+'</td>';
+      out+='<td class="c-sum" title="'+esc(m?m.name:'')+'"><div class="home-grade-person" data-member-lesson-totals="'+g.no+'" data-lesson-member="'+i+'"><strong>'+total+'</strong></div></td>';
+      ['regular','contribution','needed'].forEach(function(field){var value=grade?(field==='needed'?(grade.attendanceFailed?'不适用':grade.needed>100?'无法达到':grade.needed):grade[field]):'';out+='<td class="home-grade '+field+'" data-home-grade="'+field+'" title="'+esc(m?m.name:'')+'">'+(grade?'<div class="home-grade-person" data-grade-student="'+esc(key)+'"><strong>'+value+(field==='regular'?' <span class="completion-rate">（'+(grade.task.maximum?Math.round(grade.task.rate*1000)/10+'%':'—')+'）</span>':'')+'</strong>'+(grade.attendanceFailed?'<small>考勤挂科</small>':'')+'</div>':'')+'</td>';});
+      return out+'</tr>';
     }).join('');
-
-    return '<div class="sheetwrap"><table class="sheet" style="--member-columns:'+GROUP_CAP+'">' +
-      '<colgroup>' + cols + '</colgroup>' + head + body + '</table></div>';
+    if(editing)rows+='<tr class="group-pick-row"><td colspan="3" data-group-picker-slot></td><td colspan="4"></td></tr>';
+    return '<tbody '+(printing?'data-pg':'data-card')+'="'+g.no+'" class="'+(dutyGroups(lesson).includes(g.no)?'is-duty ':'')+(touched(lesson,g.no)?'touched':'')+'">'+rows+'</tbody>';
   }
+  function groupsTable(cls,lesson){return '<div class="sheetwrap"><table class="sheet sheet-vertical"><colgroup>'+verticalColumns()+'</colgroup>'+verticalHead()+cls.groups.map(function(g){return verticalGroup(cls,lesson,g,false);}).join('')+'</table></div>';}
 
   function renderMetrics(cls, lesson) {
     var ls = lessonsOf(cls.id);
@@ -911,6 +878,7 @@ function removeMemberAt(cls, g, j) {
   }
 
   function refreshCard(cls, lesson, gno) {
+    if(scoreLayout==='table'){renderGroups(cls,lesson);return;}
     var card = $('[data-card="' + gno + '"]');
     if (!card) return;
     var s = sc(lesson, gno);
@@ -1799,69 +1767,26 @@ function removeMemberAt(cls, g, j) {
     download(cls.name+'_第'+lesson.seq+'次课_可编辑打印版.xlsx',formatted,'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');
   }
   function printLesson(cls, lesson) {
-    var GROUP_CAP=Math.max(6,...cls.groups.map(memberCount));
-    var dg = lesson.dutyGroup ? +lesson.dutyGroup : null;
-
-    var cols = '<col class="w-no">';
-    for (var c = 0; c < GROUP_CAP; c++) cols += '<col class="w-mem">';
-    cols += '<col class="w-attendance"><col class="w-phone"><col class="w-grp">' +
-      '<col class="w-duty"><col class="w-sum"><col class="w-grade"><col class="w-grade"><col class="w-grade">';
-
-    var subHead = '';
-    for (var k = 0; k < GROUP_CAP; k++) subHead += '<th class="c-mem">成员' + (k + 1) + '</th>';
-
-    var head = '<thead><tr>' +
-      '<th class="c-no" rowspan="2">组<br>号</th>' +
-      '<th class="c-mem" colspan="' + GROUP_CAP + '">小组成员姓名 / 本节项目分（0–5）</th>' +
-      '<th class="home-attendance" rowspan="2">考勤分<br>/9</th><th class="c-phone" rowspan="2">全组扣分<br>（每人扣1）</th>' +
-      '<th class="c-grp" rowspan="2">全组·小组分<br>(0-5)</th>' +
-      '<th class="c-duty" rowspan="2">全组·值日<br>(0-5)</th>' +
-      '<th class="c-sum" rowspan="2">本节<br>合计</th>'+homeGradeHead() +
-      '</tr><tr>' + subHead + '</tr></thead>';
-
-    var body = cls.groups.map(function (g) {
-      var s = sc(lesson, g.no);
-      var isDuty = (dg === g.no);
-      var names = '', deds = '';
-      for (var i = 0; i < GROUP_CAP; i++) {
-        var m = g.members[i];
-        names += '<td class="c-mem'+(m&&m.name?attendanceNameClass(cls,m):'')+'">' +
-          ((m && m.name) ? esc(m.name) + ' ' + two(m.no == null ? null : m.no) : '') + '</td>';
-        var dv = m&&m.name ? remaining(lesson,g.no,i) : 0;
-        deds += '<td class="c-ded">' + (dv ? dv : '') + '</td>';
-      }
-      return '<tbody data-pg="' + g.no + '"' + (isDuty ? ' class="is-duty"' : '') + '>' +
-        '<tr class="gname">' +
-          '<td class="c-no' + (isDuty ? ' duty' : '') + '" rowspan="2">' + g.no + '</td>' +
-          names + attendanceCell(cls,lesson,g,true) +
-          '<td class="c-phone" rowspan="2">' + (+s.phone || '') + '</td>' +
-          '<td class="c-grp" rowspan="2">' + (+s.group || '') + '</td>' +
-          '<td class="c-duty" rowspan="2">' + (+s.duty || '') + (s.dutyParticipation?'<br><small>'+s.dutyParticipation.present+'/'+s.dutyParticipation.expected+'人</small>':'') + '</td>' +
-          '<td class="c-sum" rowspan="2">' +
-            lessonMemberTotals(cls,lesson,g) + '</td>'+homeGradeCells(cls,g) +
-        '</tr>' +
-        '<tr class="gded">' + deds + '</tr>' +
-      '</tbody>';
-    }).join('');
-
+    var dg=lesson.dutyGroup?+lesson.dutyGroup:null;
+    var cols=verticalColumns(),head=verticalHead(),body=cls.groups.map(function(g){return verticalGroup(cls,lesson,g,true);}).join('');
     /* 备注行：先写待分组名单（纸质表本来就有），再跟一行各组累计 */
     var pend = pendingList(cls);
     var note = '备注·待分组名单（共' + pend.length + '人）：' +
       (pend.length ? pend.map(function (r) {
         return esc(r.name) + '(' + two(r.no) + ')';
       }).join('、') : '无，全班都已分组');
-    var foot='<tfoot><tr><td class="c-note" colspan="'+(GROUP_CAP+9)+'">'+note+'</td></tr><tr><td class="c-note" colspan="'+(GROUP_CAP+9)+'">右侧三列为本学期当前个人成绩，与排名页相同；按姓名逐行对应。成绩按已登记的项目和考勤计算，考勤挂科时考试目标不适用。打印后不会自动更新。</td></tr></tfoot>';
+    var foot='<tfoot><tr><td class="c-note" colspan="'+10+'">'+note+'</td></tr><tr><td class="c-note" colspan="'+10+'">右侧三列为本学期当前个人成绩，与排名页相同；按姓名逐行对应。成绩按已登记的项目和考勤计算，考勤挂科时考试目标不适用。打印后不会自动更新。</td></tr></tfoot>';
 
     var cfg=window.JFDT_ASSESSMENT.settings(cls);
-    var reverse='<section class="lesson-duplex-page lesson-rules-back"><h1>小组制课堂 · 加分与成绩换算说明</h1><p>'+esc(cls.name)+' · 第'+lesson.seq+'次课 · '+esc(lesson.date||'')+'</p><h2>1. 项目与扣分</h2><p>每新开一课，小组项目满分增加5；每个命名个人项目再增加5。同课任一组修改个人项目名，全班同步。全组扣分从每个人项目得分扣除，个人扣分只扣本人，合计仅扣本课小组项目，最低0，不跨课。</p><h2>2. 值日与成绩换算</h2><p>每课小组项目5分，每个命名个人项目5分；学期值日项目只计一次5分，全班未完成先按0计，重复值日取最高分。全组扣分从每位成员项目分扣除，个人扣分只扣本人，两类扣分合计仅扣本课小组项目，最低0且不跨课。完成率＝项目净得分÷项目满分（换算范围0%–100%）；学习＝91×完成率，考勤＝max(0,9−累计考勤扣分)，平时＝学习＋考勤；计入总评＝学习×40%＋考勤×40%，满分36.4＋3.6＝40。迟到早退每3次折1次旷课，不重复扣分；考勤归零或旷课达到门槛时按教师设置标红挂科。</p><h2>3. 考勤与挂科标记</h2><p>本班默认扣分：迟到'+cfg.late+'、早退'+cfg.early+'、旷课'+cfg.truant+'、请假'+cfg.leave+'；每次可由教师更正。迟到＋早退每'+cfg.lateEarlyConversion+'次折算1次旷课，只用于挂科计数，不重复扣分。实际＋折算旷课合计'+cfg.truantFailure+'次触发标红；当前考勤挂科标记'+(cfg.attendanceFailureEnabled?'开启':'关闭')+'。门槛与开关由教师在二级设置调整，更正后自动重算。</p><h2>4. 期末还需考多少分</h2><p>平时占40%，期末占60%，本班及格线'+cfg.passScore+'。期末需考=max(0,(及格线−平时成绩×0.4)÷0.6)，向上取0.1分。折合列仅显示一位小数，计算使用未提前舍入的数值。超过100表示无法达到；考勤挂科时目标不适用，考试高分不能解除标记。</p><h2>5. 阅读与使用</h2><p>正面三列按成员序号1、2、3…对应，是打印时本学期当前个人成绩，与排名页相同；不是小组平均分。未编辑考勤默认到课，只登记请假、旷课、迟到或早退等异常。资料未齐时供参考。纸上填写不会自动识别，教师需回网页补录；以网页最新记录为准。</p><p class="duplex-note">双面打印：A4竖向，长边翻转；关闭浏览器页眉页脚。每张加分表正面后紧跟这份规则背面。</p></section>';
+    var reverse='<section class="lesson-duplex-page lesson-rules-back"><h1>小组制课堂 · 加分与成绩换算说明</h1><p>'+esc(cls.name)+' · 第'+lesson.seq+'次课 · '+esc(lesson.date||'')+'</p><h2>1. 项目与扣分</h2><p>每新开一课，小组项目满分增加5；每个命名个人项目再增加5。同课任一组修改个人项目名，全班同步。全组扣分从每个人项目得分扣除，个人扣分只扣本人，合计仅扣本课小组项目，最低0，不跨课。</p><h2>2. 值日与成绩换算</h2><p>每课小组项目5分，每个命名个人项目5分；学期值日项目只计一次5分，全班未完成先按0计，重复值日取最高分。全组扣分从每位成员项目分扣除，个人扣分只扣本人，两类扣分合计仅扣本课小组项目，最低0且不跨课。完成率＝项目净得分÷项目满分（换算范围0%–100%）；学习＝91×完成率，考勤＝max(0,9−累计考勤扣分)，平时＝学习＋考勤；计入总评＝学习×40%＋考勤×40%，满分36.4＋3.6＝40。迟到早退每3次折1次旷课，不重复扣分；考勤归零或旷课达到门槛时按教师设置标红挂科。</p><h2>3. 考勤与挂科标记</h2><p>本班默认扣分：迟到'+cfg.late+'、早退'+cfg.early+'、旷课'+cfg.truant+'、请假'+cfg.leave+'；每次可由教师更正。迟到＋早退每'+cfg.lateEarlyConversion+'次折算1次旷课，只用于挂科计数，不重复扣分。实际＋折算旷课合计'+cfg.truantFailure+'次触发标红；当前考勤挂科标记'+(cfg.attendanceFailureEnabled?'开启':'关闭')+'。门槛与开关由教师在二级设置调整，更正后自动重算。</p><h2>4. 期末还需考多少分</h2><p>平时占40%，期末占60%，本班及格线'+cfg.passScore+'。期末需考=max(0,(及格线−平时成绩×0.4)÷0.6)，向上取0.1分。折合列仅显示一位小数，计算使用未提前舍入的数值。超过100表示无法达到；考勤挂科时目标不适用，考试高分不能解除标记。</p><h2>5. 阅读与使用</h2><p>每名学生独占一行，姓名与本节分数、考勤及右侧三列直接对应；右侧为打印时本学期当前个人成绩，与排名页相同，不是小组平均分。未编辑考勤默认到课，只登记请假、旷课、迟到或早退等异常。资料未齐时供参考。纸上填写不会自动识别，教师需回网页补录；以网页最新记录为准。</p><p class="duplex-note">双面打印：A4竖向，长边翻转；关闭浏览器页眉页脚。每张加分表正面后紧跟这份规则背面。</p></section>';
     var groupBodies=body.match(/<tbody[\s\S]*?<\/tbody>/g)||[],pages=[];
-    for(var offset=0;offset<groupBodies.length;offset+=groupBodies.length){pages.push('<section class="lesson-duplex-page lesson-duplex-front"><div class="sheet-title">课堂分组与加分记录表</div><div class="sheet-info">'+esc(cls.name)+' · 第'+lesson.seq+'次 · '+esc(lesson.date||'')+' · '+esc(lesson.topic||'')+'</div><div class="sheet-duty">值日：'+(dg?'第'+dg+'组':'未指定')+' · 第'+(offset/6+1)+'张</div><table class="sheet-tb"><colgroup>'+cols+'</colgroup>'+head+groupBodies.slice(offset,offset+groupBodies.length).join('')+foot+'</table></section>');pages.push(reverse);}
+    for(var offset=0;offset<groupBodies.length;offset+=groupBodies.length){pages.push('<section class="lesson-duplex-page lesson-duplex-front"><div class="sheet-title">课堂分组与加分记录表</div><div class="sheet-info">'+esc(cls.name)+' · 第'+lesson.seq+'次 · '+esc(lesson.date||'')+' · '+esc(lesson.topic||'')+'</div><div class="sheet-duty">值日：'+(dg?'第'+dg+'组':'未指定')+' · 第'+(offset/6+1)+'张</div><table class="sheet-tb sheet-vertical"><colgroup>'+cols+'</colgroup>'+head+groupBodies.slice(offset,offset+groupBodies.length).join('')+foot+'</table></section>');pages.push(reverse);}
     var holder=document.createElement('div');holder.innerHTML=pages.join('');
     if(lessonPrintOptions.range==='front')holder.querySelectorAll('.lesson-rules-back').forEach(function(e){e.remove();});
     if(lessonPrintOptions.range==='rules')holder.querySelectorAll('.lesson-duplex-front').forEach(function(e){e.remove();});
     var style=$('#lessonPageStyle');if(!style){style=document.createElement('style');style.id='lessonPageStyle';document.head.appendChild(style);}
     var landscape=lessonPrintOptions.orientation==='landscape';
-    var printSlots=cls.groups.reduce(function(n,g){return n+Math.max(3,g.members.filter(function(m){return !!m.name;}).length);},0);
+    var printSlots=cls.groups.reduce(function(n,g){return n+Math.max(1,g.members.filter(function(m){return !!m.name;}).length);},0);
     var printLine=Math.min(4,(landscape?118:200)/Math.max(1,printSlots)),printFont=Math.min(10,printLine*2.5);
     style.textContent='@media print{@page{size:A4 '+(landscape?'landscape':'portrait')+';margin:10mm}@page leaderPaper{size:A4 '+(landscape?'landscape':'portrait')+';margin:10mm}.lesson-duplex-page{height:'+(landscape?'178':'264')+'mm!important}.lesson-duplex-front .sheet-tb{top:'+(landscape?'31':'22')+'mm!important;transform:none!important;zoom:'+(landscape?'.65':'.92')+';width:100%!important}.lesson-rules-back{font-size:'+(landscape?'8':'10')+'pt!important}.lesson-rules-back p{font-size:'+(landscape?'8':'10')+'pt!important}.lesson-rules-back h2{margin:2mm 0 1mm!important}}';
     style.textContent+='@media print{.lesson-duplex-front .sheet-tb{top:20mm!important;transform:none!important;zoom:1!important;width:100%!important;--print-font:'+printFont+'pt;--print-line:'+printLine+'mm}}';

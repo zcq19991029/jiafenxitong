@@ -65,17 +65,17 @@ q('#btnNewLesson').click();
 for (const [key, value] of Object.entries({ nlSeq: '1', nlDate: '2026-10-17', nlTopic: '同站验收', nlDuty: '1' })) q('#' + key).value = value;
 q('#dlgLesson').returnValue = 'ok'; q('#dlgLesson').dispatchEvent(new w.Event('close'));
 check('new lesson grants every group five initial project points',JSON.parse(w.localStorage.getItem('jfdt.v1')).classes[0].groups.every(g=>JSON.parse(w.localStorage.getItem('jfdt.v1')).lessons[0].scores[String(g.no)].group===5));
-for(let i=0;i<5;i++)q('[data-card="1"] button[data-f="group"][data-act="d"]').click();
-q('[data-card="1"] button[data-f="group"][data-act="i"]').click();
+for(let i=0;i<5;i++)q('[data-card="1"] [data-act="p"]').click();
+q('[data-card="1"] [data-act="pr"]').click();
 await w.JFDT_CLOUD.flush();
-check('same-origin score edits are saved in D1', (await (await site.fetch(new Request(origin + '/api/state', { headers: { Authorization: 'Bearer ' + admin.token } }), env)).json()).data.lessons[0].scores['1'].group === 1);
+check('same-origin score edits are saved in D1', (await (await site.fetch(new Request(origin + '/api/state', { headers: { Authorization: 'Bearer ' + admin.token } }), env)).json()).data.lessons[0].scores['1'].group === 5 && JSON.parse(w.localStorage.getItem('jfdt.v1')).lessons[0].scores['1'].personal['0']===4);
 const stillPublic = await (await get('/data.js')).text();
 check('classroom sheet contains no semester badges', !q('#groupList .semester-score') && !q('#groupList [data-cum]'));
 check('first-correct column has been removed',!q('[data-act="first"]')&&!q('th.c-first'));
 q('[data-card="1"] [data-duty-open]').click();
 q('#dutyPeopleSelect').value = '1';
 q('#dlgDutyPeople').returnValue = 'cancel'; q('#dlgDutyPeople').dispatchEvent(new w.Event('close'));
-check('canceling participation selection never changes score', q('[data-total="1"]').textContent === '+1');
+check('canceling participation selection never changes score', q('[data-card="1"] .pchip .n').textContent === '1');
 q('[data-card="1"] [data-duty-open]').click();
 q('#dutyPeopleSelect').value = '1';
 q('#dlgDutyPeople').returnValue = 'ok'; q('#dlgDutyPeople').dispatchEvent(new w.Event('close'));
@@ -90,7 +90,7 @@ const editedState=JSON.parse(w.localStorage.getItem('jfdt.v1'));
 check('editing metadata preserves stable lesson identity and every score', editedState.lessons[0].id===dutyState.lessons[0].id && JSON.stringify(editedState.lessons[0].scores)===JSON.stringify(dutyState.lessons[0].scores) && editedState.lessons[0].seq===2 && editedState.lessons[0].date==='2026-10-12' && q('#lessonSel').textContent.includes('2026-10-12'));
 check('home sheet adds three individual grade columns after the lesson total',q('table.sheet thead').textContent.includes('至今完成率')&&q('table.sheet thead').textContent.includes('期末至少需考')&&q('#groupList [data-home-grade="regular"] [data-grade-student]'));
 const homeRegular=q('[data-home-grade="regular"] strong').textContent;
-check('home grades use member positions without repeated names or estimate text', !q('[data-home-grade="regular"] .home-grade-name')&&!!q('.home-attendance-person span') && !q('[data-home-grade="regular"]').textContent.includes('预估'));
+check('home grades use member positions without repeated names or estimate text', !q('[data-home-grade="regular"] .home-grade-name')&&!q('table.sheet .home-attendance-person span')&&!!q('table.sheet .member-name-cell') && !q('[data-home-grade="regular"]').textContent.includes('预估'));
 q('#tabs [data-view="rank"]').click();
 check('home grade uses the identical assessment result as rankings',q('#memberRank td.grade-regular strong').textContent===homeRegular);
 q('#tabs [data-view="score"]').click();q('#btnPrintLesson').click();q('#dlgLessonPrint').returnValue='ok';q('#dlgLessonPrint').dispatchEvent(new w.Event('close'));
@@ -126,7 +126,7 @@ q('#tabs [data-view="score"]').click();
 check('configured failure thresholds mark the student name red without adding another deduction',!!q('#groupList .c-mem.attendance-failed')&&JSON.parse(w.localStorage.getItem('jfdt.v1')).lessons[0].attendance[homeAttKey].loss===2);
 q('#tabs [data-view="attendance"]').click();q('#attendanceFailureEnabled').checked=false;q('#assessmentSettingsForm').dispatchEvent(new w.Event('submit',{cancelable:true}));await w.JFDT_CLOUD.flush();q('#tabs [data-view="score"]').click();
 check('teacher can disable failure marking and the name returns to normal',!q('#groupList .c-mem.attendance-failed'));
-check('participation dialog converts full participation to five and preserves undo metadata', dutyState.lessons[0].scores['1'].duty===5 && dutyState.lessons[0].scores['1'].dutyParticipation.present===1 && dutyState.undo.at(-1).neuDutyMeta.expected===1 && q('[data-total="1"]').textContent==='+6');
+check('participation dialog converts full participation to five and preserves undo metadata', dutyState.lessons[0].scores['1'].duty===5 && dutyState.lessons[0].scores['1'].dutyParticipation.present===1 && dutyState.undo.at(-1).neuDutyMeta.expected===1 && q('[data-card="1"] [data-member-lesson-totals] strong').textContent==='6');
 check('imported students never become public static assets', !stillPublic.includes('测试同名') && !stillPublic.includes('26000000301'));
 const inviteResponse = await site.fetch(new Request(origin+'/api/admin/invites',{method:'POST',headers:{Authorization:'Bearer '+admin.token,'Content-Type':'application/json'},body:JSON.stringify({count:1})}),env);
 const inviteCode = (await inviteResponse.json()).codes[0];
@@ -143,7 +143,7 @@ check('new teacher registration shows only their empty neutral class', tq('#clas
 const teacherState=JSON.parse(tw.localStorage.getItem('jfdt.v1'));
 check('new teacher receives no administrator lessons or students', teacherState.lessons.length===0 && teacherState.classes.every(c=>c.roster.length===0&&c.groups.every(g=>!g.members.length)));
 const existingAdmin=await(await site.fetch(new Request(origin+'/api/state',{headers:{Authorization:'Bearer '+admin.token}}),env)).json();
-check('neutral initialization never changes an existing account', existingAdmin.data.classes[0].roster.length===2 && existingAdmin.data.lessons[0].scores['1'].group===1);
+check('neutral initialization never changes an existing account', existingAdmin.data.classes[0].roster.length===2 && existingAdmin.data.lessons[0].scores['1'].group===5);
 
 // Exercise the actual UI below the learning cap, including all three derived cells.
 q('#tabs [data-view="leader"]').click();
@@ -172,7 +172,7 @@ const zeroPrint=w.JFDT_LEADER_PRINT_HTML(printClass,zeroLesson,printClass.groups
 check('print suppresses explicit zero scores and zero totals',!zeroPrint.includes('>0</td>')&&zeroLesson.leaderScores[1].members['sid:100'][0]===0);
 zeroLesson.scores[1].phone=3;const debtPrint=w.JFDT_LEADER_PRINT_HTML(printClass,zeroLesson,printClass.groups,2);check('printed deductions never consume other project points',!debtPrint.includes('>-3</td>'));
 q('#tabs [data-view="score"]').click();q('#btnEditLesson').click();check('lesson settings allow multiple duty groups',q('#editLessonDuty').multiple);q('#cancelEditLesson').click();
-q('#tabs [data-view="score"]').click();for(let i=0;i<5;i++)q('[data-card="1"] button[data-f="group"][data-act="i"]').click();const memberPoints=()=>Array.from(q('[data-card="1"]').querySelectorAll('.pchip .n')).map(n=>Number(n.textContent));const pointsBefore=memberPoints();q('[data-card="1"] [data-act="batch-deduct"]').click();check('batch button deducts one remaining point for each member',memberPoints().every((v,i)=>v===Math.max(0,pointsBefore[i]-1)));const batchPoints=memberPoints();q('[data-card="1"] [data-act="pr"]').click();check('personal restore after batch restores only self',memberPoints()[0]===Math.min(5,batchPoints[0]+1)&&memberPoints().slice(1).every((v,i)=>v===batchPoints[i+1]));check('deduct and restore cancel without redundant progress',JSON.stringify(memberPoints())===JSON.stringify(pointsBefore));
+q('#tabs [data-view="score"]').click();for(let i=0;i<5;i++)q('[data-card="1"] [data-act="pr"]').click();const memberPoints=()=>Array.from(q('[data-card="1"]').querySelectorAll('.pchip .n')).map(n=>Number(n.textContent));const pointsBefore=memberPoints();q('[data-card="1"] [data-act="batch-deduct"]').click();check('batch button deducts one remaining point for each member',memberPoints().every((v,i)=>v===Math.max(0,pointsBefore[i]-1)));const batchPoints=memberPoints();q('[data-card="1"] [data-act="pr"]').click();check('personal restore after batch restores only self',memberPoints()[0]===Math.min(5,batchPoints[0]+1)&&memberPoints().slice(1).every((v,i)=>v===batchPoints[i+1]));check('deduct and restore cancel without redundant progress',JSON.stringify(memberPoints())===JSON.stringify(pointsBefore));
 const sumValues=Array.from(q('[data-card="1"] [data-member-lesson-totals]').querySelectorAll('strong')).map(e=>Number(e.textContent));check('lesson total is per member and includes individual project scores',sumValues.length>0&&sumValues[0]>=5);check('print semester sheet also includes per-member lesson totals',w.JFDT_LEADER_PRINT_HTML!=null&&q('[data-member-lesson-totals]')!=null);
 w.matchMedia=()=>({matches:true});for(let i=0;i<5;i++)q('[data-card="1"] [data-act="p"]').click();const selectiveBeforeUndo=memberPoints()[0];const undoEntries=JSON.parse(w.localStorage.getItem('jfdt.v1')).undo;const earlyIndex=undoEntries.findIndex(op=>op.gno===1&&op.effect&&op.effect.some(e=>e.path==='point:0'&&e.delta===-1));q('#btnOperationLog').click();check('older operation on same member is independently undoable',earlyIndex>=0&&!q('[data-undo-index="'+earlyIndex+'"]').disabled);q('[data-undo-index="'+earlyIndex+'"]').click();check('undo older deduction adds back only one point',memberPoints()[0]===Math.min(5,selectiveBeforeUndo+1));check('all redo entries can be selected independently',Array.from(w.document.querySelectorAll('[data-redo-index]')).every(b=>!b.disabled));q('#closeOperationLog').click();
 const recoveryBefore=JSON.parse(w.localStorage.getItem('jfdt.v1'));q('#btnRestoreFive').click();q('#restoreFiveScope').value='all';q('#dlgRestoreFive').returnValue='ok';q('#dlgRestoreFive').dispatchEvent(new w.Event('close'));const recoveryAfter=JSON.parse(w.localStorage.getItem('jfdt.v1'));check('baseline restore sets all lesson groups directly to5',recoveryAfter.lessons.every(l=>Object.values(l.scores).every(s=>s.group===5&&s.phone===0&&Object.keys(s.personal).length===0)));check('baseline restore preserves individual projects attendance and duty',recoveryAfter.lessons.every((l,i)=>JSON.stringify(l.leaderScores)===JSON.stringify(recoveryBefore.lessons[i].leaderScores)&&JSON.stringify(l.attendance)===JSON.stringify(recoveryBefore.lessons[i].attendance)&&Object.keys(l.scores).every(k=>l.scores[k].duty===recoveryBefore.lessons[i].scores[k].duty)));check('baseline recovery creates archive instead of per-person log',recoveryAfter.baselineRecoveryArchive.length===1&&recoveryAfter.operationLog.length<=recoveryBefore.operationLog.length);
@@ -221,9 +221,36 @@ q('#btnOperationLog').click();const fullMarksIndex=fullMarksAfter.undo.findIndex
 q('#tabs [data-view="data"]').click();
 check('roster editor provides seventh member slot',!!q('[data-rg="1"][data-rm="6"]'));
 const seventh=q('[data-rg="1"][data-rm="6"]');seventh.value='七号测试 26000000999';seventh.dispatchEvent(new w.Event('change',{bubbles:true}));
-q('#tabs [data-view="score"]').click();q('#layoutSeg [data-l="table"]').click();check('homepage shows seventh member without truncation',q('table.sheet thead').textContent.includes('成员7')&&q('table.sheet').textContent.includes('七号测试'));
-q('#btnPrintLesson').click();q('#lessonPrintRange').value='front';q('#dlgLessonPrint').returnValue='ok';q('#dlgLessonPrint').dispatchEvent(new w.Event('close'));check('lesson print contains seventh member',q('#printArea').textContent.includes('七号测试')&&q('#printArea').textContent.includes('成员7'));
+q('#tabs [data-view="score"]').click();q('#layoutSeg [data-l="table"]').click();check('homepage shows seventh member without truncation',q('[data-card="1"] [data-member-index="6"]')!=null&&q('table.sheet').textContent.includes('七号测试'));
+q('#btnPrintLesson').click();q('#lessonPrintRange').value='front';q('#dlgLessonPrint').returnValue='ok';q('#dlgLessonPrint').dispatchEvent(new w.Event('close'));check('lesson print contains seventh member',q('#printArea').textContent.includes('七号测试')&&q('#printArea [data-member-index="6"]')!=null);
 await w.JFDT_CLOUD.flush();const sevenCloud=await(await site.fetch(new Request(origin+'/api/state',{headers:{Authorization:'Bearer '+admin.token}}),env)).json();check('seventh member persists through actual Worker validation',sevenCloud.data.classes.some(c=>c.groups.some(g=>g.members.some(m=>m.sid==='26000000999'))));
+
+// A separate synthetic classroom exercises actual student rows and print/Excel structure.
+async function verticalFixture(sizes){
+ const state=JSON.parse(w.localStorage.getItem('jfdt.v1')),cls={id:'vertical-fixture',name:'纵向验收班',teacher:'验收教师',groups:[],roster:[]};let no=1;
+ const lesson={id:'vertical-lesson',classId:cls.id,seq:1,date:'2026-10-20',topic:'纵向布局验收',memberProjectBase:5,scores:{},attendance:{},leaderProjectNames:['项目甲'],leaderProjectCount:1,leaderScores:{},dutyGroup:1,dutyGroups:[1]};
+ sizes.forEach((size,k)=>{const g={id:'vg'+k,no:k+1,members:[]};lesson.scores[g.no]={group:5,phone:0,duty:k===0?5:0,personal:{}};lesson.leaderScores[g.no]={projects:['项目甲'],members:{},signedBy:'',note:''};for(let j=0;j<size;j++){const m={id:'vm'+no,name:'学生'+no,sid:'2699999'+String(no).padStart(4,'0'),no:no++};g.members.push(m);cls.roster.push({...m});lesson.leaderScores[g.no].members['sid:'+m.sid]=[j%6];}cls.groups.push(g);});
+ state.classes=[cls];state.lessons=[lesson];state.undo=[];state.redo=[];state.operationLog=[];state.ui={classId:cls.id,lessonId:lesson.id};
+ Object.defineProperty(q('#fileRestore'),'files',{configurable:true,value:[new w.File([JSON.stringify(state)],'vertical-fixture.json',{type:'application/json'})]});q('#fileRestore').dispatchEvent(new w.Event('change'));await until(()=>q('#classSel').textContent.includes('纵向验收班')&&JSON.parse(w.localStorage.getItem('jfdt.v1')).classes[0].roster.length===sizes.reduce((a,n)=>a+n,0));await w.JFDT_CLOUD.flush();return {cls,lesson};
+}
+let vertical=await verticalFixture([3,5,6,7,0]);q('#layoutSeg [data-l="table"]').click();
+check('vertical layout has exactly the agreed ten columns',q('table.sheet thead tr').cells.length===10&&q('table.sheet thead').textContent.includes('本节项目分'));
+check('mixed group sizes produce one actual row per student and one empty placeholder',q('table.sheet').querySelectorAll('[data-member-key]').length===21&&q('[data-card="5"]').querySelectorAll('.vertical-member-row').length===1&&!q('[data-card="5"] [data-act="p"]'));
+check('group number batch action and duty merge across exactly each group size',[3,5,6,7].every((n,i)=>['.c-no','.c-phone','.c-duty'].every(sel=>q('[data-card="'+(i+1)+'"] '+sel).rowSpan===n)));
+check('every student row retains original index name and full identifier',Array.from(q('table.sheet').querySelectorAll('[data-member-key]')).every(tr=>{const g=vertical.cls.groups.find(g=>g.no===+tr.parentElement.dataset.card),m=g.members[+tr.dataset.memberIndex];return tr.querySelector('.member-name-cell').textContent.includes(m.name)&&tr.querySelector('.member-name-cell').title.includes(m.sid)&&tr.querySelectorAll('[data-home-grade]').length===3;}));
+const targetRow='[data-card="4"] [data-member-index="2"]',verticalBefore=JSON.parse(w.localStorage.getItem('jfdt.v1'));q(targetRow+' [data-act="p"]').click();const verticalDed=JSON.parse(w.localStorage.getItem('jfdt.v1'));check('deduction from vertical third student preserves original positional target',verticalDed.lessons[0].scores[4].personal[2]===1&&q(targetRow+' .pchip .n').textContent==='4'&&q('[data-card="4"] [data-member-index="1"] .pchip .n').textContent==='5'&&JSON.stringify(verticalDed.lessons[0].scores[3])===JSON.stringify(verticalBefore.lessons[0].scores[3]));
+q('#btnOperationLog').click();q('[data-undo-index="0"]').click();q('#closeOperationLog').click();check('vertical row undo updates same member immediately',q(targetRow+' .pchip .n').textContent==='5');
+q('[data-card="1"] .group-pick-toggle').dispatchEvent(new w.MouseEvent('dblclick',{bubbles:true}));check('group clear is shown only in group edit secondary area',q('[data-card="1"] .c-no [data-cleargroup]').textContent==='清零本组'&&!q('[data-card="1"] .c-sum [data-cleargroup]'));q('[data-card="1"] .group-pick-toggle').dispatchEvent(new w.MouseEvent('dblclick',{bubbles:true}));
+vertical=await verticalFixture([5,6,7,6,6,6,6,6,4]);q('#btnPrintLesson').click();q('#lessonPrintRange').value='all';q('#lessonPrintOrientation').value='portrait';q('#dlgLessonPrint').returnValue='ok';q('#dlgLessonPrint').dispatchEvent(new w.Event('close'));
+const printedTable=q('#printArea .sheet-vertical');check('52-student print has one front and one back with all52 student rows',q('#printArea').querySelectorAll('.lesson-duplex-front').length===1&&q('#printArea').querySelectorAll('.lesson-rules-back').length===1&&printedTable.querySelectorAll('[data-member-key]').length===52);
+check('website and printed student orders are identical',Array.from(q('table.sheet').querySelectorAll('[data-member-key]')).map(x=>x.dataset.memberKey).join()===Array.from(printedTable.querySelectorAll('[data-member-key]')).map(x=>x.dataset.memberKey).join());
+const verticalBytes=w.JFDT_PRINT_EXCEL(printedTable,'虚构52人纵向验收',[['姓名','成绩']],[]),verticalBook=w.XLSX.read(verticalBytes,{type:'array'}),verticalSheet=verticalBook.Sheets['本课加分表'];
+check('vertical Excel has ten columns and retains group merges in A E F',w.XLSX.utils.decode_range(verticalSheet['!ref']).e.c===9&&[0,4,5].every(c=>verticalSheet['!merges'].some(m=>m.s.c===c&&m.e.c===c&&m.e.r-m.s.r===6)));
+check('vertical Excel retains every student in the name column without synthetic indices',w.XLSX.utils.sheet_to_json(verticalSheet,{header:1}).filter(r=>/^学生[0-9]+/.test(String(r[1]||''))).length===52);
+fs.mkdirSync('迁移记录',{recursive:true});fs.writeFileSync('迁移记录/纵向52人验收.xlsx',Buffer.from(verticalBytes));
+const fixtureStyle=fs.readFileSync('styles.css','utf8')+'\n'+q('#lessonPageStyle').textContent;
+fs.writeFileSync('迁移记录/纵向52人打印验收.html','<!doctype html><html><head><meta charset="utf-8"><style>'+fixtureStyle+'</style></head><body class="print-lesson"><div id="printArea">'+q('#printArea').innerHTML+'</div></body></html>');
+fs.writeFileSync('迁移记录/纵向52人网页验收.html','<!doctype html><html><head><meta charset="utf-8"><style>'+fs.readFileSync('styles.css','utf8')+'</style></head><body style="margin:0;padding:16px;display:block"><div>'+q('table.sheet').parentElement.outerHTML+'</div></body></html>');
 if(errors.length)console.log(errors);check('packaged application has no unexpected exceptions', errors.length === 0);
 dom.window.close(); env.sqlite.close();
 console.log(`Packaged single-site integration: ${passed} passed, 0 failed`);

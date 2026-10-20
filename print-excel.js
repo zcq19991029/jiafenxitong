@@ -3,20 +3,14 @@
   'use strict';
   global.JFDT_PRINT_EXCEL=function(table,metadata,personal,rules){
     var X=global.XLSX,clone=table.cloneNode(true);
-    clone.querySelectorAll('.home-grade,.home-attendance,.c-sum').forEach(function(cell){
-      if(cell.tagName==='TD'){var list=cell.querySelector('[data-member-lesson-totals]')||cell;cell.textContent=Array.from(list.children).map(function(row){return row.textContent.trim().replace(/\s+/g,' ');}).join('\n');}
-    });
-    var source=X.utils.table_to_sheet(clone,{raw:true}),data=X.utils.sheet_to_json(source,{header:1,defval:''});
+    clone.querySelectorAll('button').forEach(function(b){b.remove();});
+    var source=X.utils.table_to_sheet(clone,{raw:true}),data=X.utils.sheet_to_json(source,{header:1,defval:''}),columnCount=10;
     var ws=X.utils.aoa_to_sheet([['课堂分组与加分记录表'],[metadata]].concat(data));
-    for(var rowIndex=2;rowIndex<data.length+2;rowIndex++)for(var colIndex=0;colIndex<15;colIndex++){var address=X.utils.encode_cell({r:rowIndex,c:colIndex});if(!ws[address]||ws[address].t==='z'||ws[address].v==='')ws[address]={t:'s',v:' '};}
-    table.querySelectorAll('tbody').forEach(function(group,index){
-      var r=5+index*2;
-      ['.home-attendance','.c-sum','.home-grade.regular','.home-grade.contribution','.home-grade.needed'].forEach(function(selector,i){var cell=group.querySelector(selector);if(!cell)return;var text=Array.from((cell.querySelector('[data-member-lesson-totals]')||cell).children).map(function(person,j){var strong=person.querySelector('strong');return (j+1)+'　'+(strong?strong.textContent:person.textContent).trim();}).join('\n');ws[['H','L','M','N','O'][i]+r]={t:'s',v:text};});
-    });
-    ws['!merges']=[{s:{r:0,c:0},e:{r:0,c:14}},{s:{r:1,c:0},e:{r:1,c:14}}].concat((source['!merges']||[]).map(function(m){return {s:{r:m.s.r+2,c:m.s.c},e:{r:m.e.r+2,c:m.e.c}};}));
-    ws['!cols']=[{wch:5}].concat(Array(6).fill({wch:14}),[{wch:11},{wch:11},{wch:9,hidden:true},{wch:9},{wch:14},{wch:17},{wch:13},{wch:14}]);
-    ws['!rows']=[{hpt:26},{hpt:24}].concat(data.map(function(r,i){return {hpt:i<2?30:Math.max(20,...r.map(function(v){return String(v).split('\n').length*7+5;}))};}));
-    table.querySelectorAll('tbody').forEach(function(group,index){var lines=group.querySelector('.home-grade')?.children.length||3,half=Math.max(22,(lines*12+8)/2);ws['!rows'][4+index*2]={hpt:half};ws['!rows'][5+index*2]={hpt:half};});
+    Array.from(table.rows).forEach(function(tr,i){var name=tr.querySelector('.member-name-cell');if(name)ws['B'+(i+3)]={t:'s',v:name.textContent.trim().replace(/\s+/g,' ')};});
+    for(var r=2;r<data.length+2;r++)for(var c=0;c<columnCount;c++){var address=X.utils.encode_cell({r:r,c:c});if(!ws[address]||ws[address].t==='z'||ws[address].v==='')ws[address]={t:'s',v:' '};}
+    ws['!merges']=[{s:{r:0,c:0},e:{r:0,c:9}},{s:{r:1,c:0},e:{r:1,c:9}}].concat((source['!merges']||[]).map(function(m){return {s:{r:m.s.r+2,c:m.s.c},e:{r:m.e.r+2,c:m.e.c}};}));
+    ws['!cols']=[5,19,10,9,9,8,10,20,13,16].map(function(w){return {wch:w};});
+    ws['!rows']=[{hpt:26},{hpt:24}].concat(data.map(function(row,i){return {hpt:i===0?28:i>=data.length-2?24:12.5};}));
     var wb=X.utils.book_new();X.utils.book_append_sheet(wb,ws,'本课加分表');
     var individual=X.utils.aoa_to_sheet(personal);individual['!cols']=Array(10).fill({wch:17});X.utils.book_append_sheet(wb,individual,'个人成绩');
     var ruleLines=Array.isArray(rules)?rules:[{text:'加分与换算说明',heading:true},{text:rules}];ruleLines=ruleLines.concat([{text:'本文件可继续编辑；修改不会自动回写网站。个人学期成绩为导出时快照，更新后请在网站重算并重新导出。'}]);
@@ -32,10 +26,10 @@
     for(var n=1;n<=3;n++){
       var path='xl/worksheets/sheet'+n+'.xml',xml=dec.decode(entry(path).content);
       xml=xml.replace(/<c\b([^>]*\br="([A-Z]+)(\d+)"[^>]*)>/g,function(all,attrs,col,row){
-        var id=0,r=Number(row);if(n===1){id=r===1?10:r===2?11:r<=4?1:col==='A'?9:/^[B-G]$/.test(col)?(r%2?2:3):col==='H'?0:col==='I'?3:/^[J-K]$/.test(col)?4:col==='L'?5:col==='M'?6:col==='N'?7:8;}else if(n===3){id=ruleLines[r-1].heading?(r===1?10:1):0;}else id=r===1?1:0;
+        var id=0,r=Number(row);if(n===1){id=r===1?10:r===2?11:r===3?1:col==='A'?9:col==='B'?2:col==='C'||col==='E'?3:col==='D'?0:col==='F'?4:col==='G'?5:col==='H'?6:col==='I'?7:8;}else if(n===3){id=ruleLines[r-1].heading?(r===1?10:1):0;}else id=r===1?1:0;
         return '<c'+attrs.replace(/\s+s="\d+"/g,'')+' s="'+id+'">';
       });
-      var setup='<printOptions horizontalCentered="1"/><pageMargins left="0.25" right="0.25" top="0.3" bottom="0.3" header="0.1" footer="0.1"/><pageSetup paperSize="9" orientation="landscape" fitToWidth="1" fitToHeight="1"/>';
+      var setup='<printOptions horizontalCentered="1"/><pageMargins left="0.25" right="0.25" top="0.3" bottom="0.3" header="0.1" footer="0.1"/><pageSetup paperSize="9" orientation="'+(n===2?'landscape':'portrait')+'" fitToWidth="1" fitToHeight="1"/>';
       xml=xml.replace('<sheetPr>','<sheetPr><pageSetUpPr fitToPage="1"/>');if(!xml.includes('<sheetPr>'))xml=xml.replace(/(<worksheet[^>]*>)/,'$1<sheetPr><pageSetUpPr fitToPage="1"/></sheetPr>');
       xml=xml.replace(/<printOptions\b[^>]*\/>|<pageMargins\b[^>]*\/>|<pageSetup\b[^>]*\/>/g,'').replace('</worksheet>',setup+'</worksheet>');set(path,xml);
     }

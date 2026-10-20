@@ -80,6 +80,7 @@ q(a, '#dlgLesson').returnValue = 'ok';
 q(a, '#dlgLesson').dispatchEvent(new a.window.Event('close'));
 q(a, '#dlgLesson').removeAttribute('open');
 check('a real new-lesson UI action creates a lesson', state(a).lessons.length === 1);
+q(a,'#layoutSeg [data-l="card"]').click();
 check('new lesson groups all begin with five points',Object.values(state(a).lessons[0].scores).every(s=>s.group===5));for(const g of state(a).classes[0].groups)for(let i=0;i<5;i++)q(a,'[data-card="'+g.no+'"] button[data-f="group"][data-act="d"]').click();
 const add = dom => q(dom, '[data-card="1"] button[data-f="group"][data-act="i"]').click();
 for (let i = 0; i < 3; i++) add(a);
@@ -294,6 +295,7 @@ check('JSON backup contains the actual score record', JSON.parse(download.text).
 await a.window.JFDT_CLOUD.flush();
 const b = page();
 await login(b, 'admin-test');
+q(b,'#layoutSeg [data-l="card"]').click();
 check('new browser recovers existing cloud lessons', state(b).lessons.length === 1 && text(b, '[data-total="1"]') === '+3');
 check('fresh device does not push new seed over cloud data', b.network.writes === 0);
 await new Promise(r => setTimeout(r, 20));
