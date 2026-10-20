@@ -805,7 +805,7 @@ function removeMemberAt(cls, g, j) {
         : '<span style="color:var(--muted);font-weight:400">（未录入名单）</span>';
 
       var personal = cnt
-        ? '<div class="personals"><span class="plabel">本节小组项目分 <small>0–5分</small></span>' +
+        ? '<div class="personals"><span class="plabel">本节参与分 <small>0–5分</small></span>' +
           g.members.slice(0, cnt).map(function (m, i) {
             return ctlPersonal(g.no, m, i, +s.personal[String(i)] || 0, true);
           }).join('') + '</div>'
@@ -844,14 +844,14 @@ function removeMemberAt(cls, g, j) {
   function verticalColumns(cls){
     // CJK text needs one em; Latin letters and digits need roughly half an em.
     function width(text){return Array.from(String(text)).reduce(function(n,ch){return n+(/[^\x00-\xff]/.test(ch)?15:8);},0);}
-    var labels=['组号','成员','本节项目分','考勤分 /9','全组扣分','值日分','本节合计','（至今完成率）','计入总评 /40','期末至少需考 /100'];
+    var labels=['组号','成员','本节参与分','考勤分 /9','全组扣分','值日分','本节合计','（至今完成率）','计入总评 /40','期末至少需考 /100'];
     var minima=[52,124,124,94,100,80,100,164,132,172];
     var widths=labels.map(function(t,i){return Math.max(minima[i],width(t)+28);});
     (cls.groups||[]).forEach(function(g){(g.members||[]).forEach(function(m){if(m.name)widths[1]=Math.max(widths[1],width(m.name+' '+(m.no||''))+36);});});
     var total=widths.reduce(function(a,b){return a+b;},0),names=['no','mem','project','attendance','phone','duty','sum','grade','grade','grade'];
     return widths.map(function(w,i){return '<col class="w-'+names[i]+'" data-content-width="'+w+'" style="width:'+(100*w/total).toFixed(4)+'%!important">';}).join('');
   }
-  function verticalHead(){return '<thead><tr><th class="c-no">组号</th><th class="c-mem">成员</th><th class="c-ded">本节项目分</th><th class="home-attendance">考勤分 /9</th><th class="c-phone">全组扣分</th><th class="c-duty">值日分</th><th class="c-sum">本节合计</th><th class="home-grade regular">平时分<br>（至今完成率）</th><th class="home-grade contribution">计入总评 /40</th><th class="home-grade needed">期末至少需考 /100</th></tr></thead>';}
+  function verticalHead(){return '<thead><tr><th class="c-no">组号</th><th class="c-mem">成员</th><th class="c-ded">本节参与分</th><th class="home-attendance">考勤分 /9</th><th class="c-phone">全组扣分</th><th class="c-duty">值日分</th><th class="c-sum">本节合计</th><th class="home-grade regular">平时分<br>（至今完成率）</th><th class="home-grade contribution">计入总评 /40</th><th class="home-grade needed">期末至少需考 /100</th></tr></thead>';}
   function verticalGroup(cls,lesson,g,printing){
     var A=window.JFDT_ASSESSMENT,allLessons=lessonsOf(cls.id),gradeLessons=lessonsThrough(cls,lesson),grades=A.rows(cls,gradeLessons,memberTotals(cls)),scored=sc(lesson,g.no),net=A.groupNet(lesson,g.no,allLessons),base=Math.max(0,Math.min(5,(+scored.group||0)+(scored.first?1:0))-(+scored.phone||0)),duty=net-base;
     var entries=g.members.map(function(m,i){return {m:m,i:i};}).filter(function(x){return !!x.m.name;}),editing=!printing&&groupPicking&&groupPicking.classId===cls.id&&groupPicking.lessonId===lesson.id&&groupPicking.no===g.no;
@@ -981,7 +981,7 @@ function removeMemberAt(cls, g, j) {
 
   /** 个人扣分走这里，±1 和归零都记录、都可撤销。
       纸质表上「犯几次写几次」，所以不封 5，只封 99 防手滑。 */
-  function changeMemberPoints(cls,lesson,gno,index,delta){var s=sc(lesson,gno),old=JSON.parse(JSON.stringify(s)),g=groupOf(cls,gno),base=Math.min(5,(+s.group||0)+(s.first?1:0)),values=g.members.map(function(_,i){return remaining(lesson,gno,i);});s.phone=0;g.members.forEach(function(m,i){if(!m.name)return;var value=values[i];if(index===null||String(i)===String(index))value=Math.max(0,Math.min(base,value+delta));s.personal[String(i)]=base-value;});if(JSON.stringify(old)===JSON.stringify(s))return;pushUndo({lessonId:lesson.id,gno:gno,reset:true,old:old,label:index===null?'全组项目各扣1分':'成员'+(+index+1)+'项目分调整'});save();refreshCard(cls,lesson,gno);renderMetrics(cls,lesson);}
+  function changeMemberPoints(cls,lesson,gno,index,delta){var s=sc(lesson,gno),old=JSON.parse(JSON.stringify(s)),g=groupOf(cls,gno),base=Math.min(5,(+s.group||0)+(s.first?1:0)),values=g.members.map(function(_,i){return remaining(lesson,gno,i);});s.phone=0;g.members.forEach(function(m,i){if(!m.name)return;var value=values[i];if(index===null||String(i)===String(index))value=Math.max(0,Math.min(base,value+delta));s.personal[String(i)]=base-value;});if(JSON.stringify(old)===JSON.stringify(s))return;pushUndo({lessonId:lesson.id,gno:gno,reset:true,old:old,label:index===null?'全组本节参与分各扣1分':'成员'+(+index+1)+'本节参与分调整'});save();refreshCard(cls,lesson,gno);renderMetrics(cls,lesson);}
   function bumpPersonal(cls, lesson, chip, delta) {
     var gno = +chip.dataset.g, i = String(chip.dataset.i);
     var s = sc(lesson, gno);
