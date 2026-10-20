@@ -1448,6 +1448,15 @@ table.sheet col.w-grp,table.sheet th.c-grp,table.sheet td.c-grp,#printArea col.w
 @media(max-width:600px){#dlgOperationLog .dlg-body{padding:12px}#operationLogList .operation-row{grid-template-columns:minmax(0,1fr) 68px;gap:4px 8px}.operation-row .log-time{grid-column:1}.operation-row .log-change{grid-column:1}.operation-row button{grid-column:2;grid-row:1/3}.log-table-head{display:none}.log-toolbar label{flex:1}.log-toolbar #btnRedo{margin-left:auto!important}}
 #cloudChip{max-width:100%;white-space:normal;overflow-wrap:anywhere;box-sizing:border-box;line-height:1.5}
 #cloudChip.conflict-action{cursor:pointer;font-weight:650}
+.app-version-indicator{display:inline-flex;align-items:center;gap:3px;min-width:0;max-width:100%}
+.app-version-chip{max-width:100%;padding:4px 9px;border-color:#b8cbe2;background:#f1f6fc;color:#385a7b;font-size:11px;line-height:1.35;white-space:nowrap;font-variant-numeric:tabular-nums}
+.app-version-chip.update-pending{border-color:#e7bd65;background:#fff7e5;color:#845500}
+.app-version-refresh{display:inline-flex;align-items:center;justify-content:center;flex:none;width:28px;height:28px;padding:0;border:0;border-radius:50%;background:transparent;color:#466985;font:600 19px/1 system-ui,sans-serif;cursor:pointer;transition:background-color .15s,transform .15s}
+.app-version-refresh:hover{background:rgba(54,94,130,.1)}
+.app-version-refresh:focus-visible{outline:2px solid var(--accent);outline-offset:1px}
+.app-version-refresh[aria-busy="true"]{animation:app-version-spin .8s linear infinite;cursor:progress}
+@keyframes app-version-spin{to{transform:rotate(360deg)}}
+@media(prefers-reduced-motion:reduce){.app-version-refresh{transition:none}.app-version-refresh[aria-busy="true"]{animation:none}}
 .local-warn{position:relative;z-index:35;white-space:normal;overflow-wrap:anywhere;line-height:1.6;max-width:100%;box-sizing:border-box}
 #dlgSyncConflict{width:min(520px,94vw);padding:0}
 #dlgSyncConflict p{line-height:1.7;overflow-wrap:anywhere}

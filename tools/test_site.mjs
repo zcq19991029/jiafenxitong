@@ -15,9 +15,12 @@ function check(name, condition) { assert.ok(condition, name); passed++; console.
 const get = pathname => site.fetch(new Request(origin + pathname), env);
 const root = await get('/');
 const html = await root.text();
+const release = await (await get('/version.json')).json();
 check('one Worker serves the real application homepage', root.status === 200 && html.includes('btnAccountLogin'));
 check('frontend scripts are all same-origin', !/<script[^>]+src="https?:/i.test(html));
 check('scripts use build-specific cache versions', html.includes('app.js?v=') && html.includes('config.js?v='));
+check('release metadata includes the exact source and publication build time', /^([0-9a-f]{40}|local-check)$/.test(release.commit) && Number.isFinite(new Date(release.builtAt).getTime()) && html.includes('name="build-published-at"'));
+check('top bar separates application release from cloud sync and provides manual check', html.includes('id="cloudChip"') && html.includes('id="appVersionChip"') && html.includes('id="btnCheckAppVersion"'));
 check('HTML prevents embedding and executable inline injection', root.headers.get('x-frame-options') === 'DENY'
   && root.headers.get('content-security-policy').includes("script-src 'self'"));
 check('private source materials are not served', (await get('/教学材料/名单.xlsx')).status === 404);
@@ -35,11 +38,19 @@ const dom = new JSDOM(html.replace(/<script[^>]*>[\s\S]*?<\/script>/g, ''), { ur
 const w = dom.window;
 w.HTMLDialogElement.prototype.showModal=function(){this.setAttribute('open','');};
 w.HTMLDialogElement.prototype.close=function(value){if(value!==undefined)this.returnValue=value;this.removeAttribute('open');this.dispatchEvent(new w.Event('close'));};
-w.fetch = async (url, options) => site.fetch(new Request(new URL(url, origin), { ...options, headers: { ...options.headers, Origin: origin } }), env);
+let versionFetches=0,reportedRelease=release;
+w.fetch = async (url, options) => {if(String(url).includes('/version.json'))versionFetches++;const target=String(url).includes('/version.json')?new Response(JSON.stringify(reportedRelease),{headers:{'Content-Type':'application/json','Cache-Control':'no-store'}}):null;return target||site.fetch(new Request(new URL(url, origin), { ...options, headers: { ...options.headers, Origin: origin } }), env);};
 w.confirm = () => true; w.alert = () => {}; w.print = () => {}; w.scrollTo=()=>{};
 for (const [, src] of html.matchAll(/<script src="([^"]+)"/g)) w.eval(await (await get('/' + src)).text());
 const q = selector => w.document.querySelector(selector);
 async function until(fn) { for (let i = 0; i < 200; i++) { if (fn()) return; await new Promise(r => setTimeout(r, 10)); } throw Error('UI timeout'); }
+await until(()=>versionFetches>0&&q('#appVersionChip').textContent.startsWith('版本发布于 '));
+check('automatic startup check displays the current release time',q('#appVersionChip').textContent.includes(new Date(release.builtAt).toLocaleString('zh-CN',{timeZone:'Asia/Shanghai',month:'2-digit',day:'2-digit',hour:'2-digit',minute:'2-digit',hour12:false})));
+const beforeManualCheck=versionFetches;q('#btnCheckAppVersion').click();await until(()=>versionFetches>beforeManualCheck&&!q('#btnCheckAppVersion').disabled);
+check('manual refresh button immediately checks the release manifest',versionFetches>beforeManualCheck);
+q('#dlgPassword').showModal();reportedRelease={...release,commit:'f'.repeat(40),builtAt:new Date(new Date(release.builtAt).getTime()+60000).toISOString()};const beforeNewRelease=versionFetches;q('#btnCheckAppVersion').click();await until(()=>versionFetches>beforeNewRelease&&q('#appVersionChip').textContent.includes('保存并同步后自动更新'));
+check('new release waits for an open dialog instead of interrupting it',q('#appVersionChip').textContent.includes('保存并同步后自动更新'));
+q('#dlgPassword').close();reportedRelease=release;const beforeRestoreCheck=versionFetches;q('#btnCheckAppVersion').click();await until(()=>versionFetches>beforeRestoreCheck&&q('#appVersionChip').textContent.startsWith('版本发布于 '));
 check('cloud adapter resolves an empty apiBase to its own origin', q('#gateMsg').textContent.indexOf('尚未配置') < 0);
 q('#loginUsername').value = 'admin-test'; q('#loginPassword').value = PASSWORD; q('#btnAccountLogin').click();
 await until(() => q('#gate').hidden);

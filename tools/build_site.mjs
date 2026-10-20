@@ -8,6 +8,7 @@ const out = path.join(root, 'dist');
 fs.mkdirSync(path.join(out, 'server'), { recursive: true });
 fs.mkdirSync(path.join(out, '.openai', 'drizzle', 'meta'), { recursive: true });
 let commit = 'local-check', dirty = true;
+const builtAt = new Date().toISOString();
 const bundledGit = path.join(os.homedir(), '.cache/codex-runtimes/codex-primary-runtime/dependencies/native/git/cmd/git.exe');
 const git = process.env.GIT_EXE || (fs.existsSync(bundledGit) ? bundledGit : 'git');
 try {
@@ -26,7 +27,7 @@ for (const name of ['vendor/jspdf.umd.min.js', 'vendor/xlsx.full.min.js', 'index
     for (const asset of ['vendor/jspdf.umd.min.js', 'vendor/xlsx.full.min.js', 'styles.css', 'data.js', 'config.js', 'roster-import.js', 'cloud.js', 'app.js', 'print-excel.js', 'password-ui.js', 'leader-scoring.js', 'ui-feedback.js', 'assessment.js']) {
       html = html.replace('"' + asset + '"', '"' + asset + '?v=' + version + '"');
     }
-    html = html.replace('</head>', '<meta name="build-commit" content="' + version + '">\n</head>');
+    html = html.replace('</head>', '<meta name="build-commit" content="' + version + '">\n<meta name="build-published-at" content="' + builtAt + '">\n</head>');
     bytes = Buffer.from(html);
   }
   assets['/' + name] = { type: types[path.extname(name)], data: bytes.toString('base64') };
@@ -37,7 +38,7 @@ const blank = {
     groups: Array.from({ length: 13 }, (_, i) => ({ no: i + 1, members: [] })) }]
 };
 assets['/data.js'] = { type: types['.js'], data: Buffer.from('window.SEED_DATA = ' + JSON.stringify(blank) + ';\n').toString('base64') };
-assets['/version.json'] = { type: types['.json'], data: Buffer.from(JSON.stringify({ commit, dirty, mode: 'worker-d1' })).toString('base64') };
+assets['/version.json'] = { type: types['.json'], data: Buffer.from(JSON.stringify({ commit, dirty, mode: 'worker-d1', builtAt })).toString('base64') };
 let source = fs.readFileSync(path.join(root, 'backend/worker.mjs'), 'utf8');
 if (!source.includes('export default {')) throw new Error('Worker export not found');
 source = source.replace('export default {', 'const __SITE_API__ = {');

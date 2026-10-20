@@ -17,6 +17,10 @@
       <span class="sub" id="saveState">已自动保存到本机</span>
     </div>
     <span class="chip" id="cloudChip" hidden></span>
+    <span class="app-version-indicator" aria-label="应用版本信息">
+      <span class="chip app-version-chip" id="appVersionChip" title="正在读取应用版本">应用版本读取中</span>
+      <button class="app-version-refresh" id="btnCheckAppVersion" type="button" aria-label="立即检测应用更新" title="立即检测新版本（系统每5分钟自动检查）">↻</button>
+    </span>
     <span class="spacer"></span>
     <span class="userbox" id="userBox" hidden>
       <button class="userchip" id="btnMe" title="个人信息">

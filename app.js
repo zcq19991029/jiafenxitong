@@ -83,6 +83,14 @@
   }
   var CLOUD_ON = false;      // 云端真的可用（已登录且已激活）
   var cloudRec = null;       // 最近一次从云端拉到的记录
+  var appVersionMeta={commit:(document.querySelector('meta[name="build-commit"]')||{}).content||'',builtAt:(document.querySelector('meta[name="build-published-at"]')||{}).content||''};
+  var appVersionLatest=null,appVersionChecking=null,appVersionUpdatePending=false,appVersionReloadTimer=null,appVersionLastCheck=0;
+  function appVersionDate(value,includeYear){var date=new Date(value);if(!Number.isFinite(date.getTime()))return '';return date.toLocaleString('zh-CN',{timeZone:'Asia/Shanghai',year:includeYear?'numeric':undefined,month:'2-digit',day:'2-digit',hour:'2-digit',minute:'2-digit',hour12:false});}
+  function appVersionKey(info){return String(info.commit||'').replace(/-dirty$/,'')+'|'+String(info.builtAt||'');}
+  function renderAppVersion(message){var chip=$('#appVersionChip'),button=$('#btnCheckAppVersion');if(!chip)return;var current=appVersionMeta,release=appVersionLatest||current,when=appVersionDate(release.builtAt,false),commit=String(release.commit||'').replace(/-dirty$/,'');chip.classList.toggle('update-pending',appVersionUpdatePending);if(message){chip.textContent=message;chip.title='当前版本 '+(appVersionDate(current.builtAt,true)||'发布时间未知')+' · '+(current.commit||'源码版本未知')+'；检测到 '+(appVersionDate(release.builtAt,true)||'发布时间未知')+' · '+commit;}else if(when){chip.textContent='版本发布于 '+when;chip.title='当前应用版本发布时间（北京时间）：'+appVersionDate(release.builtAt,true)+'；源码版本：'+commit;}else{chip.textContent='应用版本读取中';chip.title='正在读取本次发布的版本和时间';}if(button)button.title=appVersionUpdatePending?'已发现新版；同步完成后会自动更新':'立即检测新版本（系统每5分钟自动检查）';}
+  function canAutoReloadForVersion(){if(document.visibilityState==='hidden'||editingGrade()||document.querySelector('dialog[open]'))return false;if(!CLOUD||!CLOUD.profile())return true;if(!S||!CLOUD_ON)return false;var sync=CLOUD.status();return sync.mode==='ok'&&!sync.pending&&!CLOUD.isDirty(S);}
+  function tryAutoUpdateAppVersion(manual){if(!appVersionUpdatePending||appVersionReloadTimer)return false;if(!canAutoReloadForVersion()){renderAppVersion('发现新版本 · 保存并同步后自动更新');return false;}var target=appVersionKey(appVersionLatest),marker='jfdt.appUpdateTarget';try{if(!manual&&sessionStorage.getItem(marker)===target){renderAppVersion('发现新版本 · 点击↻重试');return false;}sessionStorage.setItem(marker,target);}catch(e){}renderAppVersion('发现新版本 · 正在安全更新');var button=$('#btnCheckAppVersion');if(button)button.setAttribute('aria-busy','true');appVersionReloadTimer=setTimeout(function(){appVersionReloadTimer=null;if(!canAutoReloadForVersion()){try{if(sessionStorage.getItem(marker)===target)sessionStorage.removeItem(marker);}catch(e){}renderAppVersion('发现新版本 · 保存并同步后自动更新');if(button)button.removeAttribute('aria-busy');return;}window.location.reload();},500);return true;}
+  function checkAppVersion(manual){if(appVersionChecking)return appVersionChecking;var button=$('#btnCheckAppVersion');if(button){button.disabled=true;button.setAttribute('aria-busy','true');}appVersionChecking=fetch('/version.json?check='+Date.now(),{cache:'no-store',credentials:'same-origin'}).then(function(response){if(!response.ok)throw Error('HTTP '+response.status);return response.json();}).then(function(info){if(!info||typeof info.commit!=='string'||!info.builtAt||!Number.isFinite(new Date(info.builtAt).getTime()))throw Error('版本信息格式无效');appVersionLastCheck=Date.now();appVersionLatest={commit:info.commit,builtAt:info.builtAt};var currentKey=appVersionKey(appVersionMeta),latestKey=appVersionKey(appVersionLatest);if(!appVersionMeta.commit||!appVersionMeta.builtAt){appVersionMeta=appVersionLatest;appVersionUpdatePending=false;renderAppVersion();return true;}if(currentKey===latestKey){appVersionUpdatePending=false;try{sessionStorage.removeItem('jfdt.appUpdateTarget');}catch(e){}renderAppVersion();return true;}appVersionUpdatePending=true;renderAppVersion();tryAutoUpdateAppVersion(!!manual);return true;}).catch(function(){appVersionLastCheck=Date.now();var chip=$('#appVersionChip');if(chip&&!appVersionMeta.builtAt){chip.textContent='版本检测失败';chip.title='无法读取应用发布时间；请点击↻重试。';}else if(chip)chip.title='当前显示本地版本；最近一次自动检测未成功，可点击↻重试。';if(button)button.title='版本检测失败，点击↻重试';return false;}).finally(function(){appVersionChecking=null;if(button){button.disabled=false;if(!appVersionReloadTimer)button.removeAttribute('aria-busy');}});return appVersionChecking;}
 
   function defaultState() {
     var seed = window.SEED_DATA;
@@ -2173,6 +2181,7 @@ function removeMemberAt(cls, g, j) {
         if (rb) rb.addEventListener('click', function () { refreshCloud(); });
       }
     }
+    tryAutoUpdateAppVersion(false);
   }
 
   /** 云端有更新就拉下来覆盖本机（只在本机没更新时） */
@@ -2180,7 +2189,7 @@ function removeMemberAt(cls, g, j) {
   function applyCloudState(data){var keep=JSON.parse(JSON.stringify(S.ui||{}));S=migrate(JSON.parse(JSON.stringify(data)));S.ui=Object.assign({},S.ui||{},keep);writeLocal();fillClassSelects();switchView(view);renderUndoBtn();}
   function refreshCloud() {if(!CLOUD_ON||!CLOUD||!CLOUD.profile())return Promise.resolve(false);if(editingGrade())return Promise.resolve(false);return CLOUD.checkLatest(function(){return S;},function(rec){applyCloudState(rec.data);}).then(function(verified){if(verified)renderCloudStatus(CLOUD.status());return verified;});}
   function pauseForDeviceSwitch(){if(S&&CLOUD_ON){if(editingGrade())document.activeElement.blur();setSyncEditGate(true,'切回页面后先核对云端，再开放编辑');}}
-  window.addEventListener('blur',pauseForDeviceSwitch);window.addEventListener('focus',function(){if(S&&CLOUD_ON){if(editingGrade())document.activeElement.blur();refreshCloud();}});document.addEventListener('visibilitychange',function(){if(document.visibilityState==='hidden')pauseForDeviceSwitch();else if(S&&CLOUD_ON){if(editingGrade())document.activeElement.blur();refreshCloud();}});setInterval(function(){if(document.visibilityState!=='hidden'&&S&&CLOUD_ON)refreshCloud();},30000);
+  window.addEventListener('blur',pauseForDeviceSwitch);window.addEventListener('focus',function(){if(S&&CLOUD_ON){if(editingGrade())document.activeElement.blur();refreshCloud();}if(Date.now()-appVersionLastCheck>30000)checkAppVersion(false);tryAutoUpdateAppVersion(false);});document.addEventListener('visibilitychange',function(){if(document.visibilityState==='hidden')pauseForDeviceSwitch();else{if(S&&CLOUD_ON){if(editingGrade())document.activeElement.blur();refreshCloud();}if(Date.now()-appVersionLastCheck>30000)checkAppVersion(false);tryAutoUpdateAppVersion(false);}});document.addEventListener('focusout',function(){setTimeout(function(){tryAutoUpdateAppVersion(false);},0);});setInterval(function(){if(document.visibilityState!=='hidden'&&S&&CLOUD_ON)refreshCloud();},30000);setInterval(function(){if(document.visibilityState!=='hidden')checkAppVersion(false);},300000);setInterval(function(){if(appVersionUpdatePending)tryAutoUpdateAppVersion(false);},10000);
   var cloudUiBackup = null;
 
   function renderLocalBanner() {
@@ -2370,6 +2379,8 @@ function removeMemberAt(cls, g, j) {
 
   /* 云端状态 → 顶栏小圆点 + 数据页同步条 */
   if (CLOUD) CLOUD.onStatus(renderCloudStatus);
+  $('#btnCheckAppVersion').addEventListener('click',function(){checkAppVersion(true);});
+  checkAppVersion(false);
   var checkCloudButton=document.createElement('button');checkCloudButton.id='btnCheckCloudLatest';checkCloudButton.className='btn';checkCloudButton.textContent='核对云端最新版';checkCloudButton.onclick=function(){refreshCloud();};$('#btnSyncNow').parentElement.appendChild(checkCloudButton);
 
   /* 闸门上的按钮 */
