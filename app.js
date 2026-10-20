@@ -759,12 +759,14 @@ function removeMemberAt(cls, g, j) {
     cls.groups.forEach(function(g){
       var card=$('[data-card="'+g.no+'"]');if(!card)return;
       var unlocked=groupPicking&&groupPicking.no===g.no;
-      var lock=document.createElement('button');lock.type='button';lock.className='btn tiny group-pick-lock';lock.textContent=unlocked?'✓':'🔒';lock.title=unlocked?'完成分组':'解锁分组';lock.setAttribute('aria-label','第'+g.no+'组'+lock.title);
-      var target=scoreLayout==='table'?card.querySelector('.c-no'):card.querySelector('.group-identity');target.appendChild(lock);
-      lock.onclick=function(e){e.stopPropagation();groupPicking=unlocked?null:{classId:cls.id,lessonId:lesson.id,no:g.no};renderGroups(cls,lesson);};
+      var target=scoreLayout==='table'?card.querySelector('.c-no'):card.querySelector('.group-identity');
+      target.classList.add('group-pick-toggle');target.title=unlocked?'双击组号结束分组编辑':'双击组号编辑分组';target.tabIndex=0;target.setAttribute('aria-label','第'+g.no+'组，'+target.title);
+      function toggleGroup(e){e.preventDefault();e.stopPropagation();groupPicking=unlocked?null:{classId:cls.id,lessonId:lesson.id,no:g.no};renderGroups(cls,lesson);}
+      target.ondblclick=toggleGroup;target.onkeydown=function(e){if(e.key==='Enter')toggleGroup(e);};
+      if(unlocked){var done=document.createElement('button');done.type='button';done.className='btn tiny';done.textContent='完成';done.onclick=toggleGroup;target.appendChild(done);}
       if(!unlocked)return;
       var slot=scoreLayout==='table'?Array.from(card.querySelectorAll('.gname td.c-mem')).find(function(el,i){return !g.members[i]||!g.members[i].name;}):card.querySelector('.gnames');
-      if(!slot){lock.title='本组已满7人，请到名单与分组调整';return;}
+      if(!slot){target.title='本组已满7人，请到名单与分组调整';return;}
       var box=document.createElement('div');box.className='group-pick-box';box.innerHTML='<button type="button" class="btn tiny" data-pick-add aria-label="第'+g.no+'组新增成员">＋</button><div data-pick-editor hidden><input type="search" autocomplete="off" aria-label="第'+g.no+'组检索学号" placeholder="学号或后两位"><div class="group-pick-results" role="list"></div><button type="button" class="btn tiny" data-pick-exit>退出选人</button></div>';slot.appendChild(box);
       var editor=box.querySelector('[data-pick-editor]'),input=box.querySelector('input'),results=box.querySelector('.group-pick-results');
       function matches(){var query=input.value.trim().toLowerCase(),pending=pendingList(cls),list=pending.filter(function(r){return !query||String(r.sid||'').includes(query)||r.name.toLowerCase().includes(query);});results.innerHTML='';if(!list.length){results.textContent='没有匹配的待分配成员';return;}list.forEach(function(r){var button=document.createElement('button');button.type='button';button.className='btn tiny';button.textContent=r.name+' '+(r.sid||'');button.setAttribute('data-pick-sid',r.sid||'');button.onclick=function(e){e.stopPropagation();if(!groupPicking||groupPicking.no!==g.no||curClass().id!==cls.id)return;if(memberCount(g)>=GROUP_CAP){flash('本组已满7人');return;}if(!pendingList(cls).some(function(p){return p===r;})){matches();return;}pushMember(g,{id:uid('m'),name:r.name,sid:r.sid||'',no:studentNo(cls,r.name,r.sid)});addOperationLog('分组',cls.name+' · '+r.name+'加入第'+g.no+'组');save();renderScore();renderPoolBanner(cls);flash('已加入第'+g.no+'组，分组已全局同步');};results.appendChild(button);});}
@@ -1510,10 +1512,11 @@ function removeMemberAt(cls, g, j) {
     $$('#rosterCard button[data-rgdel]').forEach(function (b) {
       b.addEventListener('click', function () {
         var no = +b.dataset.rgdel;
-        if (!confirm('删除第 ' + no + ' 组？该组的历史记分也会一起消失。')) return;
+        var dialog=document.createElement('dialog');dialog.id='dlgDeleteGroup';dialog.innerHTML='<form method="dialog"><h2>删除第'+no+'组？</h2><p>该组成员会回到待分配名单，该组历史记分将删除。请先保留完整备份。</p><div class="btnrow"><button class="btn" value="cancel">取消</button><button class="btn danger" value="ok">确认删除</button></div></form>';document.body.appendChild(dialog);dialog.addEventListener('close',function(){var accepted=dialog.returnValue==='ok';dialog.remove();if(!accepted)return;
         cls.groups = cls.groups.filter(function (g) { return g.no !== no; });
         S.lessons.forEach(function (l) { if (l.classId === cls.id) delete l.scores[String(no)]; });
         save(); renderRoster();
+        });dialog.showModal();
       });
     });
   }

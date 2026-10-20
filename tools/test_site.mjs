@@ -180,7 +180,7 @@ const specialBefore=JSON.parse(w.localStorage.getItem('jfdt.v1')),beforeGrade=q(
 q('#tabs [data-view="score"]').click();
 check('group membership is locked by default',!q('[data-pick-add]')&&!q('[data-pick-editor]'));
 const groupingBefore=JSON.parse(w.localStorage.getItem('jfdt.v1'));
-q('[data-card="1"] .group-pick-lock').click();q('[data-card="1"] [data-pick-add]').click();
+q('[data-card="1"] .group-pick-toggle').dispatchEvent(new w.MouseEvent('dblclick',{bubbles:true}));q('[data-card="1"] [data-pick-add]').click();
 const searchMember=q('[data-card="1"] .group-pick-box input');searchMember.value='02';searchMember.dispatchEvent(new w.Event('input'));
 check('partial student number finds only unassigned matching student',q('.group-pick-results').children.length===1&&q('[data-pick-sid="26000000302"]'));
 searchMember.value='99999';searchMember.dispatchEvent(new w.Event('input'));check('unmatched group lookup has a useful empty state',q('.group-pick-results').textContent.includes('没有匹配'));
@@ -188,11 +188,11 @@ searchMember.value='02';searchMember.dispatchEvent(new w.Event('input'));q('[dat
 const groupingAfter=JSON.parse(w.localStorage.getItem('jfdt.v1'));
 check('quick add updates canonical group with exact full identifier',groupingAfter.classes[0].groups[0].members.some(m=>m.sid==='26000000302'));
 check('quick add preserves every existing lesson score and personal project',JSON.stringify(groupingBefore.lessons)===JSON.stringify(groupingAfter.lessons));
-q('[data-pick-exit]').click();check('exit selection removes all editable member controls',!q('.group-pick-box')&&!q('[data-pick-editor]')&&q('[data-card="1"] .group-pick-lock').title==='解锁分组');
+q('[data-pick-exit]').click();check('exit selection removes all editable member controls',!q('.group-pick-box')&&!q('[data-pick-editor]')&&q('[data-card="1"] .group-pick-toggle').title==='双击组号编辑分组');
 await w.JFDT_CLOUD.flush();const groupingCloud=await(await site.fetch(new Request(origin+'/api/state',{headers:{Authorization:'Bearer '+admin.token}}),env)).json();check('quick grouping survives cloud sync',groupingCloud.data.classes[0].groups[0].members.some(m=>m.sid==='26000000302'));
 q('#tabs [data-view="pool"]').click();check('quick assigned student disappears from pending list',!q('#poolList').textContent.includes('26000000302'));
-q('#tabs [data-view="score"]').click();q('[data-card="1"] .group-pick-lock').click();q('#tabs [data-view="leader"]').click();q('#tabs [data-view="score"]').click();check('leaving scoring view relocks membership',!q('[data-pick-add]'));
-q('#layoutSeg [data-l="card"]').click();q('[data-card="1"] .group-pick-lock').click();
+q('#tabs [data-view="score"]').click();q('[data-card="1"] .group-pick-toggle').dispatchEvent(new w.MouseEvent('dblclick',{bubbles:true}));q('#tabs [data-view="leader"]').click();q('#tabs [data-view="score"]').click();check('leaving scoring view relocks membership',!q('[data-pick-add]'));
+q('#layoutSeg [data-l="card"]').click();q('[data-card="1"] .group-pick-toggle').dispatchEvent(new w.MouseEvent('dblclick',{bubbles:true}));
 check('card layout supports the same locked add-member channel',!!q('[data-card="1"] .gnames [data-pick-add]'));
 q('[data-pick-add]').click();q('[data-pick-exit]').click();check('card exit also restores locked member display',!q('.group-pick-box'));
 q('#btnOperationLog').click();
