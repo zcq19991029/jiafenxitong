@@ -1471,8 +1471,9 @@ table.sheet col.w-grp,table.sheet th.c-grp,table.sheet td.c-grp,#printArea col.w
 @media screen {
   body.sidebar-layout table.sheet,table.sheet {
     --member-width:clamp(104px,7.5vw,120px);
-    width:calc(var(--member-columns,6)*var(--member-width) + 780px);
-    min-width:0!important;
+    width:100%;
+    min-width:calc(var(--member-columns,6)*104px + 780px)!important;
+    height:auto!important;min-height:0!important;
   }
   table.sheet col.w-mem {width:var(--member-width)}
   table.sheet col.w-no {width:40px}
@@ -1480,7 +1481,14 @@ table.sheet col.w-grp,table.sheet th.c-grp,table.sheet td.c-grp,#printArea col.w
   table.sheet col.w-phone {width:90px}
   table.sheet col.w-duty {width:70px}
   table.sheet col.w-sum {width:60px}
-  table.sheet col.w-grade {width:150px}
+  table.sheet col.w-grade {width:auto}
+  table.sheet tr.gname,table.sheet tr.gded {height:auto}
+  table.sheet td.c-mem {padding:3px 4px}
+  table.sheet .home-grade,table.sheet .home-attendance,table.sheet td.c-sum {padding:2px 4px;vertical-align:middle}
+  table.sheet .home-grade-person,table.sheet .c-sum .home-grade-person,table.sheet .home-attendance-person {min-height:20px;line-height:1.15}
+  table.sheet .home-grade-person strong {font-size:16px;line-height:1.15}
+  table.sheet .attendance-score {min-height:20px;line-height:1.15;padding:0;font-size:15px}
+  table.sheet .c-sum .mini {padding:0;min-height:16px;line-height:1}
   table.sheet .personal-control {display:grid;grid-template-columns:2fr 1fr;width:min(100%,108px);gap:0;margin-inline:auto;align-items:center}
   table.sheet .personal-control .pchip {display:grid;grid-template-columns:1fr 1fr;gap:0;width:100%;min-width:0;min-height:40px;padding:0;background:transparent;border:0;box-shadow:none;align-items:center;justify-items:center}
   table.sheet .pchip .deduct-action {order:-1;display:inline-flex;align-items:center;justify-content:center;min-height:0;min-width:0;height:40px;font-size:21px;line-height:1}
