@@ -2196,6 +2196,7 @@ function removeMemberAt(cls, g, j) {
 
     if(CLOUD_ON&&S){if(st.mode==='ok')setSyncEditGate(false);else if(['checking','connecting','offline','error','conflict'].includes(st.mode))setSyncEditGate(true,st.mode==='conflict'?'记录存在冲突，请先处理后再编辑':st.mode==='offline'||st.mode==='error'?'同步未完成，已暂停编辑；恢复连接并核对成功后开放':'正在核对云端，确认后开放编辑');}
     var text = st.mode === 'idle' ? '未连接云端' : st.text;
+    if(st.mode==='ok')text=st.checkedAt?'云端核对于 '+new Date(st.checkedAt).toLocaleString('zh-CN',{timeZone:'Asia/Shanghai',month:'2-digit',day:'2-digit',hour:'2-digit',minute:'2-digit',second:'2-digit',hour12:false}):'已连接云端，等待核对';
 
     var chip = $('#cloudChip');
     chip.className = 'chip ' + cls;
@@ -2206,7 +2207,7 @@ function removeMemberAt(cls, g, j) {
     var row = $('.sync-row');
     if (row) {
       row.className = 'sync-row ' + cls;
-      $('#syncText').textContent = text+(st.checkedAt?' · 核对时间 '+new Date(st.checkedAt).toLocaleTimeString():'');
+      $('#syncText').textContent = text+(st.mode!=='ok'&&st.checkedAt?' · 上次核对 '+new Date(st.checkedAt).toLocaleString('zh-CN',{timeZone:'Asia/Shanghai'}):'');
     }
 
     /* 进了应用但云端没连上：在页面顶部挂一条明确的提示，别让人以为已经在同步 */
