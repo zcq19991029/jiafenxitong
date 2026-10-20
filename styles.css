@@ -1503,4 +1503,5 @@ table.sheet col.w-grp,table.sheet th.c-grp,table.sheet td.c-grp,#printArea col.w
 
 /* Attendance carries the only member index; the four numeric columns share its row order. */
 @media screen {table.sheet .home-grade-person {grid-template-columns:minmax(0,1fr)}table.sheet .home-grade-person strong {text-align:center}}
+@media screen {table.sheet .home-grade,table.sheet .home-attendance,table.sheet td.c-sum {vertical-align:top}table.sheet td.c-sum {position:relative;padding-bottom:18px}table.sheet td.c-sum .mini {position:absolute;bottom:0;right:0;min-height:16px;padding:0 4px}}
 @media print {#printArea .sheet-tb .home-grade-person {grid-template-columns:minmax(0,1fr)!important}}
