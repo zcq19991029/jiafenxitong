@@ -713,7 +713,7 @@ function removeMemberAt(cls, g, j) {
     return '';
   }
 
-  function lessonMemberTotals(cls,lesson,g){var s=sc(lesson,g.no),net=window.JFDT_ASSESSMENT.groupNet(lesson,g.no,lessonsOf(cls.id)),base=Math.max(0,Math.min(5,(+s.group||0)+(s.first?1:0))-(+s.phone||0)),duty=net-base;return '<div data-member-lesson-totals="'+g.no+'">'+g.members.map(function(m,i){if(!m.name)return '';var value=Math.round((remaining(lesson,g.no,i)+projectScore(lesson,g.no,m)+duty)*100)/100;return '<div class="home-grade-person" data-lesson-member="'+i+'"><span class="home-grade-name">'+(i+1)+'</span><strong>'+value+'</strong></div>';}).join('')+'</div>';}
+  function lessonMemberTotals(cls,lesson,g){var s=sc(lesson,g.no),net=window.JFDT_ASSESSMENT.groupNet(lesson,g.no,lessonsOf(cls.id)),base=Math.max(0,Math.min(5,(+s.group||0)+(s.first?1:0))-(+s.phone||0)),duty=net-base;return '<div data-member-lesson-totals="'+g.no+'">'+g.members.map(function(m,i){if(!m.name)return '';var value=Math.round((remaining(lesson,g.no,i)+projectScore(lesson,g.no,m)+duty)*100)/100;return '<div class="home-grade-person" data-lesson-member="'+i+'" title="'+esc(m.name)+'"><strong>'+value+'</strong></div>';}).join('')+'</div>';}
   function ctlSum(gno, total, cumVal) {
     return '<div hidden class="legacy-group-total v '+signClass(total)+'" data-total="'+gno+'">'+fmt(total)+'</div>'+lessonMemberTotals(curClass(),curLesson(curClass()),groupOf(curClass(),gno));
 
@@ -733,7 +733,7 @@ function removeMemberAt(cls, g, j) {
     var A=window.JFDT_ASSESSMENT;if(!A)return '<td rowspan="2" colspan="3">成绩模块未加载</td>';
     var rows=A.rows(cls,lessonsOf(cls.id),memberTotals(cls));
     var members=g.members.filter(function(m){return !!m.name;}).map(function(m,i){return {member:m,index:i+1,row:rows.find(function(r){return r.key===A.key(m);})};});
-    return ['regular','contribution','needed'].map(function(field){return '<td rowspan="2" class="home-grade '+field+'" data-home-grade="'+field+'">'+members.map(function(item){var m=item.member,r=item.row;if(!r)return '';var value=field==='needed'?(r.attendanceFailed?'不适用':r.needed>100?'无法达到':r.needed):r[field];return '<div class="home-grade-person" data-grade-student="'+esc(r.key)+'" title="'+esc(m.name)+'：'+(r.ready?'记录已齐':'预估，项目或考勤记录未齐')+'"><span class="home-grade-name">'+item.index+'</span><strong>'+value+(field==='regular'?' <span class="completion-rate">（'+(r.task.maximum?Math.round(r.task.rate*1000)/10+'%':'—')+'）</span>':'')+'</strong>'+(r.attendanceFailed?'<small>考勤挂科</small>':'')+'</div>';}).join('')+'</td>';}).join('');
+    return ['regular','contribution','needed'].map(function(field){return '<td rowspan="2" class="home-grade '+field+'" data-home-grade="'+field+'">'+members.map(function(item){var m=item.member,r=item.row;if(!r)return '';var value=field==='needed'?(r.attendanceFailed?'不适用':r.needed>100?'无法达到':r.needed):r[field];return '<div class="home-grade-person" data-grade-student="'+esc(r.key)+'" title="'+esc(m.name)+'：'+(r.ready?'记录已齐':'预估，项目或考勤记录未齐')+'"><strong>'+value+(field==='regular'?' <span class="completion-rate">（'+(r.task.maximum?Math.round(r.task.rate*1000)/10+'%':'—')+'）</span>':'')+'</strong>'+(r.attendanceFailed?'<small>考勤挂科</small>':'')+'</div>';}).join('')+'</td>';}).join('');
   }
 
   /** 个人扣分格：点一次 +1；右键 / 长按 −1 */

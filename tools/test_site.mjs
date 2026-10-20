@@ -90,7 +90,7 @@ const editedState=JSON.parse(w.localStorage.getItem('jfdt.v1'));
 check('editing metadata preserves stable lesson identity and every score', editedState.lessons[0].id===dutyState.lessons[0].id && JSON.stringify(editedState.lessons[0].scores)===JSON.stringify(dutyState.lessons[0].scores) && editedState.lessons[0].seq===2 && editedState.lessons[0].date==='2026-10-12' && q('#lessonSel').textContent.includes('2026-10-12'));
 check('home sheet adds three individual grade columns after the lesson total',q('table.sheet thead').textContent.includes('至今完成率')&&q('table.sheet thead').textContent.includes('期末至少需考')&&q('#groupList [data-home-grade="regular"] [data-grade-student]'));
 const homeRegular=q('[data-home-grade="regular"] strong').textContent;
-check('home grades use member positions without repeated names or estimate text', q('[data-home-grade="regular"] .home-grade-name').textContent==='1' && !q('[data-home-grade="regular"]').textContent.includes('预估'));
+check('home grades use member positions without repeated names or estimate text', !q('[data-home-grade="regular"] .home-grade-name')&&!!q('.home-attendance-person span') && !q('[data-home-grade="regular"]').textContent.includes('预估'));
 q('#tabs [data-view="rank"]').click();
 check('home grade uses the identical assessment result as rankings',q('#memberRank td.grade-regular strong').textContent===homeRegular);
 q('#tabs [data-view="score"]').click();q('#btnPrintLesson').click();q('#dlgLessonPrint').returnValue='ok';q('#dlgLessonPrint').dispatchEvent(new w.Event('close'));

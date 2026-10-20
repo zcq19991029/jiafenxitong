@@ -1500,3 +1500,7 @@ table.sheet col.w-grp,table.sheet th.c-grp,table.sheet td.c-grp,#printArea col.w
   table.sheet .pchip:focus-visible,table.sheet .personal-refund:focus-visible,table.sheet [data-act="batch-deduct"]:focus-visible {outline:2px solid var(--accent);outline-offset:-2px}
 }
 @media(max-width:760px){#dlgOperationLog{width:100vw;max-height:100dvh;border-radius:0}#dlgOperationLog .dlg{height:100dvh;max-height:100dvh}.bubble-audit-table{font-size:13px}.bubble-audit-table th,.bubble-audit-table td{padding:12px 9px}}
+
+/* Attendance carries the only member index; the four numeric columns share its row order. */
+@media screen {table.sheet .home-grade-person {grid-template-columns:minmax(0,1fr)}table.sheet .home-grade-person strong {text-align:center}}
+@media print {#printArea .sheet-tb .home-grade-person {grid-template-columns:minmax(0,1fr)!important}}
