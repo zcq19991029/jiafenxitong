@@ -224,6 +224,38 @@ function memberCount(g) {
   return n;
 }
 
+function memberKey(m) { return m && (m.sid ? 'sid:' + m.sid : 'id:' + m.id); }
+function groupLeaderKey(g) {
+  var named = g.members.filter(function (m) { return !!m.name; });
+  var stored = String(g.leaderKey || '');
+  return stored && named.some(function (m) { return memberKey(m) === stored; })
+    ? stored
+    : (named[0] ? memberKey(named[0]) : '');
+}
+function groupMemberEntries(g) {
+  var entries = g.members.map(function (m, i) { return { m: m, i: i }; }).filter(function (x) { return !!x.m.name; });
+  var lead = groupLeaderKey(g);
+  if (!lead) return entries;
+  return entries.sort(function (a, b) {
+    return (memberKey(a.m) === lead ? -1 : 0) - (memberKey(b.m) === lead ? -1 : 0);
+  });
+}
+function isGroupLeader(g, m) { return !!m && memberKey(m) === groupLeaderKey(g); }
+function setGroupLeader(cls, g, member) {
+  if (!g || !member || !member.name) return false;
+  var next = memberKey(member), old = groupLeaderKey(g), first = g.members.find(function (m) { return !!m.name; }), defaultKey = first ? memberKey(first) : '';
+  if (next === old) next = defaultKey;
+  if (next === old) return false;
+  if (next && next === defaultKey) delete g.leaderKey; else if (next) g.leaderKey = next; else delete g.leaderKey;
+  var restoredDefault = next === defaultKey;
+  addOperationLog('组长', cls.name + ' · 第' + g.no + '组 · ' + member.name + (restoredDefault ? '恢复默认组长' : '成为组长'));
+  save();
+  renderGroups(cls, curLesson(cls));
+  if (view === 'leader') renderLeader();
+  flash(restoredDefault ? '已恢复第1位成员为第' + g.no + '组组长' : member.name + '已设为第' + g.no + '组组长');
+  return true;
+}
+
 /** 末尾的空占位格先清掉再追加，免得名单里出现「空一格再是人」 */
 function pushMember(g, m) {
   while (g.members.length && !g.members[g.members.length - 1].name) g.members.pop();
@@ -234,7 +266,9 @@ function pushMember(g, m) {
     个人扣分是按「组内位置」存的，删掉中间一个人会让后面所有人的扣分错位，
     所以这里把所有历史课次里该组的 personal 索引一并左移。 */
 function removeMemberAt(cls, g, j) {
+  var removed = g.members[j];
   g.members.splice(j, 1);
+  if (removed && g.leaderKey === memberKey(removed)) delete g.leaderKey;
   S.lessons.forEach(function (l) {
     if (l.classId !== cls.id) return;
     var s = l.scores[String(g.no)];
@@ -601,6 +635,9 @@ function removeMemberAt(cls, g, j) {
         S.ui.classId = classId; S.ui.lessonId = lessonId;
         fillClassSelects(); save(false); renderLeader();
       },
+      toggleLeader: function (cls, group, member) { return setGroupLeader(cls, group, member); },
+      memberEntries: function (group) { return groupMemberEntries(group); },
+      isLeader: function (group, member) { return isGroupLeader(group, member); },
       openScore: function () { switchView('score'); }
       ,openGroups: function () { switchView('pool'); }
     });
@@ -788,6 +825,9 @@ function removeMemberAt(cls, g, j) {
       ? groupsTable(cls, lesson)
       : groupsCards(cls, lesson);
     mountGroupPicker(cls,lesson);
+    $$('[data-leader-toggle]',host).forEach(function (el) {
+      el.ondblclick=function(e){e.preventDefault();e.stopPropagation();var g=groupOf(cls,+el.dataset.g),m=g&&g.members[+el.dataset.memberIndex];if(g&&m)setGroupLeader(cls,g,m);};
+    });
     $$('td.regular[data-home-grade]',host).forEach(function(cell){var person=$('[data-grade-student]',cell);if(!person)return;cell.tabIndex=0;cell.setAttribute('role','button');cell.setAttribute('aria-label',cell.title+'：查看截至第'+lesson.seq+'次课的分数明细');cell.onclick=function(){showStudentGrade(cls,person.dataset.gradeStudent,lesson);};cell.onkeydown=function(e){if(e.key==='Enter'||e.key===' '){e.preventDefault();cell.click();}};});
   }
 
@@ -808,13 +848,15 @@ function removeMemberAt(cls, g, j) {
       var duty = dutyGroups(lesson).includes(g.no);
       var cnt = memberCount(g);
       var maxPhone = 1000000;
+      var memberEntries = groupMemberEntries(g);
       var names = cnt
-        ? g.members.slice(0, cnt).map(function (m,i) { return '<span class="member-name'+attendanceNameClass(cls,m,lesson)+'">' + esc(m.name) + semesterBadge(cls,g.no,i) + '</span>'; }).join('')
+        ? memberEntries.map(function (entry) { var m=entry.m,i=entry.i;return '<span class="member-name'+attendanceNameClass(cls,m,lesson)+(isGroupLeader(g,m)?' group-leader-name':'')+'" data-leader-toggle data-g="'+g.no+'" data-member-index="'+i+'" title="双击设置或退出组长">' + (isGroupLeader(g,m)?'<span class="leader-crown" aria-label="组长">👑</span> ':'') + esc(m.name) + semesterBadge(cls,g.no,i) + '</span>'; }).join('')
         : '<span style="color:var(--muted);font-weight:400">（未录入名单）</span>';
 
       var personal = cnt
         ? '<div class="personals"><span class="plabel">本节参与分 <small>0–5分</small></span>' +
-          g.members.slice(0, cnt).map(function (m, i) {
+          memberEntries.map(function (entry) {
+            var m=entry.m,i=entry.i;
             return ctlPersonal(g.no, m, i, +s.personal[String(i)] || 0, true);
           }).join('') + '</div>'
         : '';
@@ -862,11 +904,11 @@ function removeMemberAt(cls, g, j) {
   function verticalHead(){return '<thead><tr><th class="c-no">组号</th><th class="c-mem">成员</th><th class="c-ded">本节参与分</th><th class="home-attendance">考勤分 /9</th><th class="c-phone">全组扣分</th><th class="c-duty">值日分</th><th class="c-sum">本节合计</th><th class="home-grade regular">平时分<br>（至今完成率）</th><th class="home-grade contribution">计入总评 /40</th><th class="home-grade needed">期末至少需考 /100</th></tr></thead>';}
   function verticalGroup(cls,lesson,g,printing){
     var A=window.JFDT_ASSESSMENT,allLessons=lessonsOf(cls.id),gradeLessons=lessonsThrough(cls,lesson),grades=A.rows(cls,gradeLessons,memberTotals(cls)),scored=sc(lesson,g.no),net=A.groupNet(lesson,g.no,allLessons),base=Math.max(0,Math.min(5,(+scored.group||0)+(scored.first?1:0))-(+scored.phone||0)),duty=net-base;
-    var entries=g.members.map(function(m,i){return {m:m,i:i};}).filter(function(x){return !!x.m.name;}),editing=!printing&&groupPicking&&groupPicking.classId===cls.id&&groupPicking.lessonId===lesson.id&&groupPicking.no===g.no;
+    var entries=groupMemberEntries(g),editing=!printing&&groupPicking&&groupPicking.classId===cls.id&&groupPicking.lessonId===lesson.id&&groupPicking.no===g.no;
     var display=entries.length?entries:[{m:null,i:-1}],span=display.length+(editing?1:0),rows=display.map(function(x,j){var m=x.m,i=x.i,key=m&&A.key(m),grade=m&&grades.find(function(r){return r.key===key;}),total=m?Math.round((remaining(lesson,g.no,i)+projectScore(lesson,g.no,m)+duty)*100)/100:'';
       var out='<tr class="vertical-member-row"'+(m?' data-member-index="'+i+'" data-member-key="'+esc(key)+'"':'')+'>';
       if(!j)out+='<td class="c-no" rowspan="'+span+'">'+g.no+'</td>';
-      out+='<td class="c-mem member-name-cell'+(m?attendanceNameClass(cls,m,lesson):'')+'" title="'+esc(m?(m.name+' '+(m.sid||'')):'双击组号添加成员')+'">'+(m?esc(m.name)+(m.no==null?'':' <small>'+two(m.no)+'</small>'):'未分配成员')+'</td>';
+      out+='<td class="c-mem member-name-cell'+(m?attendanceNameClass(cls,m,lesson):'')+(m&&isGroupLeader(g,m)?' group-leader-name':'')+'"'+(m?' data-leader-toggle data-g="'+g.no+'" data-member-index="'+i+'"':'')+' title="'+esc(m?(m.name+' '+(m.sid||'')+' · 双击设置或退出组长'):'双击组号添加成员')+'">'+(m?(isGroupLeader(g,m)?'<span class="leader-crown" aria-label="组长">👑</span> ':'')+esc(m.name)+(m.no==null?'':' <small>'+two(m.no)+'</small>'):'未分配成员')+'</td>';
       out+='<td class="c-ded">'+(m?(printing?remaining(lesson,g.no,i):ctlPersonal(g.no,m,i,0)):'')+'</td>';
       out+='<td class="home-attendance">'+(grade?(printing?'<strong>'+grade.attendance+'</strong>':'<button type="button" class="attendance-score" data-attendance-open="'+esc(key)+'" aria-label="'+esc(m.name)+' 考勤'+grade.attendance+'分，点击修改">'+grade.attendance+'</button>'):'')+'</td>';
       if(!j)out+='<td class="c-phone" rowspan="'+span+'">'+(printing?'':ctlBatch(g.no))+'</td><td class="c-duty" rowspan="'+span+'">'+(printing?(scored.duty||''):ctlDuty(g.no,scored,entries.length))+'</td>';
@@ -1742,12 +1784,15 @@ function removeMemberAt(cls, g, j) {
   }
 
   /** 打印本课：完全照着纸质《课堂分组与加分记录表》的 12 列版式 */
-  var lessonPrintOptions={range:'both',orientation:'portrait'},lessonExporting=false;
+  var lessonPrintOptions={range:'both',orientation:'portrait',scope:'all',pageGroups:null},lessonExporting=false;
+  function lessonPrintGroupCandidates(cls){return (cls.groups||[]).slice();}
+  function fillLessonPrintRanges(reset){var dlg=$('#dlgLessonPrint');if(!dlg)return;var cls=curClass(),groups=lessonPrintGroupCandidates(cls),scope=$('#lessonPrintScope').value,select=$('#lessonPrintPageCount'),box=$('#lessonPrintRanges');if(scope!=='groups'){select.innerHTML='<option value="1">1页</option>';select.value='1';box.hidden=true;box.innerHTML='';return;}box.hidden=false;if(reset){select.innerHTML=groups.map(function(_,i){return '<option value="'+(i+1)+'">'+(i+1)+'页</option>';}).join('');select.value=String(Math.max(1,Math.min(groups.length,groups.length)));}var n=Math.max(1,Math.min(Number(select.value)||1,groups.length));select.value=String(n);var offset=0;box.innerHTML=Array.from({length:n},function(_,i){var count=Math.floor(groups.length/n)+(i<groups.length%n?1:0),part=groups.slice(offset,offset+count);offset+=count;var nums=part.map(function(g){return g.no;}),contig=nums.every(function(no,j){return !j||no===nums[j-1]+1;}),value=contig&&nums.length>1?nums[0]+'-'+nums[nums.length-1]:nums.join(',');return '<label class="field col">第'+(i+1)+'页组别<input data-lesson-print-page="'+i+'" aria-label="第'+(i+1)+'页组别" value="'+esc(value)+'" placeholder="例如1-6"></label>';}).join('');}
+  function parseLessonPageRanges(groups,texts){var seen=new Set();var pages=texts.map(function(text,i){var nums=[];String(text).trim().split(/[,，、\s]+/).forEach(function(token){var m=/^(\d+)(?:[-—–~～至](\d+))?$/.exec(token);if(!m)throw Error('第'+(i+1)+'页请输入组号或范围，如1-6。');var a=Number(m[1]),b=m[2]?Number(m[2]):a;if(a>b||b-a>1000)throw Error('第'+(i+1)+'页组号范围无效。');for(var no=a;no<=b;no++)nums.push(no);});if(nums.length>8)throw Error('第'+(i+1)+'页超过8组，请增加页数。');return nums.map(function(no){var g=groups.find(function(x){return x.no===no;});if(!g)throw Error('第'+no+'组不在本次打印范围内。');if(seen.has(no))throw Error('第'+no+'组重复，请只安排一次。');seen.add(no);return g;});});var missing=groups.filter(function(g){return !seen.has(g.no);});if(missing.length)throw Error('尚未安排：第'+missing.map(function(g){return g.no;}).join('、')+'组。');return pages;}
   function openLessonPrint(cls,lesson,asPdf){
     var dlg=$('#dlgLessonPrint');
-    if(!dlg){dlg=document.createElement('dialog');dlg.id='dlgLessonPrint';dlg.innerHTML='<form method="dialog"><h2>打印本课</h2><label class="field col">打印范围<select id="lessonPrintRange"><option value="both">加分表＋背面说明</option><option value="front">仅加分表</option><option value="rules">仅规则说明</option></select></label><label class="field col">纸张方向<select id="lessonPrintOrientation"><option value="portrait">A4 竖向</option><option value="landscape">A4 横向</option></select></label><p class="note">范围和方向在此选择。双面打印选择长边翻转；建议关闭页眉页脚。</p><div class="btnrow"><button class="btn" value="cancel">取消</button><button class="btn primary" value="ok">开始打印</button></div></form>';document.body.appendChild(dlg);}
+    if(!dlg){dlg=document.createElement('dialog');dlg.id='dlgLessonPrint';dlg.innerHTML='<form method="dialog"><h2>打印本课</h2><label class="field col">打印范围<select id="lessonPrintRange"><option value="both">加分表＋背面说明</option><option value="front">仅加分表</option><option value="rules">仅规则说明</option></select></label><label class="field col">打印对象<select id="lessonPrintScope"><option value="all">本课全部小组</option><option value="groups">按组切割打印</option></select></label><label class="field col">打印页数<select id="lessonPrintPageCount"></select></label><div id="lessonPrintRanges"></div><label class="field col">纸张方向<select id="lessonPrintOrientation"><option value="portrait">A4 竖向</option><option value="landscape">A4 横向</option></select></label><p class="note">选择“按组切割打印”后，可按每页组别范围安排，例如1-6、7-13；每页最多8组。双面打印选择长边翻转；建议关闭页眉页脚。</p><div class="btnrow"><button class="btn" value="cancel">取消</button><button class="btn primary" value="ok">开始打印</button></div></form>';document.body.appendChild(dlg);dlg.querySelector('#lessonPrintScope').onchange=function(){fillLessonPrintRanges(true);};dlg.querySelector('#lessonPrintPageCount').onchange=function(){fillLessonPrintRanges(false);};}
     dlg.querySelector('h2').textContent=asPdf?'下载打印版 PDF':'打印本课';dlg.querySelector('[value="ok"]').textContent=asPdf?'下载 PDF':'开始打印';
-    dlg.onclose=function(){if(dlg.returnValue!=='ok')return;lessonPrintOptions={range:$('#lessonPrintRange').value,orientation:$('#lessonPrintOrientation').value};if(asPdf)downloadLessonPdf(cls,lesson);else printLesson(cls,lesson);};dlg.returnValue='';openDlg(dlg);
+    $('#lessonPrintScope').value='all';fillLessonPrintRanges(true);dlg.onclose=function(){if(dlg.returnValue!=='ok')return;var scope=$('#lessonPrintScope').value,pageGroups=null;try{if(scope==='groups')pageGroups=parseLessonPageRanges(lessonPrintGroupCandidates(cls),Array.from(dlg.querySelectorAll('[data-lesson-print-page]')).map(function(el){return el.value;}));}catch(e){dlg.querySelector('#lessonPrintError')?.remove();var err=document.createElement('p');err.id='lessonPrintError';err.className='note';err.textContent=e.message;dlg.querySelector('form').insertBefore(err,dlg.querySelector('.btnrow'));openDlg(dlg);return;}lessonPrintOptions={range:$('#lessonPrintRange').value,orientation:$('#lessonPrintOrientation').value,scope:scope,pageGroups:pageGroups};if(asPdf)downloadLessonPdf(cls,lesson);else printLesson(cls,lesson,pageGroups);};dlg.returnValue='';openDlg(dlg);
   }
   var pdfExportBusy=false;
   async function downloadLessonPdf(cls,lesson){
@@ -1755,7 +1800,7 @@ function removeMemberAt(cls, g, j) {
     var frame=null,pdfOrientation=lessonPrintOptions.orientation;
     try{
       flash('正在生成打印版 PDF…');
-      lessonExporting=true;try{printLesson(cls,lesson);}finally{lessonExporting=false;document.body.classList.remove('print-lesson');}
+      lessonExporting=true;try{printLesson(cls,lesson,lessonPrintOptions.pageGroups);}finally{lessonExporting=false;document.body.classList.remove('print-lesson');}
       var html=$('#printArea').innerHTML,pageCss=$('#lessonPageStyle').textContent;
       var css=await (await fetch(new URL('styles.css',location.href))).text();
       css=(css+'\n'+pageCss).replace(/@media screen/g,'@media not all').replace(/@media print/g,'@media all');
@@ -1795,9 +1840,9 @@ function removeMemberAt(cls, g, j) {
     var formatted=window.JFDT_PRINT_EXCEL(table,cls.name+' · 第'+lesson.seq+'次 · '+lesson.date+' · '+(lesson.topic||''),rows,rules);
     download(cls.name+'_第'+lesson.seq+'次课_可编辑打印版.xlsx',formatted,'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');
   }
-  function printLesson(cls, lesson) {
+  function printLesson(cls, lesson, pageGroups) {
     var dg=lesson.dutyGroup?+lesson.dutyGroup:null;
-    var cols=verticalColumns(cls),head=verticalHead(),body=cls.groups.map(function(g){return verticalGroup(cls,lesson,g,true);}).join('');
+    var printGroups=pageGroups&&pageGroups.length?pageGroups.reduce(function(all,part){return all.concat(part);},[]):cls.groups,cols=verticalColumns(cls),head=verticalHead();
     /* 备注行：先写待分组名单（纸质表本来就有），再跟一行各组累计 */
     var pend = pendingList(cls);
     var note = '备注·待分组名单（共' + pend.length + '人）：' +
@@ -1808,14 +1853,14 @@ function removeMemberAt(cls, g, j) {
 
     var cfg=window.JFDT_ASSESSMENT.settings(cls);
     var reverse='<section class="lesson-duplex-page lesson-rules-back"><h1>小组制课堂 · 加分与成绩换算说明</h1><p>'+esc(cls.name)+' · 第'+lesson.seq+'次课 · '+esc(lesson.date||'')+'</p><h2>1. 项目与扣分</h2><p>每新开一课，小组项目满分增加5；每个命名个人项目再增加5。同课任一组修改个人项目名，全班同步。全组扣分从每个人项目得分扣除，个人扣分只扣本人，合计仅扣本课小组项目，最低0，不跨课。</p><h2>2. 值日与成绩换算</h2><p>每课小组项目5分，每个命名个人项目5分；学期值日项目只计一次5分，全班未完成先按0计，重复值日取最高分。全组扣分从每位成员项目分扣除，个人扣分只扣本人，两类扣分合计仅扣本课小组项目，最低0且不跨课。完成率＝项目净得分÷项目满分（换算范围0%–100%）；学习＝91×完成率，考勤＝max(0,9−累计考勤扣分)，平时＝学习＋考勤；计入总评＝学习×40%＋考勤×40%，满分36.4＋3.6＝40。迟到早退每3次折1次旷课，不重复扣分；考勤归零或旷课达到门槛时按教师设置标红挂科。</p><h2>3. 考勤与挂科标记</h2><p>本班默认扣分：迟到'+cfg.late+'、早退'+cfg.early+'、旷课'+cfg.truant+'、请假'+cfg.leave+'；每次可由教师更正。迟到＋早退每'+cfg.lateEarlyConversion+'次折算1次旷课，只用于挂科计数，不重复扣分。实际＋折算旷课合计'+cfg.truantFailure+'次触发标红；当前考勤挂科标记'+(cfg.attendanceFailureEnabled?'开启':'关闭')+'。门槛与开关由教师在二级设置调整，更正后自动重算。</p><h2>4. 期末还需考多少分</h2><p>平时占40%，期末占60%，本班及格线'+cfg.passScore+'。期末需考=max(0,(及格线−平时成绩×0.4)÷0.6)，向上取0.1分。折合列仅显示一位小数，计算使用未提前舍入的数值。超过100表示无法达到；考勤挂科时目标不适用，考试高分不能解除标记。</p><h2>5. 阅读与使用</h2><p>每名学生独占一行，姓名与本节分数、考勤及右侧三列直接对应；右侧为打印时本学期当前个人成绩，与排名页相同，不是小组平均分。未编辑考勤默认到课，只登记请假、旷课、迟到或早退等异常。资料未齐时供参考。纸上填写不会自动识别，教师需回网页补录；以网页最新记录为准。</p><p class="duplex-note">双面打印：A4竖向，长边翻转；关闭浏览器页眉页脚。每张加分表正面后紧跟这份规则背面。</p></section>';
-    var groupBodies=body.match(/<tbody[\s\S]*?<\/tbody>/g)||[],pages=[];
-    for(var offset=0;offset<groupBodies.length;offset+=groupBodies.length){pages.push('<section class="lesson-duplex-page lesson-duplex-front"><div class="sheet-title">课堂分组与加分记录表</div><div class="sheet-info">'+esc(cls.name)+' · 第'+lesson.seq+'次 · '+esc(lesson.date||'')+' · '+esc(lesson.topic||'')+'</div><div class="sheet-duty">值日：'+(dg?'第'+dg+'组':'未指定')+' · 第'+(offset/6+1)+'张</div><table class="sheet-tb sheet-vertical"><colgroup>'+cols+'</colgroup>'+head+groupBodies.slice(offset,offset+groupBodies.length).join('')+foot+'</table></section>');pages.push(reverse);}
+    var groupsPerPage=pageGroups&&pageGroups.length?pageGroups:[printGroups],pages=[];
+    groupsPerPage.forEach(function(part,pageIndex){var body=part.map(function(g){return verticalGroup(cls,lesson,g,true);}).join('');pages.push('<section class="lesson-duplex-page lesson-duplex-front"><div class="sheet-title">课堂分组与加分记录表</div><div class="sheet-info">'+esc(cls.name)+' · 第'+lesson.seq+'次 · '+esc(lesson.date||'')+' · '+esc(lesson.topic||'')+'</div><div class="sheet-duty">值日：'+(dg?'第'+dg+'组':'未指定')+' · 第'+(pageIndex+1)+'张 · '+(part.length===1?'第'+part[0].no+'组':'第'+part[0].no+'—'+part[part.length-1].no+'组')+'</div><table class="sheet-tb sheet-vertical"><colgroup>'+cols+'</colgroup>'+head+body+foot+'</table></section>');pages.push(reverse);});
     var holder=document.createElement('div');holder.innerHTML=pages.join('');
     if(lessonPrintOptions.range==='front')holder.querySelectorAll('.lesson-rules-back').forEach(function(e){e.remove();});
     if(lessonPrintOptions.range==='rules')holder.querySelectorAll('.lesson-duplex-front').forEach(function(e){e.remove();});
     var style=$('#lessonPageStyle');if(!style){style=document.createElement('style');style.id='lessonPageStyle';document.head.appendChild(style);}
     var landscape=lessonPrintOptions.orientation==='landscape';
-    var printSlots=cls.groups.reduce(function(n,g){return n+Math.max(1,g.members.filter(function(m){return !!m.name;}).length);},0);
+    var printSlots=printGroups.reduce(function(n,g){return n+Math.max(1,g.members.filter(function(m){return !!m.name;}).length);},0);
     var printLine=Math.min(4,(landscape?118:200)/Math.max(1,printSlots)),printFont=Math.min(10,printLine*2.5);
     style.textContent='@media print{@page{size:A4 '+(landscape?'landscape':'portrait')+';margin:10mm}@page leaderPaper{size:A4 '+(landscape?'landscape':'portrait')+';margin:10mm}.lesson-duplex-page{height:'+(landscape?'178':'264')+'mm!important}.lesson-duplex-front .sheet-tb{top:'+(landscape?'31':'22')+'mm!important;transform:none!important;zoom:'+(landscape?'.65':'.92')+';width:100%!important}.lesson-rules-back{font-size:'+(landscape?'8':'10')+'pt!important}.lesson-rules-back p{font-size:'+(landscape?'8':'10')+'pt!important}.lesson-rules-back h2{margin:2mm 0 1mm!important}}';
     style.textContent+='@media print{.lesson-duplex-front .sheet-tb{top:20mm!important;transform:none!important;zoom:1!important;width:100%!important;--print-font:'+printFont+'pt;--print-line:'+printLine+'mm}}';
@@ -2086,7 +2131,36 @@ function removeMemberAt(cls, g, j) {
   /* ---------------- 个人信息 ---------------- */
 
   var dlgMe = $('#dlgMe');
+  var dlgAccountSwitch = $('#dlgAccountSwitch');
+  var rememberedAccountsKey = 'jfdt.accounts.v1';
   var meNudged = false;              // 「还没填名字」只提示一次
+
+  function rememberedAccounts() {
+    try { var list = JSON.parse(localStorage.getItem(rememberedAccountsKey) || '[]'); return Array.isArray(list) ? list : []; } catch (e) { return []; }
+  }
+  function rememberAccount(profile) {
+    if (!profile || !profile.uid) return;
+    var list = rememberedAccounts().filter(function (a) { return a.uid !== profile.uid; });
+    list.unshift({ uid: profile.uid, username: profile.username || '', displayName: profile.displayName || profile.name || '未命名老师', realName: profile.realName || '', lastUsed: Date.now() });
+    try { localStorage.setItem(rememberedAccountsKey, JSON.stringify(list.slice(0, 8))); } catch (e) {}
+  }
+  function renderRememberedAccounts() {
+    var box = $('#rememberedAccounts'); if (!box) return;
+    var current = CLOUD && CLOUD.profile && CLOUD.profile(), list = rememberedAccounts();
+    box.innerHTML = list.length ? '<p class="field-label">本机已记住的账号</p>' + list.map(function (a) {
+      var currentMark = current && current.uid === a.uid;
+      return '<button type="button" class="remembered-account'+(currentMark?' current':'')+'" data-switch-account="'+esc(a.username)+'"'+(currentMark?' disabled':'')+'><span class="avatar mini">'+esc((a.displayName||a.username||'老').slice(0,1))+'</span><span><b>'+esc(a.displayName||a.username)+'</b><small>'+esc(a.username||'未填写账号')+(currentMark?' · 当前账号':'')+'</small></span></button>';
+    }).join('') : '<p class="note">还没有其他已记住的账号；输入账号和密码即可加入列表。</p>';
+    box.querySelectorAll('[data-switch-account]').forEach(function (button) { button.onclick = function () { $('#switchUsername').value = button.dataset.switchAccount; $('#switchPassword').focus(); }; });
+  }
+  function openAccountSwitch() { renderRememberedAccounts(); $('#switchUsername').value = ''; $('#switchPassword').value = ''; $('#switchAccountMsg').hidden = true; openDlg(dlgAccountSwitch); }
+  function switchAccountNow() {
+    var username = $('#switchUsername').value.trim(), password = $('#switchPassword').value, msg = $('#switchAccountMsg'), submit = $('#btnSwitchSubmit');
+    if (!username || !password) { msg.textContent = '请选择或填写账号，并输入密码。'; msg.hidden = false; return; }
+    submit.disabled = true; msg.hidden = true;
+    var ready = CLOUD && CLOUD.flush ? CLOUD.flush() : Promise.resolve();
+    ready.then(function () { return CLOUD.login(username, password); }).then(function () { dlgAccountSwitch.close(); flash('已切换到账号：' + username, true); }).catch(function (e) { msg.textContent = '切换失败：' + (e && e.message ? e.message : e); msg.hidden = false; }).finally(function () { submit.disabled = false; });
+  }
 
   /* <dialog> 关掉之后要立刻再撑开（校验没过、保存失败都要留在这一页）。
      showModal 在极少数情况下会抛 InvalidStateError，退一步用 setTimeout 再来一次。 */
@@ -2139,6 +2213,14 @@ function removeMemberAt(cls, g, j) {
       reopenDlg(dlgMe);
     });
   });
+  $('#btnSwitchAccount').onclick = function () { dlgMe.close(); openAccountSwitch(); };
+  $('#btnAccountSwitchClose').onclick = function () { dlgAccountSwitch.close(); };
+  $('#btnSwitchSubmit').onclick = switchAccountNow;
+  $('#btnSwitchOther').onclick = function () {
+    if (!confirm('退出当前账号并打开登录页？当前记录会先尝试同步。')) return;
+    var ready = CLOUD && CLOUD.flush ? CLOUD.flush() : Promise.resolve();
+    ready.then(function () { return CLOUD.signOut(); });
+  };
 
   var syncEditBlocked=true;
   function setSyncEditGate(blocked,message){syncEditBlocked=blocked;if(!S)return;['#view-score','#view-leader','#view-attendance','#view-pool','#scoreTools','#rosterCard','#lessonListCard'].forEach(function(selector){var el=$(selector);if(el)el.toggleAttribute('inert',blocked);});['#btnImportRoster','#btnRestore','#btnWipe'].forEach(function(selector){var b=$(selector);if(b)b.disabled=blocked;});var gate=$('#syncEditGate');if(!gate){gate=document.createElement('div');gate.id='syncEditGate';gate.className='sync-edit-gate';gate.setAttribute('role','status');$('#main').prepend(gate);}gate.hidden=!blocked;gate.textContent=message||'正在核对云端，确认后开放编辑';}
@@ -2296,6 +2378,7 @@ function removeMemberAt(cls, g, j) {
   function startApp(profile, rec) {
     CLOUD_ON = !!(CLOUD && profile);
     cloudRec = rec || null;
+    rememberAccount(profile);
 
     /* Keep the historical data key, but archive it by account before switching teachers. */
     if (profile && profile.uid) {

@@ -21,6 +21,7 @@ check('frontend scripts are all same-origin', !/<script[^>]+src="https?:/i.test(
 check('scripts use build-specific cache versions', html.includes('app.js?v=') && html.includes('config.js?v='));
 check('release metadata includes the exact source and publication build time', /^([0-9a-f]{40}|local-check)$/.test(release.commit) && Number.isFinite(new Date(release.builtAt).getTime()) && html.includes('name="build-published-at"'));
 check('top bar separates application release from cloud sync and provides manual check', html.includes('id="cloudChip"') && html.includes('id="appVersionChip"') && html.includes('id="btnCheckAppVersion"'));
+check('profile dialog exposes a safe remembered-account switcher', html.includes('id="btnSwitchAccount"') && html.includes('id="dlgAccountSwitch"') && html.includes('id="rememberedAccounts"'));
 check('HTML prevents embedding and executable inline injection', root.headers.get('x-frame-options') === 'DENY'
   && root.headers.get('content-security-policy').includes("script-src 'self'"));
 check('private source materials are not served', (await get('/教学材料/名单.xlsx')).status === 404);
@@ -246,6 +247,17 @@ async function verticalFixture(sizes){
  Object.defineProperty(q('#fileRestore'),'files',{configurable:true,value:[new w.File([JSON.stringify(state)],'vertical-fixture.json',{type:'application/json'})]});q('#fileRestore').dispatchEvent(new w.Event('change'));await until(()=>q('#classSel').textContent.includes('纵向验收班')&&JSON.parse(w.localStorage.getItem('jfdt.v1')).classes[0].roster.length===sizes.reduce((a,n)=>a+n,0));await w.JFDT_CLOUD.flush();return {cls,lesson};
 }
 let vertical=await verticalFixture([3,5,6,7,0]);q('#layoutSeg [data-l="table"]').click();
+q('#tabs [data-view="leader"]').click();
+const leaderStateBefore=JSON.parse(w.localStorage.getItem('jfdt.v1')),leaderGroup=leaderStateBefore.classes[0].groups[0],leaderSecond=leaderGroup.members[1];
+q('#leaderSheet [data-leader-member="sid:'+leaderSecond.sid+'"]').dispatchEvent(new w.MouseEvent('dblclick',{bubbles:true}));
+const leaderStateAfter=JSON.parse(w.localStorage.getItem('jfdt.v1')),leaderSaved=leaderStateAfter.classes[0].groups[0];
+check('double-click selects a new group leader without changing scores',leaderSaved.leaderKey==='sid:'+leaderSecond.sid&&JSON.stringify(leaderStateAfter.lessons[0].scores)===JSON.stringify(leaderStateBefore.lessons[0].scores));
+check('leader sheet places the selected leader first and shows one crown',q('#leaderSheet tbody tr:first-child [data-leader-member]').dataset.leaderMember==='sid:'+leaderSecond.sid&&q('#leaderSheet').querySelectorAll('.leader-crown').length===1);
+q('#tabs [data-view="score"]').click();q('#layoutSeg [data-l="table"]').click();
+check('homepage mirrors leader crown and order while retaining original member index',q('table.sheet [data-card="1"] [data-member-index]:first-of-type').dataset.memberIndex==='1'&&q('table.sheet [data-card="1"]').querySelectorAll('.leader-crown').length===1);
+q('table.sheet [data-card="1"] .member-name-cell[data-member-index="1"]').dispatchEvent(new w.MouseEvent('dblclick',{bubbles:true}));
+const restoredDebug=JSON.parse(w.localStorage.getItem('jfdt.v1'));
+check('double-clicking the selected leader restores the default first member',!restoredDebug.classes[0].groups[0].leaderKey&&q('table.sheet [data-card="1"] [data-member-index]:first-of-type').dataset.memberIndex==='0');
 check('vertical layout has exactly the agreed ten columns and participation label',q('table.sheet thead tr').cells.length===10&&q('table.sheet thead').textContent.includes('本节参与分')&&!q('table.sheet thead').textContent.includes('本节项目分'));
 const autoWidths=Array.from(q('table.sheet colgroup').children).map(c=>parseFloat(c.style.width));
 check('content widths distribute the full table across all ten columns',Math.abs(autoWidths.reduce((a,b)=>a+b,0)-100)<.01&&autoWidths.every(n=>n>0));
@@ -263,6 +275,8 @@ q('#btnOperationLog').click();q('[data-undo-index="0"]').click();q('#closeOperat
 q('[data-card="1"] .group-pick-toggle').dispatchEvent(new w.MouseEvent('dblclick',{bubbles:true}));check('group clear is shown only in group edit secondary area',q('[data-card="1"] .c-no [data-cleargroup]').textContent==='清零本组'&&!q('[data-card="1"] .c-sum [data-cleargroup]'));q('[data-card="1"] .group-pick-toggle').dispatchEvent(new w.MouseEvent('dblclick',{bubbles:true}));
 vertical=await verticalFixture([5,6,7,6,6,6,6,6,4]);q('#btnPrintLesson').click();q('#lessonPrintRange').value='all';q('#lessonPrintOrientation').value='portrait';q('#dlgLessonPrint').returnValue='ok';q('#dlgLessonPrint').dispatchEvent(new w.Event('close'));
 const printedTable=q('#printArea .sheet-vertical');check('52-student print has one front and one back with all52 student rows',q('#printArea').querySelectorAll('.lesson-duplex-front').length===1&&q('#printArea').querySelectorAll('.lesson-rules-back').length===1&&printedTable.querySelectorAll('[data-member-key]').length===52);
+q('#btnPrintLesson').click();q('#lessonPrintScope').value='groups';q('#lessonPrintScope').dispatchEvent(new w.Event('change'));q('#lessonPrintPageCount').value='2';q('#lessonPrintPageCount').dispatchEvent(new w.Event('change'));const printRanges=q('#lessonPrintRanges').querySelectorAll('[data-lesson-print-page]');printRanges[0].value='1-2';printRanges[1].value='3-9';q('#dlgLessonPrint').returnValue='ok';q('#dlgLessonPrint').dispatchEvent(new w.Event('close'));
+const splitFronts=q('#printArea').querySelectorAll('.lesson-duplex-front');check('group print splits the homepage into the requested pages',splitFronts.length===2&&q('#printArea').querySelectorAll('.lesson-rules-back').length===2&&splitFronts[0].textContent.includes('第1—2组')&&splitFronts[1].textContent.includes('第3—9组'));
 check('print and website share automatic content width proportions',printedTable.querySelector('colgroup').innerHTML===q('table.sheet colgroup').innerHTML);
 check('whole group deduction print cells stay blank for handwriting',Array.from(printedTable.querySelectorAll('td.c-phone')).every(c=>c.textContent.trim()===''));
 check('website and printed student orders are identical',Array.from(q('table.sheet').querySelectorAll('[data-member-key]')).map(x=>x.dataset.memberKey).join()===Array.from(printedTable.querySelectorAll('[data-member-key]')).map(x=>x.dataset.memberKey).join());

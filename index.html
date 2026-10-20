@@ -430,8 +430,26 @@
     <div class="gate-msg" id="meMsg" hidden></div>
     <div class="dlg-btns">
       <button value="cancel" class="btn">取消</button>
+      <button type="button" class="btn" id="btnSwitchAccount">切换账号</button>
       <button type="button" class="btn" id="btnChangePassword">修改密码</button>
       <button value="ok" class="btn primary" id="btnMeSave">保存资料</button>
+    </div>
+  </form>
+</dialog>
+
+<dialog id="dlgAccountSwitch">
+  <form method="dialog" class="dlg" id="accountSwitchForm">
+    <div class="dlg-head"><h3>切换账号</h3><button type="button" class="dlg-x" id="btnAccountSwitchClose" aria-label="关闭">✕</button></div>
+    <div class="dlg-body">
+      <p class="note">已登录过的账号会保留在本机列表。切换前会先同步当前账号；密码只用于本次登录，不会保存在浏览器。</p>
+      <div id="rememberedAccounts" class="remembered-accounts"></div>
+      <label class="field col"><span>账号</span><input id="switchUsername" autocomplete="username" autocapitalize="none" placeholder="选择上面的账号，或输入新账号"></label>
+      <label class="field col"><span>密码</span><input id="switchPassword" type="password" autocomplete="current-password" placeholder="请输入密码"></label>
+      <div class="gate-msg" id="switchAccountMsg" hidden></div>
+    </div>
+    <div class="dlg-btns">
+      <button type="button" class="btn" id="btnSwitchOther">退出并登录其他账号</button>
+      <button type="button" class="btn primary" id="btnSwitchSubmit">切换并同步</button>
     </div>
   </form>
 </dialog>

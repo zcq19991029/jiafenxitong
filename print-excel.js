@@ -6,7 +6,7 @@
     clone.querySelectorAll('button').forEach(function(b){b.remove();});
     var source=X.utils.table_to_sheet(clone,{raw:true}),data=X.utils.sheet_to_json(source,{header:1,defval:''}),columnCount=10;
     var ws=X.utils.aoa_to_sheet([['课堂分组与加分记录表'],[metadata]].concat(data));
-    Array.from(table.rows).forEach(function(tr,i){var name=tr.querySelector('.member-name-cell');if(name)ws['B'+(i+3)]={t:'s',v:name.textContent.trim().replace(/\s+/g,' ')};});
+    Array.from(table.rows).forEach(function(tr,i){var name=tr.querySelector('.member-name-cell');if(name)ws['B'+(i+3)]={t:'s',v:name.textContent.trim().replace(/^[👑\s]+/,'').replace(/\s+/g,' ')};});
     for(var r=2;r<data.length+2;r++)for(var c=0;c<columnCount;c++){var address=X.utils.encode_cell({r:r,c:c});if(!ws[address]||ws[address].t==='z'||ws[address].v==='')ws[address]={t:'s',v:' '};}
     ws['!merges']=[{s:{r:0,c:0},e:{r:0,c:9}},{s:{r:1,c:0},e:{r:1,c:9}}].concat((source['!merges']||[]).map(function(m){return {s:{r:m.s.r+2,c:m.s.c},e:{r:m.e.r+2,c:m.e.c}};}));
     var measured=Array.from(table.querySelectorAll('colgroup col')).map(function(c){return Number(c.dataset.contentWidth)||100;});

@@ -1143,6 +1143,18 @@ input[type=password], input:not([type]) { font: inherit; color: var(--text); bac
   .groups .gcard .gsum .k { font-size: 13px; }
   .groups .gcard .gnames { gap: 4px 8px; font-weight: 500; line-height: 1.6; }
   .groups .gcard .member-name { white-space: nowrap; word-break: keep-all; display: inline-block; font-size: 15px; }
+.group-leader-name { font-weight: 800; }
+.leader-crown { display: inline-block; margin-right: 3px; font-size: .9em; line-height: 1; }
+[data-leader-toggle], [data-leader-member] { cursor: pointer; }
+.leader-hint { color: var(--muted); font-size: 12px; }
+.remembered-accounts { display: grid; gap: 8px; margin: 6px 0 14px; }
+.remembered-accounts .field-label { margin: 0 0 2px; color: var(--muted); font-size: 12px; }
+.remembered-account { display: flex; align-items: center; gap: 9px; width: 100%; padding: 9px 10px; border: 1px solid var(--line); border-radius: 12px; background: var(--panel); text-align: left; cursor: pointer; }
+.remembered-account:hover { border-color: var(--accent); background: var(--panel-soft); }
+.remembered-account.current { opacity: .65; cursor: default; }
+.remembered-account b, .remembered-account small { display: block; }
+.remembered-account small { margin-top: 2px; color: var(--muted); font-size: 12px; }
+.avatar.mini { width: 28px; height: 28px; font-size: 13px; }
   .groups .gcard .gcard-secondary { display: flex; align-items: center; justify-content: space-between; color: var(--muted); font-size: 13px; }
   .groups .gcard .mini { padding: 4px 8px; min-height: 28px; font-size: 13px; border: 0; background: transparent; color: var(--muted); }
   .groups .gcard .gctl { border: 0; padding-top: 4px; gap: 12px; }
