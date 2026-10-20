@@ -12,6 +12,11 @@ function scenario(name,left,right,verify,conflict=false){let l=clone(base),r=clo
 scenario('different members deductions merge',s=>s.lessons[0].scores[1].personal[0]=1,s=>s.lessons[0].scores[1].personal[1]=2,s=>s.lessons[0].scores[1].personal[0]===1&&s.lessons[0].scores[1].personal[1]===2);
 scenario('same member equal-looking deductions conflict',s=>s.lessons[0].scores[1].personal[0]=1,s=>s.lessons[0].scores[1].personal[0]=1,null,true);
 scenario('same member differing deductions conflict',s=>s.lessons[0].scores[1].personal[0]=1,s=>s.lessons[0].scores[1].personal[0]=2,null,true);
+{
+  let l=clone(base),r=clone(base);l.lessons[0].scores[1].personal[0]=1;r.lessons[0].scores[1].personal[0]=2;
+  const out=merge(base,l,r),detail=out.conflictDetails.find(x=>x.path==='/lessons/l1/scores/1/personal/0');
+  check('conflict details include local and cloud values',detail&&detail.local===1&&detail.remote===2);
+}
 scenario('different groups and fields merge',s=>s.lessons[0].scores[1].personal[0]=1,s=>s.lessons[0].scores[2].duty=5,s=>s.lessons[0].scores[1].personal[0]===1&&s.lessons[0].scores[2].duty===5);
 scenario('different individual project cells merge',s=>s.lessons[0].leaderScores[1].members['sid:26000000001'][0]=4,s=>s.lessons[0].leaderScores[1].members['sid:26000000001'][1]=5,s=>s.lessons[0].leaderScores[1].members['sid:26000000001'].join(',')==='4,5');
 scenario('same individual project cell conflicts',s=>s.lessons[0].leaderScores[1].members['sid:26000000001'][0]=4,s=>s.lessons[0].leaderScores[1].members['sid:26000000001'][0]=4,null,true);

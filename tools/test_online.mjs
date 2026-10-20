@@ -310,6 +310,7 @@ check('conflict pauses classroom editing without hiding backups',q(a,'#view-scor
 check('conflict chip is a concise actionable entry',text(a,'#cloudChip')==='同步冲突 · 点击处理'&&q(a,'#cloudChip').getAttribute('role')==='button');
 q(a,'#cloudChip').click();
 check('full conflict message appears in a separate readable dialog',q(a,'#dlgSyncConflict').open&&text(a,'#dlgSyncConflict').includes('暂停上传')&&q(a,'#backupConflictLocal')&&q(a,'#openSyncConflictTools'));
+check('conflict dialog compares local and cloud values',a.window.JFDT_CLOUD.status().conflictDetails.some(x=>x.local===4&&x.remote===5)&&text(a,'#syncConflictDetails').includes('本机')&&text(a,'#syncConflictDetails').includes('云端'));
 q(a,'#closeSyncConflict').click();
 check('conflict does not overwrite the other device record', (await api(env, '/api/state', 'GET', undefined, admin.token)).data.data.lessons[0].scores['1'].group === 5);
 const restarted = page(storage(a));

@@ -6,7 +6,7 @@
   var listeners = [], pendingFn = null, revision = 0, remoteRevision = null;
   var inFlight = null, pushTimer = null, retryTimer = null, lastPushed = 0;
   var syncedAt = null, conflicted = false, syncedFingerprint=null, lastChecked=0, serverTime=null, checking=null;
-  var stateBinding=null, mergeAttempts=0, conflictPaths=[];
+  var stateBinding=null, mergeAttempts=0, conflictPaths=[], conflictDetails=[];
   var st = { mode: 'idle', text: '' };
   var apiBase = '';
   try {
@@ -18,7 +18,7 @@
   } catch (e) { apiBase = ''; }
 
   function status(mode, text) {
-    st = { mode: mode, text: text, at: Date.now(), cloudVersion:remoteRevision, checkedAt:lastChecked, serverTime:serverTime, pending:!!pendingFn, conflicts:conflictPaths.slice() };
+    st = { mode: mode, text: text, at: Date.now(), cloudVersion:remoteRevision, checkedAt:lastChecked, serverTime:serverTime, pending:!!pendingFn, conflicts:conflictPaths.slice(), conflictDetails:copy(conflictDetails) || [] };
     listeners.forEach(function (cb) { try { cb(st); } catch (e) {} });
   }
   function readSession() {
@@ -37,14 +37,14 @@
   function acceptRemote(rec) {
     if (rec && Number.isInteger(rec.revision)) {
       if(rec.data)syncedFingerprint=fingerprint(rec.data);serverTime=rec.updated_at||rec.data&&rec.data.updatedAt||serverTime;storeRevision(rec.revision, rec.data ? rec.data.updatedAt : null);
-      conflicted = false;conflictPaths=[];
+      conflicted = false;conflictPaths=[];conflictDetails=[];
     }
   }
   function hasConflict(rec, state) {
     return !!(rec && remoteRevision !== null && rec.revision !== remoteRevision && isDirty(state));
   }
-  function reportConflict(paths) {
-    if(paths)conflictPaths=paths.slice();
+  function reportConflict(paths, details) {
+    if(paths)conflictPaths=paths.slice();conflictDetails=Array.isArray(details)?details.slice():[];
     conflicted = true;
     status('conflict', '同步冲突：本机已保留，请先备份，再选择拉取或覆盖云端');
   }
@@ -107,10 +107,10 @@
     var data=merge(base,local,remote,'');
     var classIds=new Set(data.classes.map(function(c){return c.id;})),lessonKeys=new Set();data.lessons.forEach(function(l){if(!classIds.has(l.classId))fail('/lessons/'+l.id+'/deleted-class');var key=l.classId+':'+l.seq;if(lessonKeys.has(key)&&(base.lessons||[]).filter(function(b){return b.classId===l.classId&&b.seq===l.seq;}).length<2)fail('/lessons/duplicate-sequence/'+key);lessonKeys.add(key);});
     data.classes.forEach(function(c){var assigned=new Set();c.groups.forEach(function(g){g.members.forEach(function(m){if(!m.name)return;var key=m.sid||m.id||m.name;if(assigned.has(key))fail('/classes/'+c.id+'/duplicate-member/'+key);assigned.add(key);});});});
-    data.updatedAt=new Date().toISOString();return {data:data,conflicts:Array.from(new Set(conflicts))};
+    function atPath(root,path){var value=root,tokens=String(path||'').split('/').filter(Boolean);for(var i=0;i<tokens.length;i++){if(value===undefined||value===null)return undefined;var token=tokens[i];if(Array.isArray(value)){var numeric=/^\d+$/.test(token)?Number(token):NaN;var found=value.find(function(item){return item&&typeof item==='object'&&(String(item.id)===token||String(item.no)===token||String(item.key)===token);});value=found!==undefined?found:(Number.isInteger(numeric)?value[numeric]:undefined);}else value=value[token];}return value;}var uniqueConflicts=Array.from(new Set(conflicts)),details=uniqueConflicts.map(function(path){return {path:path,local:copy(atPath(local,path)),remote:copy(atPath(remote,path))};});data.updatedAt=new Date().toISOString();return {data:data,conflicts:uniqueConflicts,conflictDetails:details};
   }
   function mergeRecord(rec,state){if(!syncedFingerprint||!rec||!rec.data)return null;try{return mergeStates(JSON.parse(syncedFingerprint),state,rec.data);}catch(e){return null;}}
-  function useMerged(rec,state){var merged=mergeRecord(rec,state);if(!merged||merged.conflicts.length){reportConflict(merged&&merged.conflicts);return false;}if(!stateBinding||stateBinding.canApply&&!stateBinding.canApply()){status('saving','等待完成当前输入后合并云端');return false;}stateBinding.apply(merged.data);acceptRemote(rec);pendingFn=stateBinding.get;revision++;conflicted=false;status('saving','已合并不同项目改动，正在同步…');return true;}
+  function useMerged(rec,state){var merged=mergeRecord(rec,state);if(!merged||merged.conflicts.length){reportConflict(merged&&merged.conflicts,merged&&merged.conflictDetails);return false;}if(!stateBinding||stateBinding.canApply&&!stateBinding.canApply()){status('saving','等待完成当前输入后合并云端');return false;}stateBinding.apply(merged.data);acceptRemote(rec);pendingFn=stateBinding.get;revision++;conflicted=false;status('saving','已合并不同项目改动，正在同步…');return true;}
   function checkLatest(getState,applyRemote){if(checking)return checking;if(!profile)return Promise.resolve(false);var started=fingerprint(getState()),startRevision=revision;status('checking','正在核对云端版本…');checking=request('/api/state').then(function(rec){if(revision!==startRevision||fingerprint(getState())!==started){status('saving','本机有新改动，等待同步后核对');return false;}lastChecked=Date.now();serverTime=rec.updated_at||serverTime;if(rec.revision!==remoteRevision){if(inFlight)return inFlight.then(function(){return !conflicted;});if(isDirty(getState())||pendingFn){if(!useMerged(rec,getState()))return false;return flush().then(function(){return true;});}if(rec.data&&applyRemote){applyRemote(rec);acceptRemote(rec);}}else if(pendingFn||isDirty(getState())){if(!pendingFn)touch(getState);return flush().then(function(){return true;});}if(!conflicted)status('ok','已核对最新版 · 云端v'+remoteRevision);return !conflicted;}).catch(function(e){if(e.code==='version_conflict')reportConflict();else status('offline','无法核对云端最新版，暂停编辑并保留本机改动');return false;}).finally(function(){checking=null;});return checking;}
   function pull() {
     return request('/api/state').then(function (record) {

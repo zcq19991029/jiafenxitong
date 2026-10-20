@@ -15,6 +15,7 @@ check('13 lessons add only one semester duty denominator',get('991',many).task.m
 check('repeated duty cannot accumulate beyond five',get('991',many).task.earned===135);
 check('every fully completed group can reach100 after13 lessons',get('991',many).regular===100);
 const partial=structuredClone(lesson);partial.scores[1].duty=4;check('duty participation earns proportional four of five',get('991',[partial]).task.earned===14);
+const half=structuredClone(lesson);half.leaderProjectNames=[];half.leaderScores={};half.scores[1].duty=0;check('five of ten task points plus full attendance yields54.5 regular',get('991',[half]).task.maximum===10&&get('991',[half]).task.earned===5&&get('991',[half]).performanceRate===.5&&get('991',[half]).regular===54.5);
 const zero=structuredClone(lesson);zero.scores[1].group=0;zero.scores[1].duty=0;zero.leaderScores[1].members['sid:991']=[0];check('no learning gifts full attendance alone earns9',get('991',[zero]).regular===9);
 const debt=structuredClone(zero);debt.scores[1].phone=7;check('group deductions retain zero floor within group project',get('991',[debt]).task.earned===0&&get('991',[debt]).learning===0);
 const next=structuredClone(zero);next.id='next';next.seq=2;next.scores[1].group=5;check('future lesson group five is not reduced by prior excess deductions',get('991',[debt,next]).task.earned===5);

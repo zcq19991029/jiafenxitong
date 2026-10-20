@@ -1472,6 +1472,13 @@ table.sheet col.w-grp,table.sheet th.c-grp,table.sheet td.c-grp,#printArea col.w
 .local-warn{position:relative;z-index:35;white-space:normal;overflow-wrap:anywhere;line-height:1.6;max-width:100%;box-sizing:border-box}
 #dlgSyncConflict{width:min(520px,94vw);padding:0}
 #dlgSyncConflict p{line-height:1.7;overflow-wrap:anywhere}
+#dlgSyncConflict .sync-conflict-intro{margin:4px 0 10px;line-height:1.6}
+#dlgSyncConflict .sync-conflict-table{border:1px solid var(--line);border-radius:10px;overflow:auto;max-height:min(46vh,420px);font-size:13px}
+#dlgSyncConflict .sync-conflict-row{display:grid;grid-template-columns:minmax(210px,1.5fr) minmax(88px,1fr) minmax(88px,1fr);gap:8px;align-items:start;padding:8px 10px;border-top:1px solid var(--line);line-height:1.45}
+#dlgSyncConflict .sync-conflict-row:first-child{border-top:0}
+#dlgSyncConflict .sync-conflict-head{position:sticky;top:0;background:var(--panel);font-weight:700;border-top:0;z-index:1}
+#dlgSyncConflict .sync-conflict-path{overflow-wrap:anywhere}
+#dlgSyncConflict .sync-conflict-row code{font-family:inherit;white-space:pre-wrap;overflow-wrap:anywhere;color:var(--text)}
 #dlgSyncConflict .btnrow{display:flex;flex-wrap:wrap;gap:10px}
 #dlgSyncConflict .btn{flex:1 1 160px;white-space:normal}
 .sync-edit-gate{position:sticky;top:8px;z-index:40;padding:12px 16px;border:1px solid var(--warn);background:var(--warn-bg);color:var(--text);border-radius:10px;margin-bottom:12px;font-size:14px;line-height:1.6;overflow-wrap:anywhere}
