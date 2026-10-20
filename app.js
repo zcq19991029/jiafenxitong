@@ -779,6 +779,17 @@ function removeMemberAt(cls, g, j) {
       ? groupsTable(cls, lesson)
       : groupsCards(cls, lesson);
     mountGroupPicker(cls,lesson);
+    $$('td.regular[data-home-grade]',host).forEach(function(cell){var person=$('[data-grade-student]',cell);if(!person)return;cell.tabIndex=0;cell.setAttribute('role','button');cell.setAttribute('aria-label',cell.title+'：查看本学期分数明细');cell.onclick=function(){showStudentGrade(cls,person.dataset.gradeStudent);};cell.onkeydown=function(e){if(e.key==='Enter'||e.key===' '){e.preventDefault();cell.click();}};});
+  }
+
+  function showStudentGrade(cls,key){
+    var A=window.JFDT_ASSESSMENT,ls=lessonsOf(cls.id).slice().sort(function(a,b){return a.seq-b.seq;}),student=A.rows(cls,ls,memberTotals(cls)).find(function(m){return m.key===key;});if(!student)return;
+    var dialog=$('#studentGradeDialog');if(!dialog){dialog=document.createElement('dialog');dialog.id='studentGradeDialog';dialog.className='student-grade-dialog';document.body.appendChild(dialog);}
+    var detail=ls.map(function(l){var s=sc(l,student.gno),base=Math.max(0,Math.min(5,(+s.group||0)+(s.first?1:0))-(+s.phone||0)),duty=A.groupNet(l,student.gno,ls)-base,personal=remaining(l,student.gno,student.memberIndex),a=l.attendance&&l.attendance[key],names=A.projectNames(l),record=l.leaderScores&&l.leaderScores[String(student.gno)],values=record&&record.members&&record.members[key],projects=names.map(function(n,i){return String(n||'').trim()?esc(n)+'：'+(values&&values[i]!=null?esc(values[i]):'未填')+'/5':'';}).filter(Boolean),earned=personal+projectScore(l,student.gno,student)+duty;
+      return '<tr><td>第'+l.seq+'次<br>'+esc(l.date||'')+'<br>'+esc(l.topic||'')+'</td><td>初始5<br>全组扣'+(+s.phone||0)+'<br>本人扣'+(+((s.personal||{})[String(student.memberIndex)])||0)+'<br><b>剩余'+personal+'</b></td><td>'+ (projects.join('<br>')||'无命名项目')+'</td><td>'+Math.round(duty*100)/100+'<small>本课新增有效分</small></td><td>'+esc(a?a.label||a.status:'正常到课')+'<br>扣'+(a?Number(a.loss)||0:0)+'</td><td><b>'+Math.round(earned*100)/100+'</b></td></tr>';
+    }).join('');
+    dialog.innerHTML='<div class="student-grade-heading"><h2>'+esc(student.name)+' · 本学期分数由来</h2><button type="button" class="btn" data-close-grade>关闭</button></div><p>'+esc(cls.name)+' · '+esc(student.sid||'')+'</p><p>项目净得分 <b>'+Math.round(student.task.earned*100)/100+'</b> / '+student.task.maximum+'，完成率 '+Math.round(student.task.rate*1000)/10+'%；学习 '+student.learning+'/91 ＋ 考勤 '+student.attendance+'/9 ＝ 平时 <b>'+student.regular+'</b>；计入总评 '+student.contribution+'/40。</p><p class="note">每课默认5分不是加分日志。下表为该同学当前各课记录；扣分最多扣完本课5分。值日学期只计一次5分，重复值日只增加超过之前最高分的部分。可拖动右下角调整窗口大小。</p><div class="student-grade-scroll"><table class="data"><thead><tr><th>课次</th><th>本课5分项目</th><th>个人项目（每项5分）</th><th>值日</th><th>考勤</th><th>本节净得分</th></tr></thead><tbody>'+detail+'</tbody></table></div>';
+    $('[data-close-grade]',dialog).onclick=function(){dialog.close();};if(!dialog.open)openDlg(dialog);
   }
 
   function groupsCards(cls, lesson) {
@@ -849,7 +860,7 @@ function removeMemberAt(cls, g, j) {
       out+='<td class="c-mem member-name-cell'+(m?attendanceNameClass(cls,m):'')+'" title="'+esc(m?(m.name+' '+(m.sid||'')):'双击组号添加成员')+'">'+(m?esc(m.name)+(m.no==null?'':' <small>'+two(m.no)+'</small>'):'未分配成员')+'</td>';
       out+='<td class="c-ded">'+(m?(printing?remaining(lesson,g.no,i):ctlPersonal(g.no,m,i,0)):'')+'</td>';
       out+='<td class="home-attendance">'+(grade?(printing?'<strong>'+grade.attendance+'</strong>':'<button type="button" class="attendance-score" data-attendance-open="'+esc(key)+'" aria-label="'+esc(m.name)+' 考勤'+grade.attendance+'分，点击修改">'+grade.attendance+'</button>'):'')+'</td>';
-      if(!j)out+='<td class="c-phone" rowspan="'+span+'">'+(printing?(scored.phone||''):ctlBatch(g.no))+'</td><td class="c-duty" rowspan="'+span+'">'+(printing?(scored.duty||''):ctlDuty(g.no,scored,entries.length))+'</td>';
+      if(!j)out+='<td class="c-phone" rowspan="'+span+'">'+(printing?'':ctlBatch(g.no))+'</td><td class="c-duty" rowspan="'+span+'">'+(printing?(scored.duty||''):ctlDuty(g.no,scored,entries.length))+'</td>';
       out+='<td class="c-sum" title="'+esc(m?m.name:'')+'"><div class="home-grade-person" data-member-lesson-totals="'+g.no+'" data-lesson-member="'+i+'"><strong>'+total+'</strong></div></td>';
       ['regular','contribution','needed'].forEach(function(field){var value=grade?(field==='needed'?(grade.attendanceFailed?'不适用':grade.needed>100?'无法达到':grade.needed):grade[field]):'';out+='<td class="home-grade '+field+'" data-home-grade="'+field+'" title="'+esc(m?m.name:'')+'">'+(grade?'<div class="home-grade-person" data-grade-student="'+esc(key)+'"><strong>'+value+(field==='regular'?' <span class="completion-rate">（'+(grade.task.maximum?Math.round(grade.task.rate*1000)/10+'%':'—')+'）</span>':'')+'</strong>'+(grade.attendanceFailed?'<small>考勤挂科</small>':'')+'</div>':'')+'</td>';});
       return out+'</tr>';
