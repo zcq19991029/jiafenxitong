@@ -1467,4 +1467,28 @@ table.sheet col.w-grp,table.sheet th.c-grp,table.sheet td.c-grp,#printArea col.w
 #operationLogList .bubble-audit-table .edit-log-btn{border:1px solid rgba(217,39,52,.2);background:#fff;color:#d92734;border-radius:9px;padding:7px 12px;font-size:13px;white-space:nowrap;cursor:pointer;min-height:36px}
 #operationLogList .bubble-audit-table .edit-log-btn:hover{background:#d92734;color:#fff}.bubble-audit-table .edit-log-btn:disabled{opacity:.45;cursor:default}
 .audit-row{padding:10px;border-bottom:1px solid var(--line);font-size:13px;line-height:1.6}.audit-row small{color:var(--muted)}
+/* Keep score controls on one baseline and let cell colors carry the interface. */
+@media screen {
+  body.sidebar-layout table.sheet,table.sheet {
+    --member-width:clamp(104px,7.5vw,120px);
+    width:calc(var(--member-columns,6)*var(--member-width) + 780px);
+    min-width:0!important;
+  }
+  table.sheet col.w-mem {width:var(--member-width)}
+  table.sheet col.w-no {width:40px}
+  table.sheet col.w-attendance {width:70px}
+  table.sheet col.w-phone {width:90px}
+  table.sheet col.w-duty {width:70px}
+  table.sheet col.w-sum {width:60px}
+  table.sheet col.w-grade {width:150px}
+  table.sheet .personal-control {display:grid;grid-template-columns:2fr 1fr;width:min(100%,108px);gap:0;margin-inline:auto;align-items:center}
+  table.sheet .personal-control .pchip {display:grid;grid-template-columns:1fr 1fr;gap:0;width:100%;min-width:0;min-height:40px;padding:0;background:transparent;border:0;box-shadow:none;align-items:center;justify-items:center}
+  table.sheet .pchip .deduct-action {order:-1;display:inline-flex;align-items:center;justify-content:center;min-height:0;min-width:0;height:40px;font-size:21px;line-height:1}
+  table.sheet .pchip .n {display:inline-flex;align-items:center;justify-content:center;min-width:0;height:40px;line-height:1}
+  table.sheet .personal-refund {display:inline-flex;align-items:center;justify-content:center;width:100%;min-width:0;min-height:40px;padding:0;border:0;background:transparent;box-shadow:none;font-size:22px;line-height:1}
+  table.sheet [data-act="batch-deduct"],table.sheet .duty-score {border:0;background:transparent;box-shadow:none;border-radius:0;width:100%;min-height:44px;padding:4px;font-family:inherit}
+  table.sheet .duty-score {font-size:20px;font-weight:700}
+  table.sheet .pchip:hover,table.sheet .personal-refund:hover,table.sheet [data-act="batch-deduct"]:hover,table.sheet .duty-score:hover {background:rgba(0,0,0,.035)}
+  table.sheet .pchip:focus-visible,table.sheet .personal-refund:focus-visible,table.sheet [data-act="batch-deduct"]:focus-visible {outline:2px solid var(--accent);outline-offset:-2px}
+}
 @media(max-width:760px){#dlgOperationLog{width:100vw;max-height:100dvh;border-radius:0}#dlgOperationLog .dlg{height:100dvh;max-height:100dvh}.bubble-audit-table{font-size:13px}.bubble-audit-table th,.bubble-audit-table td{padding:12px 9px}}

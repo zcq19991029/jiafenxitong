@@ -845,7 +845,7 @@ function removeMemberAt(cls, g, j) {
         '<th class="c-mem" colspan="' + GROUP_CAP + '">小组成员姓名 / 本节项目分（0–5）</th>' +
         '<th class="home-attendance" rowspan="2">考勤分<br>/9</th><th class="c-phone" rowspan="2">全组扣分<br>（每人扣1）</th>' +
         '<th class="c-grp" rowspan="2">全组·小组分<br>(0-5)</th>' +
-        '<th class="c-duty" rowspan="2">全组·值日<br>(0-5)</th>' +
+        '<th class="c-duty" rowspan="2">值日分</th>' +
         '<th class="c-sum" rowspan="2">本节<br>合计</th>'+homeGradeHead() +
       '</tr><tr>' + sub + '</tr>' +
     '</thead>';
@@ -879,7 +879,7 @@ function removeMemberAt(cls, g, j) {
       '</tbody>';
     }).join('');
 
-    return '<div class="sheetwrap"><table class="sheet">' +
+    return '<div class="sheetwrap"><table class="sheet" style="--member-columns:'+GROUP_CAP+'">' +
       '<colgroup>' + cols + '</colgroup>' + head + body + '</table></div>';
   }
 
