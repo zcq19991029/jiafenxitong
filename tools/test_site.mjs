@@ -261,6 +261,21 @@ fs.mkdirSync('迁移记录',{recursive:true});fs.writeFileSync('迁移记录/纵
 const fixtureStyle=fs.readFileSync('styles.css','utf8')+'\n'+q('#lessonPageStyle').textContent;
 fs.writeFileSync('迁移记录/纵向52人打印验收.html','<!doctype html><html><head><meta charset="utf-8"><style>'+fixtureStyle+'</style></head><body class="print-lesson"><div id="printArea">'+q('#printArea').innerHTML+'</div></body></html>');
 fs.writeFileSync('迁移记录/纵向52人网页验收.html','<!doctype html><html><head><meta charset="utf-8"><style>'+fs.readFileSync('styles.css','utf8')+'</style></head><body style="margin:0;padding:16px;display:block"><div>'+q('table.sheet').parentElement.outerHTML+'</div></body></html>');
+// Selecting an earlier lesson must freeze semester-grade columns at that lesson.
+const snapshotState=JSON.parse(w.localStorage.getItem('jfdt.v1')),snapshotFirst=snapshotState.lessons[0],snapshotSecond=JSON.parse(JSON.stringify(snapshotFirst));
+snapshotSecond.id='vertical-lesson-2';snapshotSecond.seq=2;snapshotSecond.date='2026-10-21';snapshotSecond.topic='第二次历史快照';snapshotSecond.leaderProjectNames=['项目甲','项目乙'];snapshotSecond.leaderProjectCount=2;
+Object.keys(snapshotSecond.leaderScores).forEach(gno=>{const record=snapshotSecond.leaderScores[gno];record.projects=['项目甲','项目乙'];Object.keys(record.members||{}).forEach(key=>{record.members[key]=[record.members[key][0],null];});});
+snapshotSecond.attendance={'sid:26999990001':{status:'late',label:'迟到',loss:1}};snapshotState.lessons=[snapshotFirst,snapshotSecond];snapshotState.ui.lessonId=snapshotFirst.id;snapshotState.ui.scoreLayout='table';
+Object.defineProperty(q('#fileRestore'),'files',{configurable:true,value:[new w.File([JSON.stringify(snapshotState)],'lesson-snapshot-fixture.json',{type:'application/json'})]});q('#fileRestore').dispatchEvent(new w.Event('change'));await until(()=>JSON.parse(w.localStorage.getItem('jfdt.v1')).lessons.length===2&&q('#lessonSel option[value="'+snapshotSecond.id+'"]'));
+const firstSnapshot=Array.from(w.document.querySelectorAll('#groupList table.sheet [data-card="1"] [data-member-index="0"] [data-home-grade]')).map(cell=>cell.textContent.trim());
+check('selected first lesson shows only first-lesson project and attendance snapshot',firstSnapshot[0].includes('66.7%')&&q('#groupList table.sheet [data-card="1"] [data-member-index="0"] [data-home-grade="regular"] strong').textContent.trim().startsWith('69'));
+q('#lessonSel').value=snapshotSecond.id;q('#lessonSel').dispatchEvent(new w.Event('change',{bubbles:true}));
+const secondSnapshot=Array.from(w.document.querySelectorAll('#groupList table.sheet [data-card="1"] [data-member-index="0"] [data-home-grade]')).map(cell=>cell.textContent.trim());
+check('switching to second lesson advances completion, attendance and converted grade columns',secondSnapshot[0].includes('50%')&&q('#groupList table.sheet [data-card="1"] [data-member-index="0"] [data-home-grade="regular"] strong').textContent.trim().startsWith('53')&&secondSnapshot[1]!==firstSnapshot[1]&&secondSnapshot[2]!==firstSnapshot[2]);
+q('#groupList table.sheet [data-card="1"] [data-member-index="0"] td.regular').click();
+check('grade detail modal is limited to the selected lesson cutoff',q('#studentGradeDialog h2').textContent.includes('截至第2次课')&&q('#studentGradeDialog tbody').rows.length===2);
+q('#studentGradeDialog [data-close-grade]').click();q('#btnPrintLesson').click();q('#lessonPrintRange').value='front';q('#dlgLessonPrint').returnValue='ok';q('#dlgLessonPrint').dispatchEvent(new w.Event('close'));
+check('printed lesson grade snapshot matches the selected lesson on screen',q('#printArea .sheet-vertical [data-pg="1"] [data-member-index="0"] [data-home-grade="regular"] strong').textContent===q('#groupList table.sheet [data-card="1"] [data-member-index="0"] [data-home-grade="regular"] strong').textContent);
 if(errors.length)console.log(errors);check('packaged application has no unexpected exceptions', errors.length === 0);
 dom.window.close(); env.sqlite.close();
 console.log(`Packaged single-site integration: ${passed} passed, 0 failed`);
