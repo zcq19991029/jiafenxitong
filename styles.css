@@ -1346,9 +1346,13 @@ table.sheet col.w-attendance{width:165px}.home-attendance{background:#f6eff1;pad
  .two-slips .leader-slip:first-child{border-bottom:.3mm dashed #999}.leader-slip h2{text-align:center;font-size:13pt;margin:0 0 2mm}.leader-slip p{font-size:9pt;margin:2mm 0;line-height:1.3}
  .leader-slip .leader-table{width:100%;min-width:0;table-layout:fixed;border-collapse:collapse;margin:2mm 0;font-size:8pt}
  .leader-slip .leader-table th,.leader-slip .leader-table td{border:.2mm solid #777;padding:1mm .4mm;text-align:center;box-sizing:border-box;white-space:normal;overflow-wrap:anywhere}
+ .leader-slip .leader-table th:last-child,.leader-slip .leader-table td:last-child{border-right:.45mm solid #000!important}
  .leader-slip .leader-table thead th{height:13mm;background:#dde6f1;font-size:8pt}.leader-slip .leader-table tbody td{height:8.5mm;background:#edf4e4}
  .leader-slip .leader-table small{display:block;font-size:6.5pt;white-space:nowrap}.leader-slip .leader-table th:nth-child(2){width:auto}.leader-slip .leader-table tbody td:first-child{background:#eaf1fa}
  .leader-slip .slip-note{min-height:8mm}.one-slip .leader-slip .leader-table tbody td{height:18mm}
+ .leader-slip .slip-sign{margin:8mm 0 0!important;min-height:9mm;line-height:1.6}
+ .compact-slips .leader-slip .slip-sign{margin:5mm 0 0!important;min-height:7mm}
+ .dense-slips .leader-slip .slip-sign{margin:2.5mm 0 0!important;min-height:5mm}
 }
 
 #scoreMetrics{display:none!important}.lesson-topic-summary{font-size:13px;line-height:1.5;overflow-wrap:anywhere}.lesson-duty-summary{color:var(--muted);font-size:12px}.lesson-meta .btnrow{display:flex;gap:6px;margin-top:8px}.lesson-meta .btn{flex:1;padding:8px;font-size:12px}
