@@ -9,7 +9,8 @@
     Array.from(table.rows).forEach(function(tr,i){var name=tr.querySelector('.member-name-cell');if(name)ws['B'+(i+3)]={t:'s',v:name.textContent.trim().replace(/\s+/g,' ')};});
     for(var r=2;r<data.length+2;r++)for(var c=0;c<columnCount;c++){var address=X.utils.encode_cell({r:r,c:c});if(!ws[address]||ws[address].t==='z'||ws[address].v==='')ws[address]={t:'s',v:' '};}
     ws['!merges']=[{s:{r:0,c:0},e:{r:0,c:9}},{s:{r:1,c:0},e:{r:1,c:9}}].concat((source['!merges']||[]).map(function(m){return {s:{r:m.s.r+2,c:m.s.c},e:{r:m.e.r+2,c:m.e.c}};}));
-    ws['!cols']=[5,19,10,9,9,8,10,20,13,16].map(function(w){return {wch:w};});
+    var measured=Array.from(table.querySelectorAll('colgroup col')).map(function(c){return Number(c.dataset.contentWidth)||100;});
+    ws['!cols']=measured.map(function(w){return {wch:Math.round(w/7*10)/10};});
     ws['!rows']=[{hpt:26},{hpt:24}].concat(data.map(function(row,i){return {hpt:i===0?28:i>=data.length-2?24:12.5};}));
     var wb=X.utils.book_new();X.utils.book_append_sheet(wb,ws,'本课加分表');
     var individual=X.utils.aoa_to_sheet(personal);individual['!cols']=Array(10).fill({wch:17});X.utils.book_append_sheet(wb,individual,'个人成绩');

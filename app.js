@@ -829,7 +829,16 @@ function removeMemberAt(cls, g, j) {
   }
 
   /** 表格式：照着纸质记录表的 12 列版式（组号 + 成员1-6 + 全组四列 + 本节合计） */
-  function verticalColumns(){return '<col class="w-no"><col class="w-mem"><col class="w-project"><col class="w-attendance"><col class="w-phone"><col class="w-duty"><col class="w-sum"><col class="w-grade"><col class="w-grade"><col class="w-grade">';}
+  function verticalColumns(cls){
+    // CJK text needs one em; Latin letters and digits need roughly half an em.
+    function width(text){return Array.from(String(text)).reduce(function(n,ch){return n+(/[^\x00-\xff]/.test(ch)?15:8);},0);}
+    var labels=['组号','成员','本节项目分','考勤分 /9','全组扣分','值日分','本节合计','（至今完成率）','计入总评 /40','期末至少需考 /100'];
+    var minima=[52,124,124,94,100,80,100,164,132,172];
+    var widths=labels.map(function(t,i){return Math.max(minima[i],width(t)+28);});
+    (cls.groups||[]).forEach(function(g){(g.members||[]).forEach(function(m){if(m.name)widths[1]=Math.max(widths[1],width(m.name+' '+(m.no||''))+36);});});
+    var total=widths.reduce(function(a,b){return a+b;},0),names=['no','mem','project','attendance','phone','duty','sum','grade','grade','grade'];
+    return widths.map(function(w,i){return '<col class="w-'+names[i]+'" data-content-width="'+w+'" style="width:'+(100*w/total).toFixed(4)+'%!important">';}).join('');
+  }
   function verticalHead(){return '<thead><tr><th class="c-no">组号</th><th class="c-mem">成员</th><th class="c-ded">本节项目分</th><th class="home-attendance">考勤分 /9</th><th class="c-phone">全组扣分</th><th class="c-duty">值日分</th><th class="c-sum">本节合计</th><th class="home-grade regular">平时分<br>（至今完成率）</th><th class="home-grade contribution">计入总评 /40</th><th class="home-grade needed">期末至少需考 /100</th></tr></thead>';}
   function verticalGroup(cls,lesson,g,printing){
     var A=window.JFDT_ASSESSMENT,grades=A.rows(cls,lessonsOf(cls.id),memberTotals(cls)),scored=sc(lesson,g.no),net=A.groupNet(lesson,g.no,lessonsOf(cls.id)),base=Math.max(0,Math.min(5,(+scored.group||0)+(scored.first?1:0))-(+scored.phone||0)),duty=net-base;
@@ -848,7 +857,7 @@ function removeMemberAt(cls, g, j) {
     if(editing)rows+='<tr class="group-pick-row"><td colspan="3" data-group-picker-slot></td><td colspan="4"></td></tr>';
     return '<tbody '+(printing?'data-pg':'data-card')+'="'+g.no+'" class="'+(dutyGroups(lesson).includes(g.no)?'is-duty ':'')+(touched(lesson,g.no)?'touched':'')+'">'+rows+'</tbody>';
   }
-  function groupsTable(cls,lesson){return '<div class="sheetwrap"><table class="sheet sheet-vertical"><colgroup>'+verticalColumns()+'</colgroup>'+verticalHead()+cls.groups.map(function(g){return verticalGroup(cls,lesson,g,false);}).join('')+'</table></div>';}
+  function groupsTable(cls,lesson){return '<div class="sheetwrap"><table class="sheet sheet-vertical"><colgroup>'+verticalColumns(cls)+'</colgroup>'+verticalHead()+cls.groups.map(function(g){return verticalGroup(cls,lesson,g,false);}).join('')+'</table></div>';}
 
   function renderMetrics(cls, lesson) {
     var ls = lessonsOf(cls.id);
@@ -1768,7 +1777,7 @@ function removeMemberAt(cls, g, j) {
   }
   function printLesson(cls, lesson) {
     var dg=lesson.dutyGroup?+lesson.dutyGroup:null;
-    var cols=verticalColumns(),head=verticalHead(),body=cls.groups.map(function(g){return verticalGroup(cls,lesson,g,true);}).join('');
+    var cols=verticalColumns(cls),head=verticalHead(),body=cls.groups.map(function(g){return verticalGroup(cls,lesson,g,true);}).join('');
     /* 备注行：先写待分组名单（纸质表本来就有），再跟一行各组累计 */
     var pend = pendingList(cls);
     var note = '备注·待分组名单（共' + pend.length + '人）：' +

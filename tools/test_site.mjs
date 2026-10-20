@@ -235,6 +235,9 @@ async function verticalFixture(sizes){
 }
 let vertical=await verticalFixture([3,5,6,7,0]);q('#layoutSeg [data-l="table"]').click();
 check('vertical layout has exactly the agreed ten columns',q('table.sheet thead tr').cells.length===10&&q('table.sheet thead').textContent.includes('本节项目分'));
+const autoWidths=Array.from(q('table.sheet colgroup').children).map(c=>parseFloat(c.style.width));
+check('content widths distribute the full table across all ten columns',Math.abs(autoWidths.reduce((a,b)=>a+b,0)-100)<.01&&autoWidths.every(n=>n>0));
+check('three grade columns no longer consume most of the table',autoWidths.slice(7).reduce((a,b)=>a+b,0)<45&&autoWidths[1]>9);
 check('mixed group sizes produce one actual row per student and one empty placeholder',q('table.sheet').querySelectorAll('[data-member-key]').length===21&&q('[data-card="5"]').querySelectorAll('.vertical-member-row').length===1&&!q('[data-card="5"] [data-act="p"]'));
 check('group number batch action and duty merge across exactly each group size',[3,5,6,7].every((n,i)=>['.c-no','.c-phone','.c-duty'].every(sel=>q('[data-card="'+(i+1)+'"] '+sel).rowSpan===n)));
 check('every student row retains original index name and full identifier',Array.from(q('table.sheet').querySelectorAll('[data-member-key]')).every(tr=>{const g=vertical.cls.groups.find(g=>g.no===+tr.parentElement.dataset.card),m=g.members[+tr.dataset.memberIndex];return tr.querySelector('.member-name-cell').textContent.includes(m.name)&&tr.querySelector('.member-name-cell').title.includes(m.sid)&&tr.querySelectorAll('[data-home-grade]').length===3;}));
@@ -243,6 +246,7 @@ q('#btnOperationLog').click();q('[data-undo-index="0"]').click();q('#closeOperat
 q('[data-card="1"] .group-pick-toggle').dispatchEvent(new w.MouseEvent('dblclick',{bubbles:true}));check('group clear is shown only in group edit secondary area',q('[data-card="1"] .c-no [data-cleargroup]').textContent==='清零本组'&&!q('[data-card="1"] .c-sum [data-cleargroup]'));q('[data-card="1"] .group-pick-toggle').dispatchEvent(new w.MouseEvent('dblclick',{bubbles:true}));
 vertical=await verticalFixture([5,6,7,6,6,6,6,6,4]);q('#btnPrintLesson').click();q('#lessonPrintRange').value='all';q('#lessonPrintOrientation').value='portrait';q('#dlgLessonPrint').returnValue='ok';q('#dlgLessonPrint').dispatchEvent(new w.Event('close'));
 const printedTable=q('#printArea .sheet-vertical');check('52-student print has one front and one back with all52 student rows',q('#printArea').querySelectorAll('.lesson-duplex-front').length===1&&q('#printArea').querySelectorAll('.lesson-rules-back').length===1&&printedTable.querySelectorAll('[data-member-key]').length===52);
+check('print and website share automatic content width proportions',printedTable.querySelector('colgroup').innerHTML===q('table.sheet colgroup').innerHTML);
 check('website and printed student orders are identical',Array.from(q('table.sheet').querySelectorAll('[data-member-key]')).map(x=>x.dataset.memberKey).join()===Array.from(printedTable.querySelectorAll('[data-member-key]')).map(x=>x.dataset.memberKey).join());
 const verticalBytes=w.JFDT_PRINT_EXCEL(printedTable,'虚构52人纵向验收',[['姓名','成绩']],[]),verticalBook=w.XLSX.read(verticalBytes,{type:'array'}),verticalSheet=verticalBook.Sheets['本课加分表'];
 check('vertical Excel has ten columns and retains group merges in A E F',w.XLSX.utils.decode_range(verticalSheet['!ref']).e.c===9&&[0,4,5].every(c=>verticalSheet['!merges'].some(m=>m.s.c===c&&m.e.c===c&&m.e.r-m.s.r===6)));
