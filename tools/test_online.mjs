@@ -186,7 +186,7 @@ q(a,'#attendanceCustomName').value='实训迟归';q(a,'#attendanceCustomLoss').v
 q(a,'#attendanceCustomForm').dispatchEvent(new a.window.Event('submit',{bubbles:true,cancelable:true}));
 check('custom attendance rules preserve other class settings',state(a).classes[0].assessmentSettings.totalLessons===30 && state(a).classes[0].assessmentSettings.customRules[0].loss===2);
 q(a,'#tabs button[data-view="rank"]').click();
-check('assessment displays assignment, attendance and final exam targets',text(a,'#memberRank').includes('学习赋分/91') && text(a,'#memberRank').includes('考勤/9') && text(a,'#memberRank').includes('期末至少需考 /100'));
+check('assessment displays assignment, attendance and final exam targets',text(a,'#memberRank').includes('项目完成率') && text(a,'#memberRank').includes('考勤项目/9') && text(a,'#memberRank').includes('期末至少需考 /100'));
 const exam=q(a,'[data-exam-key]'),examKey=exam.dataset.examKey;exam.value='50';exam.dispatchEvent(new a.window.Event('change'));
 await a.window.JFDT_CLOUD.flush();
 const assessmentCloud=(await api(env,'/api/state','GET',undefined,admin.token)).data;

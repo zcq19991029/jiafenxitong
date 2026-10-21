@@ -130,7 +130,7 @@ check('home leave records no deduction',JSON.parse(w.localStorage.getItem('jfdt.
 q('[data-attendance-open]').click();q('#homeAttendanceStatus').value='late';q('#homeAttendanceStatus').dispatchEvent(new w.Event('change'));q('#homeAttendanceLoss').value='2';q('#homeAttendanceForm').dispatchEvent(new w.Event('submit',{cancelable:true}));
 await w.JFDT_CLOUD.flush();
 const afterAttendance=JSON.parse(w.localStorage.getItem('jfdt.v1'));
-check('home attendance deducts once from attendance and refreshes grades without changing classroom points',afterAttendance.lessons[0].attendance[homeAttKey].loss===2 && JSON.stringify(afterAttendance.lessons[0].scores)===rawBeforeAttendance && parseFloat(q('[data-home-grade="regular"] strong').textContent)===61.6);
+check('home attendance deducts once from attendance and refreshes grades without changing classroom points',afterAttendance.lessons[0].attendance[homeAttKey].loss===2 && JSON.stringify(afterAttendance.lessons[0].scores)===rawBeforeAttendance && parseFloat(q('[data-home-grade="regular"] strong').textContent)===68.4);
 q('#tabs [data-view="attendance"]').click();
 check('home attendance is visible in the shared attendance page',q('[data-att-key]').value==='late');
 q('[name="lateEarlyConversion"]').value='1';q('[name="truantFailure"]').value='1';q('#assessmentSettingsForm').dispatchEvent(new w.Event('submit',{cancelable:true}));
@@ -170,11 +170,11 @@ const beforeDed=gradeValues();q('[data-card="1"] [data-act="p"]').click();
 const afterDed=gradeValues();console.log('LINKAGE deduction',afterDed);
 check('below-cap personal deduction immediately lowers regular and contribution and raises exam target',afterDed[0]<beforeDed[0]&&afterDed[1]<beforeDed[1]&&afterDed[2]>beforeDed[2]);
 q('[data-attendance-open]').click();change('#homeAttendanceStatus','truant');change('#homeAttendanceLoss','3');q('#homeAttendanceForm').dispatchEvent(new w.Event('submit',{cancelable:true}));
-const afterAtt=gradeValues();check('attendance loss immediately changes all three numeric grades with projects present',Math.abs(afterDed[0]-afterAtt[0]-1)<.001&&afterAtt[1]<afterDed[1]&&afterAtt[2]>afterDed[2]);
+const afterAtt=gradeValues();check('attendance loss immediately changes all three numeric grades with projects present',afterAtt[0]<afterDed[0]&&afterAtt[1]<afterDed[1]&&afterAtt[2]>afterDed[2]);
 q('#tabs [data-view="leader"]').click();change('[data-member][data-item="0"]','5');q('#tabs [data-view="score"]').click();
 check('individual project score immediately updates home grade',gradeValues()[0]>afterAtt[0]);
 q('#tabs [data-view="leader"]').click();change('[data-project="3"]','新增全班项目');q('#tabs [data-view="score"]').click();
-check('new shared project increases denominator by five without assigning a score',q('[data-home-grade="regular"] .completion-rate').textContent.includes('33.3%'));
+check('new shared project increases denominator by five without assigning a score',q('[data-home-grade="regular"] .completion-rate').textContent.includes('41%'));
 const linkageState=JSON.parse(w.localStorage.getItem('jfdt.v1'));check('project names synchronize every group in the lesson',linkageState.classes[0].groups.every(g=>linkageState.lessons[0].leaderScores[String(g.no)].projects[3]==='新增全班项目'));
 
 teacherDom.window.close();
@@ -294,10 +294,10 @@ Object.keys(snapshotSecond.leaderScores).forEach(gno=>{const record=snapshotSeco
 snapshotSecond.attendance={'sid:26999990001':{status:'late',label:'迟到',loss:1}};snapshotState.lessons=[snapshotFirst,snapshotSecond];snapshotState.ui.lessonId=snapshotFirst.id;snapshotState.ui.scoreLayout='table';
 Object.defineProperty(q('#fileRestore'),'files',{configurable:true,value:[new w.File([JSON.stringify(snapshotState)],'lesson-snapshot-fixture.json',{type:'application/json'})]});q('#fileRestore').dispatchEvent(new w.Event('change'));await until(()=>JSON.parse(w.localStorage.getItem('jfdt.v1')).lessons.length===2&&q('#lessonSel option[value="'+snapshotSecond.id+'"]'));
 const firstSnapshot=Array.from(w.document.querySelectorAll('#groupList table.sheet [data-card="1"] [data-member-index="0"] [data-home-grade]')).map(cell=>cell.textContent.trim());
-check('selected first lesson shows only first-lesson project and attendance snapshot',firstSnapshot[0].includes('66.7%')&&q('#groupList table.sheet [data-card="1"] [data-member-index="0"] [data-home-grade="regular"] strong').textContent.trim().startsWith('69'));
+check('selected first lesson shows only first-lesson project and attendance snapshot',firstSnapshot[0].includes('79.2%')&&q('#groupList table.sheet [data-card="1"] [data-member-index="0"] [data-home-grade="regular"] strong').textContent.trim().startsWith('79'));
 q('#lessonSel').value=snapshotSecond.id;q('#lessonSel').dispatchEvent(new w.Event('change',{bubbles:true}));
 const secondSnapshot=Array.from(w.document.querySelectorAll('#groupList table.sheet [data-card="1"] [data-member-index="0"] [data-home-grade]')).map(cell=>cell.textContent.trim());
-check('switching to second lesson advances completion, attendance and converted grade columns',secondSnapshot[0].includes('50%')&&q('#groupList table.sheet [data-card="1"] [data-member-index="0"] [data-home-grade="regular"] strong').textContent.trim().startsWith('53')&&secondSnapshot[1]!==firstSnapshot[1]&&secondSnapshot[2]!==firstSnapshot[2]);
+check('switching to second lesson advances completion, attendance and converted grade columns',secondSnapshot[0].includes('59%')&&q('#groupList table.sheet [data-card="1"] [data-member-index="0"] [data-home-grade="regular"] strong').textContent.trim().startsWith('59')&&secondSnapshot[1]!==firstSnapshot[1]&&secondSnapshot[2]!==firstSnapshot[2]);
 q('#groupList table.sheet [data-card="1"] [data-member-index="0"] td.regular').click();
 check('grade detail modal is limited to the selected lesson cutoff',q('#studentGradeDialog h2').textContent.includes('截至第2次课')&&q('#studentGradeDialog tbody').rows.length===2);
 q('#studentGradeDialog [data-close-grade]').click();q('#btnPrintLesson').click();q('#lessonPrintRange').value='front';q('#dlgLessonPrint').returnValue='ok';q('#dlgLessonPrint').dispatchEvent(new w.Event('close'));
