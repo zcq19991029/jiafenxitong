@@ -29,4 +29,15 @@ const second=structuredClone(lesson);second.id='second';second.seq=2;second.lead
 const legacy=structuredClone(lesson);legacy.scores[1].first=1;check('legacy first reward remains inside five point group project',get('991',[legacy]).task.earned===15);
 check('print includes unified score weights',A.printHtml(cls,[lesson],raw).includes('项目完成率')&&A.printHtml(cls,[lesson],raw).includes('考勤项目/9')&&A.printHtml(cls,[lesson],raw).includes('平时/100'));
 const pair={id:'pair',groups:[{no:1,members:members}],roster:members};const one={id:'one',seq:1,scores:{1:{group:5,phone:1,duty:5,personal:{0:2}}},leaderProjectNames:['项目'],leaderProjectCount:1,leaderScores:{1:{members:{'sid:991':[5],'sid:992':[5]}}}};let pairRows=A.rows(pair,[one],[]);check('personal loss2 plus phone1 leaves own group2 while peer retains4',pairRows.find(m=>m.sid==='991').task.earned===12&&pairRows.find(m=>m.sid==='992').task.earned===14);one.scores[1].personal[0]=20;pairRows=A.rows(pair,[one],[]);check('excess personal deduction cannot consume personal project or duty',pairRows.find(m=>m.sid==='991').task.earned===10&&pairRows.find(m=>m.sid==='992').task.earned===14);
+// Exam edits must keep the existing input/table nodes and update only the result.
+let renders=0,saves=0,logs=0;const resultCell={innerHTML:''};
+const examInput={value:'80',dataset:{examKey:'sid:991'},closest(){return {nextElementSibling:resultCell};}};
+const rankRoot={set innerHTML(v){renders++;},querySelectorAll(selector){return selector==='[data-exam-key]'?[examInput]:[];},querySelector(){return {};}};
+A.renderRank({root:rankRoot,cls,lessons:[lesson],raw,save(){saves++;},log(){logs++;},message(){throw Error('unexpected validation');}});
+examInput.onchange();
+check('exam edit preserves table and input nodes',renders===1&&saves===1&&cls.examScores['sid:991']===80);
+check('exam edit updates own combined result',resultCell.innerHTML.includes('88'));
+examInput.value='81';examInput.onchange();check('repeated spinner edit keeps table stable',renders===1&&saves===2&&cls.examScores['sid:991']===81);
+examInput.value='';examInput.onchange();check('clear exam retains pending state',resultCell.innerHTML==='—'&&!('sid:991' in cls.examScores));
+examInput.onchange();check('unchanged exam creates no duplicate log',logs===3&&saves===3);
 console.log('Assessment regression: '+passed+' passed');
