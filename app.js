@@ -2585,11 +2585,16 @@ function removeMemberAt(cls, g, j) {
     }
     renderCloudStatus();
     if (syncConflict) {
-      var startupConflictDetails = merged && merged.conflicts ? merged.conflicts : [
-        { path: '/本机记录', local: '本机最后修改：' + (S.updatedAt || '时间未知'), remote: '云端最后保存：' + ((rec && rec.updated_at) || '时间未知') },
-        { path: '/处理范围', local: '本机记录尚未上传', remote: '云端版本 v' + ((rec && rec.revision) || '?') }
-      ];
-      CLOUD.reportConflict(startupConflictDetails);
+      var startupConflictDetails = CLOUD.getConflictDetails ? CLOUD.getConflictDetails(rec, S) : [];
+      if (!startupConflictDetails.length) {
+        /* 只有时间/旧指纹不同，业务数据一致：自动收敛到云端版本，不再制造假冲突。 */
+        if (cloudData && cloudData.classes) S = migrate(JSON.parse(JSON.stringify(cloudData)));
+        if (CLOUD.acceptRemote) CLOUD.acceptRemote(rec);
+        writeLocal();
+        syncConflict = false;
+      } else {
+        CLOUD.reportConflict(startupConflictDetails);
+      }
     }
     renderPoolBanner(curClass());
     switchView('score');

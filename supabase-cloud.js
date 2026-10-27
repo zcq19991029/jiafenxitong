@@ -664,6 +664,9 @@
       if (Array.isArray(list)) conflictDetails = list;
       emit('conflict', '同步冲突：请先备份并处理');
     },
+    getConflictDetails: function (record, local) {
+      return diffValues(comparePayload(local), comparePayload(record && record.data), '', 80);
+    },
     status: function () { return state; },
     onStatus: function (fn) {
       listeners.push(fn);
