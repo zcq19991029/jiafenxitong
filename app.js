@@ -2373,7 +2373,7 @@ function removeMemberAt(cls, g, j) {
 
   var syncEditBlocked=true;
   function setSyncEditGate(blocked,message){syncEditBlocked=blocked;if(!S)return;['#view-score','#view-leader','#view-attendance','#view-pool','#scoreTools','#rosterCard','#lessonListCard'].forEach(function(selector){var el=$(selector);if(el)el.toggleAttribute('inert',blocked);});['#btnImportRoster','#btnRestore','#btnWipe'].forEach(function(selector){var b=$(selector);if(b)b.disabled=blocked;});var gate=$('#syncEditGate');if(!gate){gate=document.createElement('div');gate.id='syncEditGate';gate.className='sync-edit-gate';gate.setAttribute('role','status');$('#main').prepend(gate);}gate.hidden=!blocked;gate.textContent=message||'正在核对云端，确认后开放编辑';}
-  var conflictNotice=document.createElement('dialog');conflictNotice.id='dlgSyncConflict';conflictNotice.innerHTML='<div class="dlg"><div class="dlg-head"><h3>两台设备的记录不同</h3><button type="button" class="dlg-x" id="closeSyncConflict" aria-label="关闭同步冲突提示">✕</button></div><div class="dlg-body"><p>本机改动还没有上传，云端也有更新。系统已暂停上传，避免覆盖另一台设备的记录。</p><div id="syncConflictDetails" aria-live="polite"></div><p class="note">先保存本机备份，再到“数据与备份”核对。分数不同不代表默认规则改变，请不要直接用旧记录覆盖云端。</p><div class="btnrow"><button class="btn" id="backupConflictLocal">下载本机备份</button><button class="btn primary" id="openSyncConflictTools">查看同步处理</button></div></div></div>';document.body.appendChild(conflictNotice);wireDialog(conflictNotice);var conflictNoticeShown=false;
+  var conflictNotice=document.createElement('dialog');conflictNotice.id='dlgSyncConflict';conflictNotice.innerHTML='<div class="dlg"><div class="dlg-head"><h3>两台设备的记录不同</h3><button type="button" class="dlg-x" id="closeSyncConflict" aria-label="关闭同步冲突提示">✕</button></div><div class="dlg-body"><p>本机改动还没有上传，云端也有更新。系统已暂停上传，避免覆盖另一台设备的记录。</p><p class="note">在你选择保留本机或云端之前，冲突会在每次刷新时继续提醒；关闭窗口不会解决冲突。</p><div id="syncConflictDetails" aria-live="polite"></div><p class="note">先保存本机备份，再到“数据与备份”核对。分数不同不代表默认规则改变，请不要直接用旧记录覆盖云端。</p><div class="btnrow"><button class="btn" id="backupConflictLocal">下载本机备份</button><button class="btn primary" id="openSyncConflictTools">查看同步处理</button></div></div></div>';document.body.appendChild(conflictNotice);wireDialog(conflictNotice);var conflictNoticeShown=false;
   $('#closeSyncConflict').onclick=function(){conflictNotice.close();};$('#backupConflictLocal').onclick=function(){$('#btnBackup').click();};$('#openSyncConflictTools').onclick=function(){conflictNotice.close();switchView('data');$('.sync-row').scrollIntoView({block:'center',behavior:'smooth'});};
   $('#cloudChip').onclick=function(){if(CLOUD&&CLOUD.status().mode==='conflict')openDlg(conflictNotice);};$('#cloudChip').setAttribute('tabindex','0');$('#cloudChip').setAttribute('role','button');$('#cloudChip').onkeydown=function(e){if(e.key==='Enter'||e.key===' '){e.preventDefault();this.click();}};
   function renderCloudStatus(st) {
@@ -2584,7 +2584,13 @@ function removeMemberAt(cls, g, j) {
       CLOUD.touch(function () { return S; });
     }
     renderCloudStatus();
-    if (syncConflict) CLOUD.reportConflict(merged&&merged.conflicts);
+    if (syncConflict) {
+      var startupConflictDetails = merged && merged.conflicts ? merged.conflicts : [
+        { path: '/本机记录', local: '本机最后修改：' + (S.updatedAt || '时间未知'), remote: '云端最后保存：' + ((rec && rec.updated_at) || '时间未知') },
+        { path: '/处理范围', local: '本机记录尚未上传', remote: '云端版本 v' + ((rec && rec.revision) || '?') }
+      ];
+      CLOUD.reportConflict(startupConflictDetails);
+    }
     renderPoolBanner(curClass());
     switchView('score');
     if(CLOUD_ON)setTimeout(function(){refreshCloud();},0);
