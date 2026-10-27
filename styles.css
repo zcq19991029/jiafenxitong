@@ -177,6 +177,8 @@ input[readonly] { background: var(--panel-soft); color: var(--muted); }
   transition: border-color .16s, color .16s, background .16s, box-shadow .16s;
 }
 .btn:hover { border-color: var(--accent); color: var(--accent); background: var(--accent-bg); }
+.btn:focus-visible { outline: 3px solid color-mix(in srgb, var(--accent) 28%, transparent); outline-offset: 2px; }
+.btn:active:not(:disabled) { transform: translateY(1px); filter: brightness(.97); }
 .btn.primary {
   background: linear-gradient(180deg, var(--accent-hi), var(--accent));
   border-color: var(--accent); color: #fff; font-weight: 600;
@@ -552,6 +554,9 @@ body.gated .topbar, body.gated main { display: none !important; }
 .gate-card .field input { min-height: 44px; }
 .gate-card .btn:focus-visible, .gate-card input:focus-visible { outline: 3px solid rgba(232,35,46,.25); outline-offset: 2px; }
 .gate-card .btn[aria-busy="true"] { cursor: wait; opacity: .72; }
+.btn[aria-busy="true"] { position: relative; pointer-events: none; }
+.btn[aria-busy="true"]::after { content: ''; width: 14px; height: 14px; margin-left: 8px; border: 2px solid currentColor; border-right-color: transparent; border-radius: 50%; animation: jfdt-spin .7s linear infinite; }
+@keyframes jfdt-spin { to { transform: rotate(360deg); } }
 
 /* 登录页底部的一排小链接：注册 / 忘记密码 */
 .gate-links { display: flex; justify-content: space-between; gap: 10px; flex-wrap: wrap; }
