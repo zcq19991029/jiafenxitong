@@ -2596,7 +2596,7 @@ function removeMemberAt(cls, g, j) {
   if (CLOUD) CLOUD.onStatus(renderCloudStatus);
   $('#btnCheckAppVersion').addEventListener('click',function(){checkAppVersion(true);});
   checkAppVersion(false);
-  var checkCloudButton=document.createElement('button');checkCloudButton.id='btnCheckCloudLatest';checkCloudButton.className='btn';checkCloudButton.textContent='核对云端最新版';checkCloudButton.onclick=function(){refreshCloud();};$('#btnSyncNow').parentElement.appendChild(checkCloudButton);
+  var checkCloudButton=document.createElement('button');checkCloudButton.id='btnCheckCloudLatest';checkCloudButton.className='btn';checkCloudButton.textContent='核对云端最新版';checkCloudButton.onclick=function(){checkCloudButton.disabled=true;checkCloudButton.setAttribute('aria-busy','true');refreshCloud().then(function(ok){flash(ok?'核对完成：本机已是云端最新版':'核对未完成：请查看同步冲突详情');}).finally(function(){checkCloudButton.disabled=false;checkCloudButton.removeAttribute('aria-busy');});};$('#btnSyncNow').parentElement.appendChild(checkCloudButton);
 
   /* 闸门上的按钮 */
   $('#btnAccountLogin').addEventListener('click', doLogin);

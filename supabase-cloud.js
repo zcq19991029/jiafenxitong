@@ -288,7 +288,10 @@
         var remote = row ? Number(row.revision || 0) : 0;
         if (row && remote !== revision) {
           conflictDetails = diffValues(snapshot, row.data, '', 80);
-          if (!conflictDetails.length) conflictDetails = [{ path: '/', local: '本机改动', remote: '云端 v' + remote }];
+          if (!conflictDetails.length) conflictDetails = [
+            { path: '/版本', local: '本机未上传改动', remote: '云端 v' + remote },
+            { path: '/本机概况', local: '班级 ' + ((snapshot.classes || []).length) + ' 个，课次 ' + ((snapshot.lessons || []).length) + ' 个', remote: row.data ? '云端数据已返回但无可展开字段' : '云端数据未返回（请点击核对重试）' }
+          ];
           emit('conflict', '同步冲突：云端已被另一台设备更新');
           var err = new Error('云端有更新的版本（v' + remote + '），已暂停上传以免覆盖。请到「数据与备份」核对。');
           err.code = 'version_conflict';
