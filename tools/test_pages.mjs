@@ -424,6 +424,7 @@ check('私有材料没有进产物', !fs.existsSync(path.join(OUT, '教学材料
   check('开了 Google 就出现 Google 登录', !site.q('#btnOAuthGoogle').hidden);
   site.q('#btnGuest').click();
   await until(() => site.q('#gate').hidden, '访客进入应用');
+  await until(() => site.w.JFDT_CLOUD.status().mode === 'ok', '访客同步状态就绪');
   check('访客也能拿到云端会话', site.w.JFDT_CLOUD.status().mode === 'ok' && cloud.sessions.size > 0);
   site.w.close();
 }
