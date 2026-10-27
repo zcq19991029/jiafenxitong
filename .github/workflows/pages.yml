@@ -1,4 +1,5 @@
 name: Deploy GitHub Pages
+# Pages 已在仓库设置中启用，推送主分支后自动发布。
 
 on:
   push:
