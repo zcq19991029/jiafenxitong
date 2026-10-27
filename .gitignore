@@ -30,3 +30,7 @@ tools/test-runtime/node_modules/
 .env
 .env.*
 !.env.example
+
+# 内部交接与工作记忆只留本机
+/项目交接.md
+/.workbuddy/
