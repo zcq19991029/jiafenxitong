@@ -221,6 +221,13 @@
     return h.toString(16) + ':' + text.length;
   }
 
+  function comparePayload(value) {
+    var copy;
+    try { copy = JSON.parse(JSON.stringify(value || {})); } catch (e) { return value; }
+    if (copy && typeof copy === 'object') { delete copy.updatedAt; delete copy.createdAt; }
+    return copy;
+  }
+
   /* 生成可读的字段级冲突清单，避免只显示版本不同却无法定位。 */
   function diffValues(local, remote, path, limit, out) {
     out = out || [];
@@ -248,7 +255,7 @@
   }
 
   function writeSyncStamp(data) {
-    try { localStorage.setItem(SYNC_KEY, JSON.stringify({ hash: hashOf(payloadOf(data)), at: Date.now(), revision: revision })); } catch (e) {}
+    try { localStorage.setItem(SYNC_KEY, JSON.stringify({ hash: hashOf(comparePayload(payloadOf(data))), at: Date.now(), revision: revision })); } catch (e) {}
   }
 
   function rowsFor(extra) {
@@ -287,7 +294,7 @@
         var row = (rows && rows[0]) || null;
         var remote = row ? Number(row.revision || 0) : 0;
         if (row && remote !== revision) {
-          conflictDetails = diffValues(snapshot, row.data, '', 80);
+          conflictDetails = diffValues(comparePayload(snapshot), comparePayload(row.data), '', 80);
           if (!conflictDetails.length) conflictDetails = [
             { path: '/版本', local: '本机未上传改动', remote: '云端 v' + remote },
             { path: '/本机概况', local: '班级 ' + ((snapshot.classes || []).length) + ' 个，课次 ' + ((snapshot.lessons || []).length) + ' 个', remote: row.data ? '云端数据已返回但无可展开字段' : '云端数据未返回（请点击核对重试）' }
@@ -355,7 +362,7 @@
         }
         if (pending || inflight) {
           var local = getter ? payloadOf(getter() || {}) : null;
-          conflictDetails = diffValues(local, row.data, '', 80);
+          conflictDetails = diffValues(comparePayload(local), comparePayload(row.data), '', 80);
           if (!conflictDetails.length) conflictDetails = [{ path: '/版本', local: '本机还有未上传改动', remote: '云端 v' + remote }];
           emit('conflict', '同步冲突：请先查看本机和云端差异');
           return false;
@@ -379,7 +386,9 @@
     if (!record || !record.data || !local) return false;
     var stamp = readSyncStamp();
     if (!stamp || !stamp.hash) return false;
-    return hashOf(record.data) !== stamp.hash && hashOf(local) !== stamp.hash;
+    var remoteHash = hashOf(comparePayload(record.data)), localHash = hashOf(comparePayload(local));
+    var stampMatches = stamp.hash === remoteHash || stamp.hash === localHash || stamp.hash === hashOf(record.data) || stamp.hash === hashOf(local);
+    return remoteHash !== localHash && !stampMatches;
   }
 
   function acceptRemote(record) {
