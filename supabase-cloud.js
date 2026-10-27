@@ -230,6 +230,7 @@
 
   /* 生成可读的字段级冲突清单，避免只显示版本不同却无法定位。 */
   function diffValues(local, remote, path, limit, out) {
+    limit = Number(limit) || 80;
     out = out || [];
     if (out.length >= limit) return out;
     if (hashOf(local) === hashOf(remote)) return out;
@@ -665,7 +666,7 @@
       emit('conflict', '同步冲突：请先备份并处理');
     },
     getConflictDetails: function (record, local) {
-      return diffValues(comparePayload(local), comparePayload(record && record.data), '', 80);
+      try { return diffValues(comparePayload(local), comparePayload(record && record.data), '', 80) || []; } catch (e) { return []; }
     },
     status: function () { return state; },
     onStatus: function (fn) {
