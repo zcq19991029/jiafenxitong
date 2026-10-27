@@ -519,12 +519,14 @@ body.gated .topbar, body.gated main { display: none !important; }
 
 .gate {
   min-height: 100vh; display: flex; align-items: center; justify-content: center;
-  padding: 28px 16px;
+  padding: clamp(20px, 5vw, 64px) 16px;
+  background: radial-gradient(circle at 50% 0%, rgba(232,35,46,.08), transparent 42%), var(--bg);
 }
 .gate-card {
-  width: 100%; max-width: 430px; background: var(--panel);
-  border: 1px solid var(--line); border-radius: var(--radius-lg);
-  box-shadow: var(--shadow-lift); padding: 30px 28px;
+  width: 100%; max-width: 430px; background: color-mix(in srgb, var(--panel) 96%, white);
+  border: 1px solid var(--line); border-radius: 22px;
+  box-shadow: 0 18px 48px rgba(30, 34, 42, .12), 0 2px 8px rgba(30, 34, 42, .05);
+  padding: clamp(24px, 5vw, 34px) clamp(20px, 5vw, 32px);
   display: flex; flex-direction: column; gap: 14px;
 }
 /* 登录页顶部：校徽 + 学校名，是这一页的门面 */
@@ -546,6 +548,10 @@ body.gated .topbar, body.gated main { display: none !important; }
 .gate-msg.info { background: var(--accent-bg); color: var(--accent); border-color: var(--accent); }
 #gateLogin, #gateRegister, #gateReset, #gateNewPassword, #gateOffline { display: flex; flex-direction: column; gap: 12px; }
 .gate-card .btn { width: 100%; justify-content: center; }
+.gate-card .btn.primary { min-height: 44px; font-size: 15px; box-shadow: 0 6px 14px rgba(232,35,46,.18); }
+.gate-card .field input { min-height: 44px; }
+.gate-card .btn:focus-visible, .gate-card input:focus-visible { outline: 3px solid rgba(232,35,46,.25); outline-offset: 2px; }
+.gate-card .btn[aria-busy="true"] { cursor: wait; opacity: .72; }
 
 /* 登录页底部的一排小链接：注册 / 忘记密码 */
 .gate-links { display: flex; justify-content: space-between; gap: 10px; flex-wrap: wrap; }
