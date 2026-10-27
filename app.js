@@ -2099,15 +2099,45 @@ function removeMemberAt(cls, g, j) {
     return /^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/.test(String(value || '').trim());
   }
 
+  /* 教师账号：可以填邮箱，也可以只填数字/短账号。
+     没有 @ 的一律补成「账号@accountDomain」，这个地址只当登录身份，不发信。 */
+  function accountDomain() {
+    var cfg = window.JFDT_CONFIG || {};
+    return String(cfg.accountDomain || 'jfdt.app').replace(/^@/, '');
+  }
+  function resolveAccount(value) {
+    var raw = String(value || '').trim().replace(/\s+/g, '');
+    if (!raw) return '';
+    return raw.indexOf('@') >= 0 ? raw : raw + '@' + accountDomain();
+  }
+  function accountProblem(value, email) {
+    var raw = String(value || '').trim();
+    if (!raw) return '请填写教师账号。';
+    if (raw.indexOf('@') >= 0) {
+      return looksLikeEmail(raw) ? '' : '邮箱格式不对，例如 name@example.com。';
+    }
+    return /^[0-9A-Za-z._-]{2,32}$/.test(raw) ? '' : '账号用 2–32 位数字、字母、点、下划线或短横线。';
+  }
+  function registerCode() {
+    return String((window.JFDT_CONFIG || {}).registerCode || '');
+  }
+  function showInviteField() {
+    var wrap = $('#regInviteWrap'), hint = $('#accountDomainHint');
+    if (hint) hint.textContent = accountDomain();
+    if (wrap) wrap.hidden = !registerCode();
+  }
+
   function gateError(panel, e, prefix) {
     var text = e && e.message ? e.message : String(e);
     gateShow(panel, (prefix || '') + text);
   }
 
   function doLogin() {
-    var email = $('#loginEmail').value.trim();
+    var account = $('#loginEmail').value.trim();
+    var email = resolveAccount(account);
     var password = $('#loginPassword').value;
-    if (!looksLikeEmail(email)) { gateShow('login', '请填写正确的邮箱地址，例如 name@example.com。'); return; }
+    var problem = accountProblem(account, email);
+    if (problem) { gateShow('login', problem); return; }
     if (!password) { gateShow('login', '请填写密码。'); return; }
     setGateBusy(true);
     gateShow('login', null);
@@ -2121,10 +2151,18 @@ function removeMemberAt(cls, g, j) {
   }
 
   function doRegister() {
-    var email = $('#regEmail').value.trim();
+    var account = $('#regEmail').value.trim();
+    var email = resolveAccount(account);
     var password = $('#regPassword').value;
     var confirm = $('#regConfirm').value;
-    if (!looksLikeEmail(email)) { gateShow('register', '请填写正确的邮箱地址，例如 name@example.com。'); return; }
+    var problem = accountProblem(account, email);
+    if (problem) { gateShow('register', problem); return; }
+    var needCode = registerCode();
+    if (needCode) {
+      var typed = $('#regInvite') ? $('#regInvite').value.trim() : '';
+      if (!typed) { gateShow('register', '请填写管理员给你的邀请码。'); return; }
+      if (typed.toUpperCase() !== needCode.toUpperCase()) { gateShow('register', '邀请码不对，请向管理员确认。'); return; }
+    }
     if (password.length < 6 || password.length > 128) { gateShow('register', '密码需为 6–128 位。'); return; }
     if (password !== confirm) { gateShow('register', '两次输入的密码不一致。'); return; }
     setGateBusy(true);
@@ -2139,14 +2177,21 @@ function removeMemberAt(cls, g, j) {
       gateError('register', e, e && e.code === 'confirm_email' ? '' : '注册没能完成：');
       if (e && e.code === 'confirm_email') {
         $('#gateMsg').classList.add('info');
-        $('#loginEmail').value = email;
+        $('#loginEmail').value = account;   // 回到登录页时填的还是他刚敲的账号
       }
     });
   }
 
   function doSendReset() {
-    var email = $('#resetEmail').value.trim();
-    if (!looksLikeEmail(email)) { gateShow('reset', '请填写注册时用的邮箱地址。'); return; }
+    var account = $('#resetEmail').value.trim();
+    var email = resolveAccount(account);
+    var problem = accountProblem(account, email);
+    if (problem) { gateShow('reset', problem); return; }
+    if (account.indexOf('@') < 0 && !/@(qq|163|126|gmail|outlook|foxmail|sina|139|yeah|aliyun)\./i.test('@' + email.split('@')[1] + '.')) {
+      /* 数字账号没有真实邮箱，发不了重置信：直接说清楚，别让人干等 */
+      gateShow('reset', '这个账号是数字账号，没有绑定邮箱，收不到重置邮件。请让管理员在后台重设密码。');
+      return;
+    }
     setGateBusy(true);
     gateShow('reset', null);
     CLOUD.resetPasswordFor(email).then(function () {
@@ -2586,6 +2631,7 @@ function removeMemberAt(cls, g, j) {
     gateShow('login','请连接云端并核对成功后记分。',true);
   });
   loadAuthOptions();
+  showInviteField();
 
   /* 数据页的同步按钮 */
   $('#btnSyncNow').addEventListener('click', function () {

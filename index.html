@@ -58,8 +58,8 @@
 
     <!-- 登录 -->
     <div id="gateLogin">
-      <p class="gate-lead">用邮箱账号登录，名单和记分记录随账号同步。</p>
-      <label class="field col"><span>邮箱</span><input id="loginEmail" type="email" inputmode="email" autocomplete="username" autocapitalize="none" spellcheck="false" placeholder="name@example.com"></label>
+      <p class="gate-lead">用教师账号登录，名单和记分记录随账号同步。</p>
+      <label class="field col"><span>教师账号</span><input id="loginEmail" type="text" inputmode="text" autocomplete="username" autocapitalize="none" spellcheck="false" placeholder="例如 11445 或 name@example.com"></label>
       <label class="field col"><span>密码</span><input id="loginPassword" type="password" autocomplete="current-password" placeholder="登录密码"></label>
       <button class="btn primary" id="btnAccountLogin">登录</button>
       <div class="gate-links">
@@ -76,22 +76,23 @@
 
     <!-- 注册 -->
     <div id="gateRegister" hidden>
-      <p class="gate-lead">用邮箱注册自己的账号。每个账号的班级、名单和成绩互相看不见，换设备登录也不会丢。</p>
-      <label class="field col"><span>邮箱</span><input id="regEmail" type="email" inputmode="email" autocomplete="username" autocapitalize="none" spellcheck="false" placeholder="name@example.com"></label>
+      <p class="gate-lead">注册一个教师账号。每个账号的班级、名单和成绩互相看不见，换设备登录也不会丢。</p>
+      <label class="field col"><span>教师账号</span><input id="regEmail" type="text" inputmode="text" autocomplete="username" autocapitalize="none" spellcheck="false" placeholder="数字或字母账号，也可直接填邮箱"></label>
       <label class="field col"><span>姓名或显示名</span><input id="regName" autocomplete="name" placeholder="老师姓名或称呼"></label>
       <label class="field col"><span>设置密码（至少 6 位）</span><input id="regPassword" type="password" minlength="6" maxlength="128" autocomplete="new-password"></label>
       <label class="field col"><span>确认密码</span><input id="regConfirm" type="password" autocomplete="new-password"></label>
+      <label class="field col" id="regInviteWrap" hidden><span>邀请码</span><input id="regInvite" autocomplete="off" autocapitalize="characters" spellcheck="false" placeholder="向管理员索取"></label>
       <button class="btn primary" id="btnRegisterNow">注册</button>
       <p class="gate-foot">
-        注册后如果收到确认邮件，点开邮件里的链接再回来登录即可。<br>
+        账号没有 @ 时会自动补成「账号@<span id="accountDomainHint">jfdt.app</span>」，只用来登录，不会给你发邮件。<br>
         <button class="linkbtn" id="btnShowLogin">返回登录</button>
       </p>
     </div>
 
     <!-- 忘记密码 -->
     <div id="gateReset" hidden>
-      <p class="gate-lead">填写注册时用的邮箱，我们会把重置密码的链接发到邮箱里。</p>
-      <label class="field col"><span>邮箱</span><input id="resetEmail" type="email" inputmode="email" autocomplete="username" autocapitalize="none" spellcheck="false" placeholder="name@example.com"></label>
+      <p class="gate-lead">忘记密码请找管理员重设（数字账号没有邮箱，收不到重置邮件）。如果当初用真实邮箱注册，也可以在下面自己发重置邮件。</p>
+      <label class="field col"><span>教师账号或邮箱</span><input id="resetEmail" type="text" inputmode="text" autocomplete="username" autocapitalize="none" spellcheck="false" placeholder="11445 或 name@example.com"></label>
       <button class="btn primary" id="btnSendReset">发送重置邮件</button>
       <p class="gate-foot">
         收不到邮件先看一下垃圾邮件箱；学校邮箱可能会延迟几分钟。<br>

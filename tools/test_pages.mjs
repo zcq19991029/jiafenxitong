@@ -237,6 +237,20 @@ function openSite({ cloud, hash = '' } = {}) {
   return { dom, w, errors, q: (sel) => w.document.querySelector(sel) };
 }
 
+const REGISTER_CODE = read('config.js').split("registerCode: '")[1].split("'")[0] || '';
+const ACCOUNT_DOMAIN = read('config.js').split("accountDomain: '")[1].split("'")[0] || 'jfdt.app';
+
+/* 注册面板：账号 / 姓名 / 密码 / 邀请码 */
+function register(site, { account, name, password, code = REGISTER_CODE }) {
+  site.q('#btnShowRegister').click();
+  site.q('#regEmail').value = account;
+  site.q('#regName').value = name || '';
+  site.q('#regPassword').value = password;
+  site.q('#regConfirm').value = password;
+  if (site.q('#regInvite')) site.q('#regInvite').value = code;
+  site.q('#btnRegisterNow').click();
+}
+
 const wait = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
 async function until(fn, label) {
   for (let i = 0; i < 300; i++) {
@@ -280,7 +294,8 @@ check('公开 data.js 不含任何学生名单', (() => {
   const data = JSON.parse(seed);
   return data.classes.every((c) => (c.roster || []).length === 0 && (c.groups || []).every((g) => !(g.members || []).length));
 })());
-check('登录页不再出现邀请码/教师账号旧流程', !/邀请码|一次性重置码/.test(HTML) && !/id="loginUsername"/.test(HTML));
+check('旧版「教师账号+一次性重置码」表单没有残留', !/一次性重置码/.test(HTML) && !/id="loginUsername"/.test(HTML) && !/id="resetCode"/.test(HTML));
+check('邀请制以后端可配的口令形式存在', /id="regInvite"/.test(HTML) && REGISTER_CODE.length >= 4);
 check('私有材料没有进产物', !fs.existsSync(path.join(OUT, '教学材料')) && !fs.existsSync(path.join(OUT, 'data.example.js')) && !fs.existsSync(path.join(OUT, 'backend')));
 
 /* ---------------- 场景一：登录页结构 + 第三方登录开关 ---------------- */
@@ -291,7 +306,7 @@ check('私有材料没有进产物', !fs.existsSync(path.join(OUT, '教学材料
   await until(() => site.q('#gate') && !site.q('#gate').hidden, '登录闸门出现');
 
   check('未登录时停在登录页并锁定编辑', site.w.document.body.classList.contains('gated'));
-  check('登录页用邮箱而不是教师账号', !!site.q('#loginEmail') && /email/.test(site.q('#loginEmail').type));
+  check('登录页是单个「教师账号」输入框（可数字可邮箱）', !!site.q('#loginEmail') && site.q('#loginEmail').type === 'text' && /教师账号/.test(site.q('#loginEmail').closest('label').textContent));
   check('注册与忘记密码入口都在', !!site.q('#btnShowRegister') && !!site.q('#btnForgotPassword'));
   await until(() => !site.q('#gateProviders').hidden, '读取登录方式开关');
   check('后台开了 GitHub 就显示 GitHub 登录', !site.q('#btnOAuthGithub').hidden);
@@ -324,18 +339,22 @@ check('私有材料没有进产物', !fs.existsSync(path.join(OUT, '教学材料
   await until(() => site.q('#gate') && !site.q('#gate').hidden, '登录闸门出现');
 
   site.q('#btnShowRegister').click();
-  check('注册面板要求邮箱', !site.q('#gateRegister').hidden && /email/.test(site.q('#regEmail').type));
+  check('注册面板接受任意教师账号', !site.q('#gateRegister').hidden && site.q('#regEmail').type === 'text');
+  check('开启邀请制时出现邀请码输入框', REGISTER_CODE ? !site.q('#regInviteWrap').hidden : site.q('#regInviteWrap').hidden);
 
-  site.q('#regEmail').value = 'teacher@example.com';
-  site.q('#regName').value = '李老师';
-  site.q('#regPassword').value = 'secret123';
-  site.q('#regConfirm').value = 'secret123';
-  site.q('#btnRegisterNow').click();
+  /* 邀请码不对要在本地就拦下，不要白跑一次请求 */
+  const beforeBadCode = cloud.requests.length;
+  register(site, { account: '11445', name: '夜夜', password: 'secret123', code: 'WRONG-CODE' });
+  await wait(120);
+  check('邀请码错误时直接提示且不发注册请求', /邀请码不对/.test(site.q('#gateMsg').textContent) && cloud.requests.length === beforeBadCode);
+
+  register(site, { account: '11445', name: '夜夜', password: 'secret123' });
   await until(() => site.q('#gate').hidden, '注册后进入应用');
   check('注册后直接进入应用', !site.w.document.body.classList.contains('gated'));
-  check('账号资料写入了 profiles', cloud.profiles.size === 1 && cloud.profiles.values().next().value.display_name === '李老师');
+  check('数字账号被补成 账号@域名 去注册', cloud.requests.some((r) => r.path === '/auth/v1/signup' && r.body && r.body.email === '11445@' + ACCOUNT_DOMAIN));
+  check('账号资料写入了 profiles', cloud.profiles.size === 1 && cloud.profiles.values().next().value.display_name === '夜夜');
   check('新账号看到名单导入入口', !site.q('#rosterSetupHint').hidden);
-  check('顶栏显示老师姓名', /李老师/.test(site.q('#userName').textContent));
+  check('顶栏显示老师姓名', /夜夜/.test(site.q('#userName').textContent));
 
   site.w.JFDT_CLOUD.touch(() => JSON.parse(site.w.localStorage.getItem('jfdt.v1')));
   await until(() => [...cloud.states.values()].some((r) => r.revision >= 1), '上传到云端');
@@ -360,15 +379,10 @@ check('私有材料没有进产物', !fs.existsSync(path.join(OUT, '教学材料
   const cloud = createCloud({ confirmEmail: true });
   const site = openSite({ cloud });
   await until(() => site.q('#gate') && !site.q('#gate').hidden, '登录闸门出现');
-  site.q('#btnShowRegister').click();
-  site.q('#regEmail').value = 'pending@example.com';
-  site.q('#regName').value = '王老师';
-  site.q('#regPassword').value = 'secret123';
-  site.q('#regConfirm').value = 'secret123';
-  site.q('#btnRegisterNow').click();
+  register(site, { account: 'pending-teacher', name: '王老师', password: 'secret123' });
   await until(() => /确认链接|确认邮件/.test(site.q('#gateMsg').textContent), '邮箱确认提示');
   check('要邮箱确认时停在注册页并说明下一步', !site.q('#gateRegister').hidden && site.w.document.body.classList.contains('gated'));
-  check('提示里给了登录用的邮箱', site.q('#loginEmail').value === 'pending@example.com');
+  check('提示里带上了刚注册的账号', site.q('#loginEmail').value === 'pending-teacher');
   site.w.close();
 }
 
@@ -380,12 +394,7 @@ check('私有材料没有进产物', !fs.existsSync(path.join(OUT, '教学材料
   // 先用真实注册流程建号
   const boot = openSite({ cloud });
   await until(() => boot.q('#gate') && !boot.q('#gate').hidden, '登录闸门出现');
-  boot.q('#btnShowRegister').click();
-  boot.q('#regEmail').value = seedUser.email;
-  boot.q('#regName').value = '返场老师';
-  boot.q('#regPassword').value = seedUser.password;
-  boot.q('#regConfirm').value = seedUser.password;
-  boot.q('#btnRegisterNow').click();
+  register(boot, { account: seedUser.email, name: '返场老师', password: seedUser.password });
   await until(() => boot.q('#gate').hidden, '注册后进入应用');
   boot.w.close();
 

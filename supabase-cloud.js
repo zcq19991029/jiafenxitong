@@ -43,7 +43,7 @@
     email_exists: '这个邮箱已经注册过了，直接登录就行。',
     user_already_exists: '这个邮箱已经注册过了，直接登录就行。',
     weak_password: '密码太短或太常见，请换一个至少 6 位的密码。',
-    over_email_send_rate_limit: '验证邮件发得太频繁，请等一分钟再试。',
+    over_email_send_rate_limit: '确认邮件发得太频繁（Supabase 免费发信有上限）。请等一会儿再试；如果站点用数字账号、不需要邮箱确认，请管理员在 Supabase 后台关掉 Confirm email。',
     over_request_rate_limit: '操作太频繁，请稍等一下再试。',
     signup_disabled: '站点暂时关闭了新用户注册。',
     anonymous_provider_disabled: '访客登录还没在 Supabase 后台开启。',
