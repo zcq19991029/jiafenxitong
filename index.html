@@ -44,7 +44,7 @@
 
 <div class="local-warn" id="localWarn" hidden></div>
 
-<!-- ========== 登录 / 邀请码闸门 ========== -->
+<!-- ========== 登录闸门（Supabase 邮箱账号） ========== -->
 <section class="gate" id="gate" hidden>
   <div class="gate-card">
     <div class="gate-logo">
@@ -56,41 +56,55 @@
 
     <div id="gateMsg" class="gate-msg" hidden></div>
 
-    <!-- 第一步：登录 -->
+    <!-- 登录 -->
     <div id="gateLogin">
-      <p class="gate-lead">使用教师账号登录，名单和记分记录随账号同步。</p>
-      <label class="field col"><span>教师账号</span><input id="loginUsername" autocomplete="username" autocapitalize="none" placeholder="教师账号"></label>
+      <p class="gate-lead">用邮箱账号登录，名单和记分记录随账号同步。</p>
+      <label class="field col"><span>邮箱</span><input id="loginEmail" type="email" inputmode="email" autocomplete="username" autocapitalize="none" spellcheck="false" placeholder="name@example.com"></label>
       <label class="field col"><span>密码</span><input id="loginPassword" type="password" autocomplete="current-password" placeholder="登录密码"></label>
       <button class="btn primary" id="btnAccountLogin">登录</button>
-      <button class="btn ghost small" id="btnShowRegister">使用邀请码注册</button>
-      <button class="linkbtn" id="btnForgotPassword">忘记密码</button>
+      <div class="gate-links">
+        <button class="linkbtn" id="btnShowRegister">注册新账号</button>
+        <button class="linkbtn" id="btnForgotPassword">忘记密码</button>
+      </div>
+      <div class="gate-alt" id="gateProviders" hidden>
+        <span class="gate-alt-line"><i>其他登录方式</i></span>
+        <button class="btn oauth" id="btnOAuthGithub" hidden><span class="oauth-mark" aria-hidden="true">⌥</span>用 GitHub 账号登录</button>
+        <button class="btn oauth" id="btnOAuthGoogle" hidden><span class="oauth-mark" aria-hidden="true">G</span>用 Google 账号登录</button>
+        <button class="btn ghost small" id="btnGuest" hidden>不注册，先用访客身份进入</button>
+      </div>
     </div>
 
-    <!-- 第二步：邀请码 -->
-    <div id="gateReset" hidden>
-      <p class="note">教师请联系管理员核验身份并取得重置码，有效期 30 分钟。管理员忘记密码请联系站点维护者。</p>
-      <label class="field col"><span>教师账号</span><input id="resetUsername" autocomplete="username"></label>
-      <label class="field col"><span>一次性重置码</span><input id="resetCode" autocomplete="off"></label>
-      <label class="field col"><span>新密码（至少 6 位）</span><input id="resetPassword" type="password" autocomplete="new-password" minlength="6" maxlength="128"></label>
-      <label class="field col"><span>确认新密码</span><input id="resetConfirm" type="password" autocomplete="new-password"></label>
-      <button class="btn primary" id="btnResetPassword">重置密码</button>
-      <button class="linkbtn" id="btnResetBack">返回登录</button>
-    </div>
-    <div id="gateInvite" hidden>
-      <p class="gate-lead">使用管理员发的一次性邀请码注册。账号为 3–32 位字母、数字、点、下划线或短横线。</p>
-      <label class="field col"><span>教师账号</span><input id="regUsername" autocomplete="username" autocapitalize="none" placeholder="用于登录的账号"></label>
+    <!-- 注册 -->
+    <div id="gateRegister" hidden>
+      <p class="gate-lead">用邮箱注册自己的账号。每个账号的班级、名单和成绩互相看不见，换设备登录也不会丢。</p>
+      <label class="field col"><span>邮箱</span><input id="regEmail" type="email" inputmode="email" autocomplete="username" autocapitalize="none" spellcheck="false" placeholder="name@example.com"></label>
       <label class="field col"><span>姓名或显示名</span><input id="regName" autocomplete="name" placeholder="老师姓名或称呼"></label>
       <label class="field col"><span>设置密码（至少 6 位）</span><input id="regPassword" type="password" minlength="6" maxlength="128" autocomplete="new-password"></label>
       <label class="field col"><span>确认密码</span><input id="regConfirm" type="password" autocomplete="new-password"></label>
-      <label class="field col">
-        <span>邀请码</span>
-        <input id="inviteCode" placeholder="例如 ABCD-2345" autocapitalize="characters" autocomplete="off">
-      </label>
-      <button class="btn primary" id="btnRedeem">注册并登录</button>
+      <button class="btn primary" id="btnRegisterNow">注册</button>
       <p class="gate-foot">
-        没有邀请码请联系管理员；首次管理员使用站点启动码注册。<br>
+        注册后如果收到确认邮件，点开邮件里的链接再回来登录即可。<br>
         <button class="linkbtn" id="btnShowLogin">返回登录</button>
       </p>
+    </div>
+
+    <!-- 忘记密码 -->
+    <div id="gateReset" hidden>
+      <p class="gate-lead">填写注册时用的邮箱，我们会把重置密码的链接发到邮箱里。</p>
+      <label class="field col"><span>邮箱</span><input id="resetEmail" type="email" inputmode="email" autocomplete="username" autocapitalize="none" spellcheck="false" placeholder="name@example.com"></label>
+      <button class="btn primary" id="btnSendReset">发送重置邮件</button>
+      <p class="gate-foot">
+        收不到邮件先看一下垃圾邮件箱；学校邮箱可能会延迟几分钟。<br>
+        <button class="linkbtn" id="btnResetBack">返回登录</button>
+      </p>
+    </div>
+
+    <!-- 从重置邮件回来 -->
+    <div id="gateNewPassword" hidden>
+      <p class="gate-lead">重置链接已验证通过，设置一个新密码就能继续用这个账号。</p>
+      <label class="field col"><span>新密码（至少 6 位）</span><input id="recoverPassword" type="password" minlength="6" maxlength="128" autocomplete="new-password"></label>
+      <label class="field col"><span>确认新密码</span><input id="recoverConfirm" type="password" autocomplete="new-password"></label>
+      <button class="btn primary" id="btnSaveRecovered">保存并登录</button>
     </div>
 
     <!-- 云端连不上时的降级入口 -->
@@ -304,49 +318,13 @@
 
   <!-- ========== 管理（仅管理员可见） ========== -->
   <section id="view-admin" class="view" hidden>
-    <div class="card">
-      <h2 class="sec-title">教师密码重置</h2>
-      <p class="note">先核验教师身份，再为其生成一次性重置码。生成新码会使该账号之前的重置码失效；重置成功会退出其所有设备。</p>
-      <label class="field"><span>教师账号</span><input id="adminResetUsername" autocomplete="off"></label>
-      <button class="btn" id="btnIssueReset">生成 30 分钟重置码</button>
-      <p id="adminResetResult" class="note" role="status"></p>
-    </div>
-
     <div class="card admin-hero">
       <h2 class="sec-title" style="margin-top:0">👑 教师账号管理 <span class="hint">只有管理员看得到这一页</span></h2>
       <p class="note" id="adminIntro">
-      给新老师发一个<b>一次性邀请码</b>：老师填写账号、密码和这个邀请码后注册自己的账号，
-        账号之间互相看不见对方的班级和数据；同一账号在任何设备登录，记录会自动同步回来。
-        码用掉即失效，作废的码可以再生成。
+        老师自己在登录页点「注册新账号」，用邮箱注册即可；每个账号的班级、名单和成绩互相看不见，
+        同一账号在任何设备登录都会同步回来。<b>忘记密码</b>由老师自己在登录页点「忘记密码」，用邮箱重置。
       </p>
-      <div class="btnrow">
-        <label class="field">
-          <span>生成数量</span>
-          <select id="invCount">
-            <option value="1">1 个</option>
-            <option value="3" selected>3 个</option>
-            <option value="5">5 个</option>
-            <option value="10">10 个</option>
-          </select>
-        </label>
-        <label class="field grow">
-          <span>备注（发给谁，自己看得懂就行）</span>
-          <input id="invNote" placeholder="例如：李老师 / 电气教研组">
-        </label>
-        <label class="field">
-          <span>类型</span>
-          <select id="invRole">
-            <option value="teacher">普通老师</option>
-            <option value="admin">管理员</option>
-          </select>
-        </label>
-        <button class="btn primary" id="btnGenInvite">生成邀请码</button>
-      </div>
-      <div id="invFresh" class="inv-fresh" hidden></div>
     </div>
-
-    <h2 class="sec-title">邀请码</h2>
-    <div class="card tablewrap" id="inviteList"></div>
 
     <h2 class="sec-title">老师与数据</h2>
     <div class="card tablewrap" id="teacherList"></div>
@@ -443,7 +421,7 @@
     <div class="dlg-body">
       <p class="note">已登录过的账号会保留在本机列表。切换前会先同步当前账号；密码只用于本次登录，不会保存在浏览器。</p>
       <div id="rememberedAccounts" class="remembered-accounts"></div>
-      <label class="field col"><span>账号</span><input id="switchUsername" autocomplete="username" autocapitalize="none" placeholder="选择上面的账号，或输入新账号"></label>
+      <label class="field col"><span>邮箱</span><input id="switchUsername" type="email" autocomplete="username" autocapitalize="none" spellcheck="false" placeholder="选择上面的账号，或输入另一个邮箱"></label>
       <label class="field col"><span>密码</span><input id="switchPassword" type="password" autocomplete="current-password" placeholder="请输入密码"></label>
       <div class="gate-msg" id="switchAccountMsg" hidden></div>
     </div>

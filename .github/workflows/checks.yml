@@ -15,11 +15,11 @@ jobs:
         with:
           node-version: '24'
       - run: npm ci --prefix tools/test-runtime
-      - name: Check database and application behavior
+      - name: Check application behavior
+        # 站点形态是「GitHub Pages 静态前端 + Supabase 账号」。
+        # 校验围绕这条链路：先构建真实产物，再在 jsdom 里跑登录/注册/找回/同步。
+        # Worker + D1 时代的 test_backend / test_online / build_site / test_site 已不再对应线上站点。
         run: |
-          node tools/test_backend.mjs
-          node tools/test_passwords.mjs
           node tools/test_assessment.mjs
-          node tools/test_online.mjs
-          node tools/build_site.mjs
-          node tools/test_site.mjs
+          node tools/test_roster_formats.mjs
+          node tools/test_pages.mjs

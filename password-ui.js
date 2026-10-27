@@ -1,48 +1,57 @@
+/* 修改密码对话框（Supabase）：先用原密码重新登录一次，确认是本人才允许改。 */
 (function () {
   'use strict';
-  var cloud = window.JFDT_CLOUD, $ = function (id) { return document.getElementById(id); };
-  function showGate(which, message) {
-    document.body.classList.add('gated'); $('gate').hidden = false;
-    ['Login','Invite','Offline','Reset'].forEach(function (name) { $('gate'+name).hidden = name !== which; });
-    $('gateMsg').textContent = message || ''; $('gateMsg').hidden = !message;
+  var cloud = window.JFDT_CLOUD, byId = function (id) { return document.getElementById(id); };
+  if (!cloud) return;
+  var dialog = byId('dlgPassword');
+  if (!dialog) return;
+
+  function clear() {
+    ['oldPassword', 'newPassword', 'newPasswordConfirm'].forEach(function (id) { var el = byId(id); if (el) el.value = ''; });
   }
-  function clearPasswords() {
-    ['oldPassword','newPassword','newPasswordConfirm','resetPassword','resetConfirm'].forEach(function (id) { $(id).value = ''; });
+  function say(text) {
+    var box = byId('passwordMsg');
+    if (!box) return;
+    box.textContent = text || '';
+    box.hidden = !text;
   }
-  $('btnForgotPassword').onclick = function () { showGate('Reset'); $('resetUsername').value = $('loginUsername').value; };
-  $('btnResetBack').onclick = function () { clearPasswords(); $('resetCode').value = ''; showGate('Login'); };
-  $('btnResetPassword').onclick = function () {
-    var password = $('resetPassword').value;
-    if (password.length < 6 || password.length > 128 || password !== $('resetConfirm').value) { showGate('Reset','密码需为 6–128 位，且两次输入须一致。'); return; }
-    $('btnResetPassword').disabled = true;
-    cloud.resetPassword($('resetUsername').value.trim(), $('resetCode').value.trim(), password).then(function () {
-      clearPasswords(); $('resetCode').value = ''; $('loginUsername').value = $('resetUsername').value;
-      showGate('Login','密码已重置，请用新密码登录。');
-    }).catch(function (error) { showGate('Reset',error.message); }).finally(function () { $('btnResetPassword').disabled = false; });
+
+  var trigger = byId('btnChangePassword');
+  if (trigger) trigger.onclick = function () {
+    var me = byId('dlgMe');
+    if (me && me.open) me.close('cancel');
+    clear(); say('');
+    dialog.showModal();
   };
-  var dialog = $('dlgPassword');
-  $('btnChangePassword').onclick = function () { $('dlgMe').close('cancel'); clearPasswords(); $('passwordMsg').hidden = true; dialog.showModal(); };
-  $('btnPasswordClose').onclick = function () { dialog.close(); };
-  dialog.addEventListener('close', clearPasswords);
-  $('passwordForm').addEventListener('submit', function (event) {
+  var closeBtn = byId('btnPasswordClose');
+  if (closeBtn) closeBtn.onclick = function () { dialog.close(); };
+  dialog.addEventListener('close', clear);
+
+  byId('passwordForm').addEventListener('submit', function (event) {
     event.preventDefault();
-    var password = $('newPassword').value;
-    if (password.length < 6 || password.length > 128 || password !== $('newPasswordConfirm').value) {
-      $('passwordMsg').textContent = '密码需为 6–128 位，且两次输入须一致。'; $('passwordMsg').hidden = false; return;
+    var profile = cloud.profile && cloud.profile();
+    if (profile && profile.anonymous) {
+      say('当前是访客身份，没有密码。注册一个邮箱账号后就能设置密码。');
+      return;
     }
-    $('btnPasswordSave').disabled = true;
-    cloud.flush().then(function () { return cloud.changePassword($('oldPassword').value, password); }).then(function () {
-      dialog.close(); clearPasswords();
-    }).catch(function (error) { $('passwordMsg').textContent = error.message; $('passwordMsg').hidden = false; })
-      .finally(function () { $('btnPasswordSave').disabled = false; });
+    var oldPassword = byId('oldPassword').value;
+    var password = byId('newPassword').value;
+    if (password.length < 6 || password.length > 128) { say('新密码需为 6–128 位。'); return; }
+    if (password !== byId('newPasswordConfirm').value) { say('两次输入的新密码不一致。'); return; }
+    if (password === oldPassword) { say('新密码不能和原密码相同。'); return; }
+    if (!oldPassword) { say('请输入原密码。'); return; }
+
+    var submit = byId('btnPasswordSave');
+    submit.disabled = true;
+    say('');
+    var ready = cloud.flush ? cloud.flush().catch(function () {}) : Promise.resolve();
+    ready.then(function () { return cloud.verifyPassword(oldPassword); })
+      .then(function () { return cloud.changePassword(oldPassword, password); })
+      .then(function () {
+        dialog.close(); clear();
+        alert('密码已修改。下次登录请使用新密码。');
+      })
+      .catch(function (error) { say(error && error.message ? error.message : String(error)); })
+      .finally(function () { submit.disabled = false; });
   });
-  $('btnIssueReset').onclick = function () {
-    var username = $('adminResetUsername').value.trim();
-    if (!username) { $('adminResetResult').textContent = '请填写需要重置的教师账号。'; return; }
-    $('btnIssueReset').disabled = true; $('adminResetResult').textContent = '正在生成…';
-    cloud.admin.resetPassword(username).then(function (result) {
-      $('adminResetResult').textContent = '账号 '+username+' 的一次性重置码：'+result.code+'（30 分钟有效，请仅交给核验后的教师）';
-    }).catch(function (error) { $('adminResetResult').textContent = error.message; })
-      .finally(function () { $('btnIssueReset').disabled = false; });
-  };
 })();

@@ -1,5 +1,6 @@
 name: Deploy GitHub Pages
-# Pages 已在仓库设置中启用，推送主分支后自动发布。
+# 站点是纯静态：登录与数据都在 Supabase，Pages 只负责托管前端文件。
+# 仓库设置里的 Pages source 必须是 "GitHub Actions"。
 
 on:
   push:
@@ -24,20 +25,17 @@ jobs:
     steps:
       - name: Checkout
         uses: actions/checkout@v4
-      - name: Prepare static site
-        run: |
-          mkdir -p _site
-          cp index.html styles.css app.js assessment.js cloud.js supabase-cloud.js config.js password-ui.js roster-import.js leader-scoring.js ui-feedback.js print-excel.js _site/
-          cp -r vendor assets _site/
-          cp data.example.js _site/data.js
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '24'
+      - name: Build static site
+        run: node tools/build_pages.mjs
       - name: Configure Pages
         uses: actions/configure-pages@v5
-        with:
-          enablement: true
       - name: Upload artifact
         uses: actions/upload-pages-artifact@v3
         with:
-          path: _site
+          path: pages-dist
       - name: Deploy
         id: deployment
         uses: actions/deploy-pages@v4

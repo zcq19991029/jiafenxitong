@@ -51,15 +51,30 @@
 
 ## 正式版架构
 
-单个 Cloudflare Worker 托管网页和接口，D1 保存教师账号、邀请码、名单、课次和记分记录。通过 Sites 发布，GitHub 只保存源码和自动检查，不再使用 GitHub Pages。不依赖 WorkBuddy、微信登录或旧站历史数据。
+**线上站：https://zcq19991029.github.io/jiafenxitong/**（GitHub Pages 纯静态托管）
 
-现有站点已发布；实际验收状态以项目交接.md 为准。`.openai/hosting.json` 保存唯一站点 ID，不要重复创建服务。真实名单不进入公共静态种子。
+- 前端：index.html + 原生 JS，构建脚本 `tools/build_pages.mjs` 输出 `pages-dist/`，推送 main 由 `.github/workflows/pages.yml` 发布。
+- 账号与数据：Supabase。登录走 Supabase Auth（邮箱密码 / 可选的 GitHub、Google、访客登录），名单与记分存在 `public.score_states`，按 `owner_id` 隔离，全部受 RLS 保护。
+- 浏览器只带 `config.js` 里的 publishable key，不具备绕过 RLS 的能力；仓库里没有任何 service_role 密钥。
+- 公开的 `data.js` 是中性模板（一个空的「我的班级」+ 13 个空组），真实名单只在老师自己的账号里。
+
+Supabase 后台一次性配置（项目 `hrzeciygelfwdmhftvew`）：
+
+1. Authentication → Sign In / Providers → Email：**关闭 Confirm email**，老师注册后即可直接使用（开启时也能用，只是要先点邮件确认链接）。
+2. Authentication → URL Configuration：Site URL 与 Redirect URLs 都填 `https://zcq19991029.github.io/jiafenxitong/`，否则确认/重置邮件会跳回 localhost。
+3. 想让老师用 GitHub / Google 登录：在同页 Providers 里填对应 OAuth 的 Client ID 与 Secret；登录页会自动出现对应按钮（没开就不显示）。
+4. 想开放「访客身份进入」：Providers → Anonymous sign-ins 打开，登录页才会出现访客入口。
+5. 首次部署后把 `supabase-schema.sql` 在 SQL Editor 跑一次（可重复执行），确保 profiles / score_states / 触发器与 RLS 都在。
+6. 需要管理员视角（能看其他老师数据）时执行：
+   `update public.profiles set role = 'admin' where id = (select id from auth.users where email = '老师邮箱');`
+
+旧 Worker + D1 版本（backend/worker.mjs、.openai/hosting.json、tools/test_site.mjs 等）仅作历史归档，不再对应线上站点。真实名单不进入公共静态种子。
 
 ## 教师使用
 
-1. 管理员首次使用服务端设置的一次性启动码注册，自行设置账号和密码。
-2. 管理员在“管理”页生成一次性教师或管理员邀请码。
-3. 教师凭邀请码注册，之后使用自己的账号和密码登录；各账号数据独立。点击顶栏头像→“切换账号”可查看本机记住过的账号；切换前先同步当前账号，选择账号并输入密码即可恢复该账号的本机记录。密码不保存在浏览器，退出后也可从登录页重新进入其他账号。
+1. 打开线上站，点「注册新账号」，用邮箱 + 密码注册（不再需要邀请码）；账号数据互相独立。
+2. 之后用同一邮箱登录；换电脑、换浏览器登录同一邮箱即可恢复自己的记录。点顶栏头像→“切换账号”可查看本机记住过的账号；切换前先同步当前账号，密码只用于当次登录，不保存在浏览器。
+3. 忘记密码在登录页点「忘记密码」，填注册邮箱收重置邮件，点开链接即可设置新密码（不需要管理员介入）。
 4. 在“数据与备份”下载 CSV 模板，将 Excel 名单另存为 UTF-8 CSV 后导入。必填列为班级、姓名、学号；小组和班内序号可选，小组留空为待分配。每组最多 6 人。
 5. 新开课次并记分。记录先写入当前浏览器，再同步 D1；换设备登录同一账号可恢复云端记录。
 6. “组内个人评分”对应组长课堂评分表：按班级、课次、小组录入最多10个自定义项目，每名成员每项0–5分。评分按完整学号保存（未有学号时用稳定成员ID），可随账号同步并打印或下载Excel；评分自动计入个人累计与赋分，不改变课堂小组分或违纪扣分记录。该表不重复显示合计列，本节总计查看上课记分主表的“本节合计”。打印表最后一列右边框加深，签字栏只显示“组长”并留出手写空间。
@@ -88,14 +103,15 @@ ui-feedback.js仅负责记分高亮、实际增减浮字、撤销定位与布局
 首次需要在 tools/test-runtime 目录执行 npm ci 安装开发测试依赖。于项目根目录运行：
 
 ```text
-rtk proxy <Node路径> tools/test_backend.mjs
-rtk proxy <Node路径> tools/test_passwords.mjs
-rtk proxy <Node路径> tools/test_online.mjs
-rtk proxy <Node路径> tools/build_site.mjs
-rtk proxy <Node路径> tools/test_site.mjs
+node tools/build_pages.mjs       # 生成 pages-dist/（Pages 实际发布的产物）
+node tools/test_pages.mjs        # 登录/注册/找回/同步 端到端（jsdom + 内存版 Supabase）
+node tools/test_assessment.mjs   # 项目评分与考试合并
+node tools/test_roster_formats.mjs  # 名单导入各格式
 ```
 
-前三类验收分别覆盖真实 SQLite 语句、前后端联动、打包后的同站程序。测试全部使用虚构账号和学生，不操作生产数据库。dist/server/index.js 是含公开网页资源的单个 Worker 模块，dist/.openai 带站点配置和 D1 迁移；发布包不含真实 data.js。同站 version.json 记录源码SHA与版本构建发布时间；顶栏另显示“版本发布于”时间及刷新检测按钮，与云端数据核对时间分开展示。
+`test_pages.mjs` 跑在真实构建产物上：先把 index.html 与全部脚本载入 jsdom，再只替换 `window.fetch` 为内存版 Supabase（Auth + REST + RLS 归属），因此验证的是老师真的能注册、登录、上传成绩、处理重置邮件这条链路。测试一律使用虚构账号和学生，不连生产数据库。
+
+`version.json` 由构建脚本写入源码 SHA 与构建时间，顶栏“版本发布于”和自动更新检测据此工作，与云端数据核对时间分开展示。
 
 新服务需要在服务端机密配置中设置 BOOTSTRAP_CODE，首次管理员注册后不可复用。默认同站访问无需 ALLOWED_ORIGINS；只有明确增加外部前端时才配置该项。机密不得进入 config.js、仓库或截图。
 
@@ -111,9 +127,11 @@ data.js、教学材料、迁移记录和项目归档只在本机保留，不进�
 
 ## 密码管理
 
-密码支持 6–128 位。登录后从个人信息进入修改密码，验证原密码后修改，所有设备须重新登录；未同步记录先同步。忘记密码从登录页进入，教师先联系管理员核验身份，管理员在管理页填写教师账号，生成30分钟有效的一次性重置码。新码使旧码失效，重置成功会退出所有设备，名单和成绩保留。
+密码支持 6–128 位。登录后从个人信息进入修改密码：先校验原密码，再改；所有设备需重新登录，未同步记录会先尝试同步。
 
-若唯一管理员忘记密码，由站点所有者通过 Sites secret 临时配置 PASSWORD_RECOVERY_CODE 并部署，管理员在忘记密码页使用维护者提供的一次性恢复码；不使用启动码代替恢复码。恢复码使用后不可重复使用，维护者应移除该机密配置。
+忘记密码由老师自己在登录页点「忘记密码」→ 填邮箱 → 收邮件 → 点链接回来设置新密码（链接有效期由 Supabase 控制）。为不暴露「这个邮箱有没有注册过」，未注册的邮箱也会返回同样的“已发送”提示。
+
+管理员如果也忘了密码，用同一个「忘记密码」流程即可，不再需要维护者介入。
 
 ### 最新计分规则
 个人总分 = 全组累计加分 + 个人项目累计分 − 个人扣分。全组小组分为0–5，组内个人评分的各项目自动计入每人的个人总分（旧文中的独立不汇总说明已作废）。旧制超过5分记录保留。操作日志显示具体对象和变化；撤销即时执行，可重做恢复。

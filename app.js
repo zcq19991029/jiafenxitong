@@ -2072,7 +2072,8 @@ function removeMemberAt(cls, g, j) {
   function gateShow(which, msg, info) {
     document.body.classList.add('gated');
     $('#gate').hidden = false;
-    ['login', 'invite', 'offline', 'reset'].forEach(function (k) { var node = $('#gate' + k[0].toUpperCase() + k.slice(1)); if (node) node.hidden = (k !== which); });
+    var panels = { login: '#gateLogin', register: '#gateRegister', reset: '#gateReset', newpass: '#gateNewPassword', offline: '#gateOffline' };
+    Object.keys(panels).forEach(function (k) { var node = $(panels[k]); if (node) node.hidden = (k !== which); });
     var m = $('#gateMsg');
     m.hidden = !msg;
     m.textContent = msg || '';
@@ -2085,7 +2086,7 @@ function removeMemberAt(cls, g, j) {
   }
 
   function setGateBusy(busy) {
-    ['#btnAccountLogin', '#btnRedeem', '#btnLocalOnly'].forEach(function (sel) {
+    ['#btnAccountLogin', '#btnRegisterNow', '#btnSendReset', '#btnSaveRecovered', '#btnGuest', '#btnOAuthGithub', '#btnOAuthGoogle', '#btnLocalOnly'].forEach(function (sel) {
       var el = $(sel);
       if (el) el.disabled = !!busy;
     });
@@ -2094,18 +2095,121 @@ function removeMemberAt(cls, g, j) {
   /* Returning from an OAuth error page may restore disabled controls from bfcache. */
   window.addEventListener('pageshow', function () { setGateBusy(false); });
 
+  function looksLikeEmail(value) {
+    return /^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/.test(String(value || '').trim());
+  }
+
+  function gateError(panel, e, prefix) {
+    var text = e && e.message ? e.message : String(e);
+    gateShow(panel, (prefix || '') + text);
+  }
+
   function doLogin() {
-    var username = $('#loginUsername').value.trim();
+    var email = $('#loginEmail').value.trim();
     var password = $('#loginPassword').value;
-    if (!username || !password) { gateShow('login', '请填写账号和密码。'); return; }
+    if (!looksLikeEmail(email)) { gateShow('login', '请填写正确的邮箱地址，例如 name@example.com。'); return; }
+    if (!password) { gateShow('login', '请填写密码。'); return; }
     setGateBusy(true);
     gateShow('login', null);
-    CLOUD.login(username, password).then(function () {
+    CLOUD.login(email, password).then(function () {
       $('#loginPassword').value = '';
       setGateBusy(false);
     }).catch(function (e) {
       setGateBusy(false);
-      gateShow('login', '登录没能进行下去：' + (e && e.message ? e.message : e));
+      gateError('login', e);
+    });
+  }
+
+  function doRegister() {
+    var email = $('#regEmail').value.trim();
+    var password = $('#regPassword').value;
+    var confirm = $('#regConfirm').value;
+    if (!looksLikeEmail(email)) { gateShow('register', '请填写正确的邮箱地址，例如 name@example.com。'); return; }
+    if (password.length < 6 || password.length > 128) { gateShow('register', '密码需为 6–128 位。'); return; }
+    if (password !== confirm) { gateShow('register', '两次输入的密码不一致。'); return; }
+    setGateBusy(true);
+    gateShow('register', null);
+    CLOUD.register(email, password, $('#regName').value.trim()).then(function (p) {
+      setGateBusy(false);
+      $('#regPassword').value = ''; $('#regConfirm').value = '';
+      if (p && p.displayName) flash('欢迎，' + p.displayName + '。账号已建好。', true);
+    }).catch(function (e) {
+      setGateBusy(false);
+      /* 需要邮箱确认不算失败：把提示留在注册页，方便老师回去点链接 */
+      gateError('register', e, e && e.code === 'confirm_email' ? '' : '注册没能完成：');
+      if (e && e.code === 'confirm_email') {
+        $('#gateMsg').classList.add('info');
+        $('#loginEmail').value = email;
+      }
+    });
+  }
+
+  function doSendReset() {
+    var email = $('#resetEmail').value.trim();
+    if (!looksLikeEmail(email)) { gateShow('reset', '请填写注册时用的邮箱地址。'); return; }
+    setGateBusy(true);
+    gateShow('reset', null);
+    CLOUD.resetPasswordFor(email).then(function () {
+      setGateBusy(false);
+      $('#loginEmail').value = email;
+      gateShow('login', '重置邮件已发送到 ' + email + '，点开邮件里的链接就能设置新密码。', true);
+    }).catch(function (e) {
+      setGateBusy(false);
+      gateError('reset', e, '发送失败：');
+    });
+  }
+
+  function doSaveRecovered() {
+    var password = $('#recoverPassword').value;
+    if (password.length < 6 || password.length > 128) { gateShow('newpass', '密码需为 6–128 位。'); return; }
+    if (password !== $('#recoverConfirm').value) { gateShow('newpass', '两次输入的密码不一致。'); return; }
+    setGateBusy(true);
+    CLOUD.changePassword(null, password).then(function () {
+      setGateBusy(false);
+      $('#recoverPassword').value = ''; $('#recoverConfirm').value = '';
+      gateShow('login', '新密码已生效，正在进入…', true);
+      setTimeout(function () { window.location.replace(window.location.pathname + window.location.search); }, 600);
+    }).catch(function (e) {
+      setGateBusy(false);
+      gateError('newpass', e, '保存失败：');
+    });
+  }
+
+  function doLoginWithProvider(provider) {
+    setGateBusy(true);
+    gateShow('login', '正在跳转到 ' + provider + ' 授权页…', true);
+    try {
+      CLOUD.signInWithProvider(provider);
+    } catch (e) {
+      setGateBusy(false);
+      gateError('login', e);
+    }
+  }
+
+  function doGuestLogin() {
+    if (!confirm('用访客身份进入？\n\n访客记录同样保存到云端，但换设备或清缓存后就找不回来了。需要长期使用请注册邮箱账号。')) return;
+    setGateBusy(true);
+    gateShow('login', null);
+    CLOUD.signInAnonymously().then(function () {
+      setGateBusy(false);
+    }).catch(function (e) {
+      setGateBusy(false);
+      gateError('login', e, '访客登录没能完成：');
+    });
+  }
+
+  /* 只显示 Supabase 后台真的开了的登录方式 */
+  function loadAuthOptions() {
+    if (!CLOUD || !CLOUD.providers) return;
+    CLOUD.providers().then(function (o) {
+      var box = $('#gateProviders');
+      var github = $('#btnOAuthGithub'), google = $('#btnOAuthGoogle'), guest = $('#btnGuest');
+      if (github) github.hidden = !o.github;
+      if (google) google.hidden = !o.google;
+      if (guest) guest.hidden = !o.guest;
+      var any = (github && !github.hidden) || (google && !google.hidden) || (guest && !guest.hidden);
+      if (box) box.hidden = !any;
+      if (o.signup === false) { var reg = $('#btnShowRegister'); if (reg) reg.hidden = true; }
     });
   }
 
@@ -2292,28 +2396,6 @@ function removeMemberAt(cls, g, j) {
     var p = CLOUD && CLOUD.profile();
     if (!CLOUD_ON || !p || !p.isAdmin) return;
 
-    var il = $('#inviteList');
-    il.innerHTML = '<p class="note">正在加载…</p>';
-    CLOUD.admin.listInvites().then(function (rows) {
-      rows = rows || [];
-      if (!rows.length) {
-        il.innerHTML = '<p class="note">还没有生成过邀请码。上面点「生成邀请码」开始。</p>';
-        return;
-      }
-      il.innerHTML = '<table class="data"><thead><tr><th>邀请码</th><th>备注</th><th>类型</th>' +
-        '<th>状态</th><th>谁在用</th><th>生成时间</th></tr></thead><tbody>' +
-        rows.map(function (r) {
-          var stat = r.is_used ? '<span class="tag used">已使用</span>'
-            : (r.disabled ? '<span class="tag off">已停用</span>' : '<span class="tag free">未使用</span>');
-          return '<tr class="' + (r.is_used ? '' : 'row-pending') + '"><td class="mono">' + esc(r.code) +
-            '</td><td>' + esc(r.note || '') + '</td><td>' + (r.role === 'admin' ? '管理员' : '老师') +
-            '</td><td>' + stat + '</td><td>' + esc(r.used_by_name || '') +
-            '</td><td>' + fmtTime(r.created_at) + '</td></tr>';
-        }).join('') + '</tbody></table>';
-    }).catch(function (e) {
-      il.innerHTML = '<p class="note">加载失败：' + esc(e && e.message ? e.message : e) + '</p>';
-    });
-
     var tl = $('#teacherList');
     tl.innerHTML = '<p class="note">正在加载…</p>';
     CLOUD.admin.listTeachers().then(function (rows) {
@@ -2473,29 +2555,37 @@ function removeMemberAt(cls, g, j) {
 
   /* 闸门上的按钮 */
   $('#btnAccountLogin').addEventListener('click', doLogin);
-  $('#loginPassword').addEventListener('keydown', function (e) { if (e.key === 'Enter') doLogin(); });
-  $('#btnShowRegister').addEventListener('click', function () { gateShow('invite'); });
+  ['#loginEmail', '#loginPassword'].forEach(function (sel) {
+    $(sel).addEventListener('keydown', function (e) { if (e.key === 'Enter') doLogin(); });
+  });
+  $('#btnShowRegister').addEventListener('click', function () {
+    $('#regEmail').value = $('#loginEmail').value.trim();
+    gateShow('register');
+  });
   $('#btnShowLogin').addEventListener('click', function () { gateShow('login'); });
+  $('#btnBackToLogin') && $('#btnBackToLogin').addEventListener('click', function () { gateShow('login'); });
+  $('#btnForgotPassword').addEventListener('click', function () {
+    $('#resetEmail').value = $('#loginEmail').value.trim();
+    gateShow('reset');
+  });
+  $('#btnResetBack').addEventListener('click', function () { gateShow('login'); });
+  $('#btnSendReset').addEventListener('click', doSendReset);
+  $('#resetEmail').addEventListener('keydown', function (e) { if (e.key === 'Enter') doSendReset(); });
+  $('#btnRegisterNow').addEventListener('click', doRegister);
+  ['#regEmail', '#regName', '#regPassword', '#regConfirm'].forEach(function (sel) {
+    $(sel).addEventListener('keydown', function (e) { if (e.key === 'Enter') doRegister(); });
+  });
+  $('#btnSaveRecovered').addEventListener('click', doSaveRecovered);
+  ['#recoverPassword', '#recoverConfirm'].forEach(function (sel) {
+    $(sel).addEventListener('keydown', function (e) { if (e.key === 'Enter') doSaveRecovered(); });
+  });
+  $('#btnOAuthGithub').addEventListener('click', function () { doLoginWithProvider('github'); });
+  $('#btnOAuthGoogle').addEventListener('click', function () { doLoginWithProvider('google'); });
+  $('#btnGuest').addEventListener('click', doGuestLogin);
   $('#btnLocalOnly').addEventListener('click', function () {
     gateShow('login','请连接云端并核对成功后记分。',true);
   });
-  $('#btnRedeem').addEventListener('click', function () {
-    var code = $('#inviteCode').value.trim();
-    if (!code) { gateShow('invite', '请先填写邀请码。', true); return; }
-    var password = $('#regPassword').value;
-    if (password.length < 6 || password.length > 128 || password !== $('#regConfirm').value) { gateShow('invite', '密码需为 6–128 位，且两次输入须一致。'); return; }
-    setGateBusy(true);
-    CLOUD.register($('#regUsername').value.trim(), password, $('#regName').value.trim(), code).then(function () {
-      setGateBusy(false);
-      $('#regPassword').value = ''; $('#regConfirm').value = ''; $('#inviteCode').value = '';
-    }).catch(function (e) {
-      setGateBusy(false);
-      gateShow('invite', e && e.message ? e.message : String(e));
-    });
-  });
-  $('#inviteCode').addEventListener('keydown', function (e) {
-    if (e.key === 'Enter') $('#btnRedeem').click();
-  });
+  loadAuthOptions();
 
   /* 数据页的同步按钮 */
   $('#btnSyncNow').addEventListener('click', function () {
@@ -2547,27 +2637,6 @@ function removeMemberAt(cls, g, j) {
   $('#btnUserMenu').addEventListener('click', function () { switchView('data'); });
 
   /* 管理页 */
-  $('#btnGenInvite').addEventListener('click', function () {
-    var n = $('#invCount').value;
-    var note = $('#invNote').value;
-    var role = $('#invRole').value;
-    $('#btnGenInvite').disabled = true;
-    CLOUD.admin.createInvites(n, note, role).then(function (r) {
-      $('#btnGenInvite').disabled = false;
-      var box = $('#invFresh');
-      box.hidden = false;
-      box.innerHTML = '<p>已生成 ' + r.created + ' 个邀请码（' +
-        (role === 'admin' ? '管理员' : '普通老师') + '），发给对应的人，<b>每个码只能用一次</b>：</p>' +
-        '<div class="codes">' + r.codes.map(function (c) {
-          return '<span class="code">' + esc(c) + '</span>';
-        }).join('') + '</div>' +
-        '<p style="margin:8px 0 0">长按/双击可以选中复制。' + (note ? '备注：' + esc(note) : '') + '</p>';
-      renderAdmin();
-    }).catch(function (e) {
-      $('#btnGenInvite').disabled = false;
-      alert('生成失败：' + (e && e.message ? e.message : e));
-    });
-  });
   $('#teacherList').addEventListener('click', function (e) {
     var b = e.target.closest('button[data-look]');
     if (b) showTeacherData(b.dataset.look, b.dataset.name);
@@ -2583,6 +2652,12 @@ function removeMemberAt(cls, g, j) {
         document.body.classList.add('gated');
         renderUserBox(null);
         gateShow('login', msg ? ('登录没能完成：' + msg) : null);
+      },
+      /* 从「重置密码」邮件回到站点：先设新密码，再进应用 */
+      onRecover: function (profile) {
+        document.body.classList.add('gated');
+        renderUserBox(null);
+        gateShow('newpass', profile && profile.email ? ('正在为 ' + profile.email + ' 设置新密码。') : null, true);
       },
       onOffline: function (why) {offlineWhy=why;document.body.classList.add('gated');renderUserBox(null);$('#btnLocalOnly').hidden=true;gateShow('login','无法核对云端，暂停编辑。请恢复连接后刷新重试。本机未上传改动仍保留。',true);}
 

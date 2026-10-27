@@ -544,8 +544,23 @@ body.gated .topbar, body.gated main { display: none !important; }
   background: var(--bad-bg); color: var(--bad); border: 1px solid var(--bad);
 }
 .gate-msg.info { background: var(--accent-bg); color: var(--accent); border-color: var(--accent); }
-#gateLogin, #gateInvite, #gateOffline { display: flex; flex-direction: column; gap: 12px; }
+#gateLogin, #gateRegister, #gateReset, #gateNewPassword, #gateOffline { display: flex; flex-direction: column; gap: 12px; }
 .gate-card .btn { width: 100%; justify-content: center; }
+
+/* 登录页底部的一排小链接：注册 / 忘记密码 */
+.gate-links { display: flex; justify-content: space-between; gap: 10px; flex-wrap: wrap; }
+.gate-links .linkbtn { font-size: 12.5px; color: var(--accent); }
+/* 第三方 / 访客登录：只有后台真开了才显示 */
+.gate-alt { display: flex; flex-direction: column; gap: 10px; }
+.gate-alt-line { display: flex; align-items: center; gap: 10px; font-size: 12px; color: var(--faint); }
+.gate-alt-line::before, .gate-alt-line::after { content: ''; flex: 1; height: 1px; background: var(--line); }
+.btn.oauth { display: flex; align-items: center; justify-content: center; gap: 8px; font-weight: 600; }
+.oauth-mark {
+  display: inline-flex; align-items: center; justify-content: center;
+  width: 18px; height: 18px; border-radius: 50%;
+  background: var(--panel-soft); border: 1px solid var(--line-strong);
+  font-size: 11px; font-weight: 700; color: var(--muted);
+}
 
 .btn.wx {
   background: linear-gradient(180deg, #17cd6d, #07c160);
