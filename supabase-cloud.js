@@ -354,7 +354,10 @@
           return true;
         }
         if (pending || inflight) {
-          emit('saving', '本机还有改动没上传，稍后自动同步');
+          var local = getter ? payloadOf(getter() || {}) : null;
+          conflictDetails = diffValues(local, row.data, '', 80);
+          if (!conflictDetails.length) conflictDetails = [{ path: '/版本', local: '本机还有未上传改动', remote: '云端 v' + remote }];
+          emit('conflict', '同步冲突：请先查看本机和云端差异');
           return false;
         }
         revision = remote;
