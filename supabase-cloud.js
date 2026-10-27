@@ -221,6 +221,28 @@
     return h.toString(16) + ':' + text.length;
   }
 
+  /* 生成可读的字段级冲突清单，避免只显示版本不同却无法定位。 */
+  function diffValues(local, remote, path, limit, out) {
+    out = out || [];
+    if (out.length >= limit) return out;
+    if (hashOf(local) === hashOf(remote)) return out;
+    var lo = local && typeof local === 'object' ? local : null;
+    var ro = remote && typeof remote === 'object' ? remote : null;
+    if (Array.isArray(lo) || Array.isArray(ro)) {
+      var max = Math.max(lo ? lo.length : 0, ro ? ro.length : 0);
+      for (var i = 0; i < max && out.length < limit; i++) diffValues(lo && lo[i], ro && ro[i], (path || '') + '/' + i, limit, out);
+      if (!out.length) out.push({ path: path || '/', local: local, remote: remote });
+      return out;
+    }
+    if (lo && ro) {
+      var keys = Object.keys(lo).concat(Object.keys(ro)).filter(function (k, i, a) { return a.indexOf(k) === i; });
+      keys.forEach(function (k) { if (out.length < limit) diffValues(lo[k], ro[k], (path || '') + '/' + k, limit, out); });
+      return out;
+    }
+    out.push({ path: path || '/', local: local, remote: remote });
+    return out;
+  }
+
   function readSyncStamp() {
     try { return JSON.parse(localStorage.getItem(SYNC_KEY) || 'null'); } catch (e) { return null; }
   }
@@ -259,13 +281,14 @@
 
     inflight = ensureFresh()
       .then(function () {
-        return request(REST + '/score_states?owner_id=eq.' + encodeURIComponent(user.id) + '&select=revision,updated_at');
+        return request(REST + '/score_states?owner_id=eq.' + encodeURIComponent(user.id) + '&select=revision,updated_at,data');
       })
       .then(function (rows) {
         var row = (rows && rows[0]) || null;
         var remote = row ? Number(row.revision || 0) : 0;
         if (row && remote !== revision) {
-          conflictDetails = [{ path: '/', local: '本机改动', remote: '云端 v' + remote }];
+          conflictDetails = diffValues(snapshot, row.data, '', 80);
+          if (!conflictDetails.length) conflictDetails = [{ path: '/', local: '本机改动', remote: '云端 v' + remote }];
           emit('conflict', '同步冲突：云端已被另一台设备更新');
           var err = new Error('云端有更新的版本（v' + remote + '），已暂停上传以免覆盖。请到「数据与备份」核对。');
           err.code = 'version_conflict';
