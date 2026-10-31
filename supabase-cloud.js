@@ -20,6 +20,10 @@
   var REST = base + '/rest/v1';
   var SESSION_KEY = 'jfdt.supabase.session.v1';
   var SYNC_KEY = 'jfdt.supabase.sync.v1';
+  var INVITE_KEY = 'jfdt.hx.invite.v1';
+  /* 并入华夏工具项目后表名带 jf_ 前缀，且只有华夏工具教师能用（学生账号挡在登录这一步） */
+  var T = String(cfg.tablePrefix || '');
+  var HX = !!cfg.hxTeacherGate;
 
   var session = null;      // { access_token, refresh_token, expires_at }
   var user = null;         // Supabase Auth user
@@ -188,9 +192,53 @@
     };
   }
 
+  /* 华夏工具身份：已是教师直接放行；不是的话用注册时填的教师邀请码开通，没有码就拒绝登录 */
+  function ensureTeacher() {
+    if (!HX) return Promise.resolve();
+    return request(REST + '/rpc/hx_me', { method: 'POST', body: '{}' }).then(function (who) {
+      if (who && who.teacher) return;
+      var code = '';
+      try { code = localStorage.getItem(INVITE_KEY) || ''; } catch (e) {}
+      if (!code) {
+        var err = new Error(who && who.student
+          ? '这是学生账号，夜夜加分助手只给老师用。'
+          : '这个账号还没开通华夏工具教师身份：请用管理员发的教师邀请码注册，或请管理员开通。');
+        err.code = 'not_teacher';
+        throw err;
+      }
+      return request(REST + '/rpc/hx_redeem', { method: 'POST', body: JSON.stringify({ p_code: code }) }).then(function (role) {
+        try { localStorage.removeItem(INVITE_KEY); } catch (e) {}
+        if (role !== 'teacher') {
+          var err = new Error('这个邀请码不是教师邀请码。');
+          err.code = 'not_teacher';
+          throw err;
+        }
+      }, function (e) {
+        try { localStorage.removeItem(INVITE_KEY); } catch (x) {}
+        e.code = e.code || 'not_teacher';
+        throw e;
+      });
+    });
+  }
+
   function loadProfile() {
-    return request(REST + '/profiles?id=eq.' + encodeURIComponent(user.id) + '&select=id,username,display_name,real_name,role')
-      .then(function (rows) { return toProfile(user, rows && rows[0]); })
+    return request(REST + '/' + T + 'profiles?id=eq.' + encodeURIComponent(user.id) + '&select=id,username,display_name,real_name,role')
+      .then(function (rows) {
+        if ((rows && rows[0]) || !HX) return toProfile(user, rows && rows[0]);
+        /* 新项目没有注册触发器：第一次登录时补建资料行（成绩行由首次同步补建） */
+        var meta = user.user_metadata || {};
+        var email = user.email || '';
+        return request(REST + '/' + T + 'profiles', {
+          method: 'POST',
+          headers: { Prefer: 'return=representation,resolution=ignore-duplicates' },
+          body: JSON.stringify({
+            id: user.id,
+            username: null, // 账号名唯一，和迁入的老账号撞名会建不成行；界面改用 Auth 里的账号名
+            display_name: meta.display_name || meta.full_name || meta.name || '',
+            real_name: meta.real_name || ''
+          })
+        }).then(function (out) { return toProfile(user, out && out[0]); });
+      })
       .catch(function (e) {
         /* 资料行还没建好也不能挡住上课，退化为只用 Auth 里的资料 */
         if (e.status === 401) throw e;
@@ -260,7 +308,7 @@
   }
 
   function rowsFor(extra) {
-    return REST + '/score_states?owner_id=eq.' + encodeURIComponent(user.id) + '&select=data,revision,updated_at' + (extra || '');
+    return REST + '/' + T + 'score_states?owner_id=eq.' + encodeURIComponent(user.id) + '&select=data,revision,updated_at' + (extra || '');
   }
 
   function pull() {
@@ -289,7 +337,7 @@
 
     inflight = ensureFresh()
       .then(function () {
-        return request(REST + '/score_states?owner_id=eq.' + encodeURIComponent(user.id) + '&select=revision,updated_at,data');
+        return request(REST + '/' + T + 'score_states?owner_id=eq.' + encodeURIComponent(user.id) + '&select=revision,updated_at,data');
       })
       .then(function (rows) {
         var row = (rows && rows[0]) || null;
@@ -309,7 +357,7 @@
           owner_id: user.id, data: snapshot, revision: revision + 1,
           updated_at: new Date().toISOString()
         };
-        var url = row ? REST + '/score_states?owner_id=eq.' + encodeURIComponent(user.id) : REST + '/score_states';
+        var url = row ? REST + '/' + T + 'score_states?owner_id=eq.' + encodeURIComponent(user.id) : REST + '/' + T + 'score_states';
         return request(url, {
           method: row ? 'PATCH' : 'POST',
           headers: { Prefer: 'return=representation' },
@@ -317,7 +365,7 @@
         }).then(function (out) {
           /* 资料行存在但记录还没建（例如注册触发器没装）：补一条 */
           if (row && Array.isArray(out) && !out.length) {
-            return request(REST + '/score_states', {
+            return request(REST + '/' + T + 'score_states', {
               method: 'POST', headers: { Prefer: 'return=representation' }, body: JSON.stringify(body)
             });
           }
@@ -404,7 +452,7 @@
   function startSession() {
     return request(AUTH + '/user').then(function (u) {
       user = u;
-      return loadProfile();
+      return ensureTeacher().then(loadProfile);
     }).then(function (p) {
       me = p;
       return pull().then(function (record) {
@@ -425,18 +473,32 @@
     return result.profile;
   }
 
+  /* 华夏工具的账号名（排课里设的，例如 11445）优先：查到就用那个账号的登录邮箱；查不到再按 账号@jfdt.app */
+  function loginEmail(email) {
+    var address = String(email || '').trim();
+    var domain = '@' + String(cfg.accountDomain || '').replace(/^@/, '').toLowerCase();
+    if (!HX || domain === '@' || address.toLowerCase().slice(-domain.length) !== domain) return Promise.resolve(address);
+    var name = address.slice(0, -domain.length);
+    return request(REST + '/rpc/paike_login_email', { method: 'POST', token: false, body: JSON.stringify({ p_name: name }) })
+      .then(function (found) { return found || address; }, function () { return address; });
+  }
+
   function login(email, password) {
-    return request(AUTH + '/token?grant_type=password', {
-      method: 'POST', token: false,
-      body: JSON.stringify({ email: String(email || '').trim(), password: String(password || '') })
+    return loginEmail(email).then(function (address) {
+      return request(AUTH + '/token?grant_type=password', {
+        method: 'POST', token: false,
+        body: JSON.stringify({ email: address, password: String(password || '') })
+      });
     }).then(function (s) {
       remember(s);
       return startSession();
     }).then(function (result) { return afterLogin(result); });
   }
 
-  function register(email, password, name) {
+  function register(email, password, name, inviteCode) {
     var address = String(email || '').trim();
+    /* 教师邀请码先存本机：注册后立即兑换；要邮箱确认的，确认后第一次登录时兑换 */
+    if (HX && inviteCode) { try { localStorage.setItem(INVITE_KEY, String(inviteCode).trim().toUpperCase()); } catch (e) {} }
     var options = { data: { username: address.split('@')[0], display_name: String(name || '').trim() } };
     if (global.location && /^https?:$/.test(global.location.protocol)) {
       options.email_redirect_to = global.location.origin + global.location.pathname;
@@ -444,12 +506,20 @@
     return request(AUTH + '/signup', {
       method: 'POST', token: false,
       body: JSON.stringify({ email: address, password: String(password || ''), data: options.data, options: options })
+    }).catch(function (e) {
+      /* 华夏工具里已有账号（比如注册过但邀请码填错了）：用这组账号密码登录，顺便兑换邀请码 */
+      if (HX && inviteCode && (e.code === 'user_already_exists' || e.code === 'email_exists')) return { relogin: true };
+      throw e;
     }).then(function (res) {
+      if (res && res.relogin) return login(address, password);
       if (res && res.access_token) {
         remember(res);
         return startSession().then(function (result) { return afterLogin(result, '账号已建好，已连接 Supabase'); });
       }
-      var err = new Error('注册信息已提交。若后台要求邮箱确认，请点开邮件里的确认链接，然后回来登录。');
+      var fake = cfg.accountDomain && /@/.test(address) && address.split('@')[1].toLowerCase() === String(cfg.accountDomain).replace(/^@/, '').toLowerCase();
+      var err = new Error(fake
+        ? '后台要求邮箱确认，数字账号收不到确认邮件。请改用自己的真实邮箱注册。'
+        : '注册信息已提交。若后台要求邮箱确认，请点开邮件里的确认链接，然后回来登录。');
       err.code = 'confirm_email';
       throw err;
     });
@@ -494,7 +564,7 @@
     var display = String(name || '').trim();
     var real = String(realName || '').trim();
     return ensureFresh().then(function () {
-      return request(REST + '/profiles?id=eq.' + encodeURIComponent(user.id), {
+      return request(REST + '/' + T + 'profiles?id=eq.' + encodeURIComponent(user.id), {
         method: 'PATCH',
         headers: { Prefer: 'return=representation' },
         body: JSON.stringify({ display_name: display, real_name: real, last_seen_at: new Date().toISOString() })
@@ -555,8 +625,8 @@
     listTeachers: function () {
       return ensureFresh().then(function () {
         return Promise.all([
-          request(REST + '/profiles?select=id,username,display_name,real_name,role,last_seen_at&order=created_at.asc'),
-          request(REST + '/score_states?select=owner_id,data,updated_at')
+          request(REST + '/' + T + 'profiles?select=id,username,display_name,real_name,role,last_seen_at&order=created_at.asc'),
+          request(REST + '/' + T + 'score_states?select=owner_id,data,updated_at')
         ]);
       }).then(function (out) {
         var profiles = out[0] || [], states = out[1] || [];
@@ -582,7 +652,7 @@
     },
     getState: function (uid) {
       return ensureFresh().then(function () {
-        return request(REST + '/score_states?owner_id=eq.' + encodeURIComponent(uid) + '&select=data,revision,updated_at');
+        return request(REST + '/' + T + 'score_states?owner_id=eq.' + encodeURIComponent(uid) + '&select=data,revision,updated_at');
       }).then(function (rows) {
         var row = (rows && rows[0]) || null;
         return { ok: !!row, data: row && row.data, revision: row && row.revision, updated_at: row && row.updated_at };
@@ -609,7 +679,7 @@
     }
     ensureFresh()
       .then(function () { return request(AUTH + '/user'); })
-      .then(function (u) { user = u; return loadProfile(); })
+      .then(function (u) { user = u; return ensureTeacher().then(loadProfile); })
       .then(function (p) {
         me = p;
         return pull().then(function (record) {

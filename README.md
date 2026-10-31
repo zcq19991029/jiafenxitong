@@ -54,28 +54,26 @@
 **线上站：https://zcq19991029.github.io/jiafenxitong/**（GitHub Pages 纯静态托管）
 
 - 前端：index.html + 原生 JS，构建脚本 `tools/build_pages.mjs` 输出 `pages-dist/`，推送 main 由 `.github/workflows/pages.yml` 发布。
-- 账号与数据：Supabase。登录走 Supabase Auth（邮箱密码 / 可选的 GitHub、Google、访客登录），名单与记分存在 `public.score_states`，按 `owner_id` 隔离，全部受 RLS 保护。
-- 账号形态：老师可以只填「数字账号」（例如 `11445`），前端会自动补成 `11445@jfdt.app` 作为 Supabase 的登录身份——这个地址不发信，所以后台必须关闭 Confirm email。邀请制由 `config.js` 的 `registerCode` 控制（注册时须填对口令；留空即开放注册）。
+- 账号与数据：Supabase「华夏工具」项目 `eiqgyrjrwdaunhxjmdyr`（2026-10-30 起，和排课系统、接线仿真共用账号）。登录走 Supabase Auth，名单与记分存在 `public.jf_score_states`，资料在 `public.jf_profiles`，按 `owner_id` 隔离；RLS 要求 `public.hx_is_teacher()`，学生账号读不到、写不进，网页登录时也直接拒绝。结构见 `supabase-hx-schema.sql`；旧项目的结构 `supabase-schema.sql` 只作历史参考。
+- 账号形态：老师可以只填「数字账号」（例如 `11445`），前端会自动补成 `11445@jfdt.app` 作为登录身份（不发信）。从旧项目迁来的数字账号原密码照常登录。新老师注册必须填管理员发的华夏工具教师邀请码（`config.js` 的 `hxTeacherGate`，由数据库 `hx_redeem` 核对、一码一用）；华夏工具项目若开着 Confirm email，新注册请用真实邮箱（数字账号收不到确认信，网页会提示）。已是华夏工具教师的账号（例如排课的 GitHub 登录）直接能用。
 - 浏览器只带 `config.js` 里的 publishable key，不具备绕过 RLS 的能力；仓库里没有任何 service_role 密钥。
 - 公开的 `data.js` 是中性模板（一个空的「我的班级」+ 13 个空组），真实名单只在老师自己的账号里。
 
-Supabase 后台一次性配置（项目 `hrzeciygelfwdmhftvew`）：
+Supabase 后台配置（华夏工具项目 `eiqgyrjrwdaunhxjmdyr`）：
 
-1. Authentication → Sign In / Providers → Email：**关闭 Confirm email**，老师注册后即可直接使用（开启时也能用，只是要先点邮件确认链接）。
-2. Authentication → URL Configuration：Site URL 与 Redirect URLs 都填 `https://zcq19991029.github.io/jiafenxitong/`，否则确认/重置邮件会跳回 localhost。
-3. 想让老师用 GitHub / Google 登录：在同页 Providers 里填对应 OAuth 的 Client ID 与 Secret；登录页会自动出现对应按钮（没开就不显示）。
-4. 想开放「访客身份进入」：Providers → Anonymous sign-ins 打开，登录页才会出现访客入口。
-5. 首次部署后把 `supabase-schema.sql` 在 SQL Editor 跑一次（可重复执行），确保 profiles / score_states / 触发器与 RLS 都在。
-6. 需要管理员视角（能看其他老师数据）时执行：
-   `update public.profiles set role = 'admin' where id = (select id from auth.users where email = '老师邮箱');`
+1. SQL Editor 依次运行过：华夏工具 `rank-schema.sql`（在接线仿真项目里）→ 本项目 `supabase-hx-schema.sql`（可重复执行）。
+2. Authentication → URL Configuration → Redirect URLs 加上 `https://zcq19991029.github.io/jiafenxitong/`（Site URL 保持排课的不动），否则确认/重置邮件和 GitHub 登录跳不回来。
+3. 管理员视角（能看其他老师数据）：华夏工具管理员/开发者自动有；旧项目迁来的 `jf_profiles.role='admin'` 也保留。
+
+从旧项目 `hrzeciygelfwdmhftvew` 迁移（2026-10-30，一次性）：`tools/hx-migrate/` 里按编号走——`0-check-new.sql`（新项目，只读检查）→ `1-export-old.sql`（旧项目，导出完整备份为 CSV，放 `迁移记录/`，不进 Git）→ `node tools/hx-migrate/build-import.mjs <备份.csv>` 生成导入 SQL → 在新项目运行。导入保留原账号 id 和密码散列，同邮箱已在新项目注册的并入已有账号；整段一个事务，成绩逐份 md5 核对，不一致就全部撤销；可重复运行（停用旧站前再补一次，只覆盖版本号更新的成绩）。本机测试：`node tools/test_hx_migration.mjs`（pglite 模拟两个项目，依赖排课和接线仿真里的 SQL，不进 CI）。
 
 旧 Worker + D1 版本（backend/worker.mjs、.openai/hosting.json、tools/test_site.mjs 等）仅作历史归档，不再对应线上站点。真实名单不进入公共静态种子。
 
 ## 教师使用
 
-1. 打开线上站，点「注册新账号」：填账号（数字或邮箱都行）、姓名、密码，以及管理员给的邀请码；账号数据互相独立。
+1. 打开线上站：原来的老师直接用原账号原密码登录；新老师点「注册新账号」，填账号、姓名、密码，以及管理员发的华夏工具教师邀请码（一个码开通排课、接线仿真、加分助手全部工具）；账号数据互相独立。
 2. 之后用同一邮箱登录；换电脑、换浏览器登录同一邮箱即可恢复自己的记录。点顶栏头像→“切换账号”可查看本机记住过的账号；切换前先同步当前账号，密码只用于当次登录，不保存在浏览器。
-3. 忘记密码：用真实邮箱注册的老师可以自己在登录页点「忘记密码」收重置邮件；数字账号没有邮箱，需要管理员在 Supabase 后台重设密码。
+3. 忘记密码：用真实邮箱注册的老师可以自己在登录页点「忘记密码」收重置邮件；数字账号没有邮箱，需要管理员在 Supabase（华夏工具项目）后台重设密码。
 4. 在“数据与备份”下载 CSV 模板，将 Excel 名单另存为 UTF-8 CSV 后导入。必填列为班级、姓名、学号；小组和班内序号可选，小组留空为待分配。每组最多 6 人。
 5. 新开课次并记分。记录先写入当前浏览器，再同步 D1；换设备登录同一账号可恢复云端记录。
 6. “组内个人评分”对应组长课堂评分表：按班级、课次、小组录入最多10个自定义项目，每名成员每项0–5分。评分按完整学号保存（未有学号时用稳定成员ID），可随账号同步并打印或下载Excel；评分自动计入个人累计与赋分，不改变课堂小组分或违纪扣分记录。该表不重复显示合计列，本节总计查看上课记分主表的“本节合计”。打印表最后一列右边框加深，签字栏只显示“组长”并留出手写空间。

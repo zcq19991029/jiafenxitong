@@ -15,7 +15,7 @@ const { JSDOM, VirtualConsole } = require('jsdom');
 
 const ROOT = process.cwd();
 const SITE = 'https://zcq19991029.github.io/jiafenxitong';
-const SUPABASE = 'https://hrzeciygelfwdmhftvew.supabase.co';
+const SUPABASE = 'https://eiqgyrjrwdaunhxjmdyr.supabase.co'; // 华夏工具共用项目（2026-10-30 起）
 
 /* 先构建真实产物，后面所有断言都跑在 pages-dist 上而不是源码上 */
 execFileSync(process.execPath, [path.join(ROOT, 'tools/build_pages.mjs')], { cwd: ROOT, stdio: 'inherit' });
@@ -44,6 +44,9 @@ function createCloud(options = {}) {
     profiles: new Map(),   // id -> row
     states: new Map(),     // owner_id -> { data, revision, updated_at }
     sessions: new Map(),   // token -> uid
+    teachers: new Set(),   // hx_profiles.role='teacher'
+    students: new Set(),   // hx_profiles.role='student'
+    codes: new Map([['TEACHER01', { role: 'teacher', used: 0 }]]), // 华夏工具教师邀请码（一码一用）
     mail: [],
     requests: []
   };
@@ -61,13 +64,17 @@ function createCloud(options = {}) {
     const user = { id, email, password, user_metadata: meta };
     db.users.set(id, user);
     db.byEmail.set(email.toLowerCase(), id);
-    db.profiles.set(id, {
-      id, username: (email.split('@')[0] || 'teacher').toLowerCase(),
-      display_name: meta.display_name || '', real_name: meta.real_name || '', role: 'teacher'
-    });
-    db.states.set(id, { data: null, revision: 0, updated_at: null });
+    /* 新项目没有注册触发器：资料行、成绩行都不自动建 */
     return user;
   }
+  /* 从旧项目迁过来的老师：原账号原密码，已登记教师，带资料和成绩 */
+  db.seedTeacher = (email, password, profile, state) => {
+    const user = newUser(email, password, {});
+    db.teachers.add(user.id);
+    db.profiles.set(user.id, { id: user.id, username: email.split('@')[0], display_name: '', real_name: '', role: 'teacher', ...profile });
+    db.states.set(user.id, { data: state, revision: 7, updated_at: new Date().toISOString() });
+    return user;
+  };
   function issue(user) {
     const token = 'token-' + user.id + '-' + Date.now() + '-' + Math.random().toString(16).slice(2);
     db.sessions.set(token, user.id);
@@ -150,9 +157,35 @@ function createCloud(options = {}) {
       return json({ id: user.id, email: user.email, user_metadata: user.user_metadata, is_anonymous: !!user.is_anonymous });
     }
 
-    if (target.pathname.startsWith('/rest/v1/profiles')) {
+    if (target.pathname === '/rest/v1/rpc/paike_login_email') {
+      const id = (db.usernames || {})[String(body.p_name || '').toLowerCase()];
+      return json(id ? db.users.get(id).email : null);
+    }
+    if (target.pathname === '/rest/v1/rpc/hx_me') {
       const user = currentUser(headers);
-      if (!user) return json([]);
+      return json({ teacher: !!user && db.teachers.has(user.id), admin: false, dev: false, student: user && db.students.has(user.id) ? { id: 1, name: '学生', class: '26工器1班' } : null });
+    }
+    if (target.pathname === '/rest/v1/rpc/hx_redeem') {
+      const user = currentUser(headers);
+      if (!user) return json({ code: 'P0001', message: '请先登录' }, 400);
+      if (db.teachers.has(user.id) || db.students.has(user.id)) return json({ code: 'P0001', message: '这个账号已经开通过了' }, 400);
+      const code = db.codes.get(String(body.p_code || '').trim().toUpperCase());
+      if (!code || code.used >= 1) return json({ code: 'P0001', message: '邀请码无效、已撤销或已用完' }, 400);
+      code.used++;
+      (code.role === 'teacher' ? db.teachers : db.students).add(user.id);
+      return json(code.role);
+    }
+
+    /* RLS：jf_ 表只有华夏工具教师能读写 */
+    const rlsDenied = () => json({ code: '42501', message: 'new row violates row-level security policy' }, 403);
+    if (target.pathname.startsWith('/rest/v1/jf_profiles')) {
+      const user = currentUser(headers);
+      if (!user || !db.teachers.has(user.id)) return method === 'GET' ? json([]) : rlsDenied();
+      if (method === 'POST') {
+        if (body.id !== user.id || body.role) return rlsDenied();
+        if (!db.profiles.has(body.id)) db.profiles.set(body.id, { role: 'teacher', ...body });
+        return json([db.profiles.get(body.id)]);
+      }
       if (method === 'PATCH') {
         const row = db.profiles.get(user.id);
         Object.assign(row, body);
@@ -166,11 +199,12 @@ function createCloud(options = {}) {
       return json([...db.profiles.values()]);
     }
 
-    if (target.pathname.startsWith('/rest/v1/score_states')) {
+    if (target.pathname.startsWith('/rest/v1/jf_score_states')) {
       const user = currentUser(headers);
-      if (!user) return json([]);
+      if (!user || !db.teachers.has(user.id)) return method === 'GET' ? json([]) : rlsDenied();
       const owner = String(query(url, 'owner_id') || '').replace('eq.', '');
       if (method === 'POST') {
+        if (body.owner_id !== user.id || db.states.has(body.owner_id)) return rlsDenied();
         db.states.set(body.owner_id, { data: body.data, revision: body.revision, updated_at: body.updated_at });
         return json([{ owner_id: body.owner_id, ...db.states.get(body.owner_id) }]);
       }
@@ -237,7 +271,8 @@ function openSite({ cloud, hash = '' } = {}) {
   return { dom, w, errors, q: (sel) => w.document.querySelector(sel) };
 }
 
-const REGISTER_CODE = read('config.js').split("registerCode: '")[1].split("'")[0] || '';
+const HX_GATE = /hxTeacherGate:\s*true/.test(read('config.js'));
+const REGISTER_CODE = HX_GATE ? 'TEACHER01' : read('config.js').split("registerCode: '")[1].split("'")[0] || '';
 const ACCOUNT_DOMAIN = read('config.js').split("accountDomain: '")[1].split("'")[0] || 'jfdt.app';
 
 /* 注册面板：账号 / 姓名 / 密码 / 邀请码 */
@@ -295,7 +330,8 @@ check('公开 data.js 不含任何学生名单', (() => {
   return data.classes.every((c) => (c.roster || []).length === 0 && (c.groups || []).every((g) => !(g.members || []).length));
 })());
 check('旧版「教师账号+一次性重置码」表单没有残留', !/一次性重置码/.test(HTML) && !/id="loginUsername"/.test(HTML) && !/id="resetCode"/.test(HTML));
-check('邀请制以后端可配的口令形式存在', /id="regInvite"/.test(HTML) && REGISTER_CODE.length >= 4);
+check('注册要填华夏工具教师邀请码（数据库核对）', /id="regInvite"/.test(HTML) && HX_GATE && /tablePrefix:\s*'jf_'/.test(read('config.js')));
+check('前端已指向华夏工具项目', read('config.js').includes(SUPABASE) && !/hrzeciygelfwdmhftvew\.supabase/.test(read('config.js')));
 check('私有材料没有进产物', !fs.existsSync(path.join(OUT, '教学材料')) && !fs.existsSync(path.join(OUT, 'data.example.js')) && !fs.existsSync(path.join(OUT, 'backend')));
 
 /* ---------------- 场景一：登录页结构 + 第三方登录开关 ---------------- */
@@ -342,24 +378,32 @@ check('私有材料没有进产物', !fs.existsSync(path.join(OUT, '教学材料
   check('注册面板接受任意教师账号', !site.q('#gateRegister').hidden && site.q('#regEmail').type === 'text');
   check('开启邀请制时出现邀请码输入框', REGISTER_CODE ? !site.q('#regInviteWrap').hidden : site.q('#regInviteWrap').hidden);
 
-  /* 邀请码不对要在本地就拦下，不要白跑一次请求 */
-  const beforeBadCode = cloud.requests.length;
-  register(site, { account: '11445', name: '夜夜', password: 'secret123', code: 'WRONG-CODE' });
-  await wait(120);
-  check('邀请码错误时直接提示且不发注册请求', /邀请码不对/.test(site.q('#gateMsg').textContent) && cloud.requests.length === beforeBadCode);
+  const beforeNoCode = cloud.requests.length;
+  register(site, { account: '11445', name: '夜夜', password: 'secret123', code: '' });
+  await wait(60);
+  check('没填教师邀请码时本地拦下、不发注册请求', /教师邀请码/.test(site.q('#gateMsg').textContent) && cloud.requests.length === beforeNoCode);
 
-  register(site, { account: '11445', name: '夜夜', password: 'secret123' });
+  /* 邀请码由数据库核对：填错时账号建了但开不了教师，留在登录页 */
+  register(site, { account: '11445', name: '夜夜', password: 'secret123', code: 'WRONG-CODE' });
+  await until(() => /邀请码无效/.test(site.q('#gateMsg').textContent), '错误邀请码提示');
+  check('邀请码错误时提示且不放进应用', site.w.document.body.classList.contains('gated') && !site.w.localStorage.getItem('jfdt.supabase.session.v1'));
+  check('邀请码错误时不留资料行', cloud.profiles.size === 0);
+
+  /* 改对邀请码再点注册：账号已存在 → 用这组密码登录并兑换 */
+  register(site, { account: '11445', name: '夜夜', password: 'secret123', code: 'teacher01' });
   await until(() => site.q('#gate').hidden, '注册后进入应用');
-  check('注册后直接进入应用', !site.w.document.body.classList.contains('gated'));
+  check('改对邀请码后直接进入应用（同一账号，不重复注册）', !site.w.document.body.classList.contains('gated') && cloud.users.size === 1);
+  check('教师邀请码已兑换、一码一用', cloud.codes.get('TEACHER01').used === 1 && cloud.teachers.size === 1);
   check('数字账号被补成 账号@域名 去注册', cloud.requests.some((r) => r.path === '/auth/v1/signup' && r.body && r.body.email === '11445@' + ACCOUNT_DOMAIN));
-  check('账号资料写入了 profiles', cloud.profiles.size === 1 && cloud.profiles.values().next().value.display_name === '夜夜');
+  check('首次登录补建了 jf_profiles 资料行', cloud.profiles.size === 1 && cloud.profiles.values().next().value.display_name === '夜夜' &&
+    cloud.requests.some((r) => r.method === 'POST' && r.path === '/rest/v1/jf_profiles'));
   check('新账号看到名单导入入口', !site.q('#rosterSetupHint').hidden);
   check('顶栏显示老师姓名', /夜夜/.test(site.q('#userName').textContent));
 
   site.w.JFDT_CLOUD.touch(() => JSON.parse(site.w.localStorage.getItem('jfdt.v1')));
   await until(() => [...cloud.states.values()].some((r) => r.revision >= 1), '上传到云端');
   const row = [...cloud.states.values()].find((r) => r.revision >= 1);
-  check('成绩状态写进了 score_states', !!row && Array.isArray(row.data.classes) && row.data.classes.length > 0);
+  check('成绩状态写进了 jf_score_states', cloud.requests.some((r) => r.path === '/rest/v1/jf_score_states') && !!row && Array.isArray(row.data.classes) && row.data.classes.length > 0);
   check('同步后顶栏不再是未连接状态', site.w.JFDT_CLOUD.status().mode === 'ok');
 
   const revisionBefore = row.revision;
@@ -382,6 +426,8 @@ check('私有材料没有进产物', !fs.existsSync(path.join(OUT, '教学材料
   register(site, { account: 'pending-teacher', name: '王老师', password: 'secret123' });
   await until(() => /确认链接|确认邮件/.test(site.q('#gateMsg').textContent), '邮箱确认提示');
   check('要邮箱确认时停在注册页并说明下一步', !site.q('#gateRegister').hidden && site.w.document.body.classList.contains('gated'));
+  check('数字账号收不到确认信时提示改用真实邮箱', /真实邮箱/.test(site.q('#gateMsg').textContent));
+  check('邀请码先存本机，确认后第一次登录再兑换', site.w.localStorage.getItem('jfdt.hx.invite.v1') === 'TEACHER01');
   check('提示里带上了刚注册的账号', site.q('#loginEmail').value === 'pending-teacher');
   site.w.close();
 }
@@ -423,9 +469,68 @@ check('私有材料没有进产物', !fs.existsSync(path.join(OUT, '教学材料
   check('开了匿名登录就出现访客入口', !site.q('#btnGuest').hidden);
   check('开了 Google 就出现 Google 登录', !site.q('#btnOAuthGoogle').hidden);
   site.q('#btnGuest').click();
-  await until(() => site.q('#gate').hidden, '访客进入应用');
-  await until(() => site.w.JFDT_CLOUD.status().mode === 'ok', '访客同步状态就绪');
-  check('访客也能拿到云端会话', site.w.JFDT_CLOUD.status().mode === 'ok' && cloud.sessions.size > 0);
+  await until(() => /教师身份/.test(site.q('#gateMsg').textContent), '访客被拒');
+  check('访客不是华夏工具教师，进不了加分助手', site.w.document.body.classList.contains('gated') && !site.w.localStorage.getItem('jfdt.supabase.session.v1'));
+  site.w.close();
+}
+
+/* ---------------- 场景六：旧项目迁来的老师用原账号原密码登录，看到原数据 ---------------- */
+
+{
+  const cloud = createCloud({ confirmEmail: true });
+  const state = { version: 1, classes: [{ id: 'c-mig', name: '迁移测试班', roster: [{ id: 's1', name: '测试学生甲' }], groups: [] }], lessons: [{ id: 'l1', classId: 'c-mig' }], undo: [], redo: [], operationLog: [] };
+  cloud.seedTeacher('20260001@' + ACCOUNT_DOMAIN, 'old-pass-9', { display_name: '迁移老师' }, state);
+  const site = openSite({ cloud });
+  await until(() => site.q('#gate') && !site.q('#gate').hidden, '登录闸门出现');
+  site.q('#loginEmail').value = '20260001';
+  site.q('#loginPassword').value = 'old-pass-9';
+  site.q('#btnAccountLogin').click();
+  await until(() => site.q('#gate').hidden, '迁移老师登录');
+  check('迁移老师用原数字账号、原密码直接登录', !site.w.document.body.classList.contains('gated') && /迁移老师/.test(site.q('#userName').textContent));
+  check('登录后拿到原来的成绩（云端 v7）', site.w.JFDT_CLOUD.status().cloudVersion === 7 && cloud.users.size === 1);
+  check('不需要再兑换邀请码', !cloud.requests.some((r) => r.path === '/rest/v1/rpc/hx_redeem'));
+  site.w.close();
+}
+
+/* ---------------- 场景六 b：11445 已并入开发者账号（GitHub 账号，排课里账号名 11445） ---------------- */
+
+{
+  const cloud = createCloud({ confirmEmail: true });
+  const dev = cloud.seedTeacher('zcq@privaterelay.appleid.com', 'dev-pass-1', { display_name: '夜夜', role: 'admin' }, { version: 1, classes: [], lessons: [], undo: [], redo: [], operationLog: [] });
+  cloud.usernames = { '11445': dev.id };
+  const site = openSite({ cloud });
+  await until(() => site.q('#gate') && !site.q('#gate').hidden, '登录闸门出现');
+  site.q('#loginEmail').value = '11445';
+  site.q('#loginPassword').value = 'dev-pass-1';
+  site.q('#btnAccountLogin').click();
+  await until(() => site.q('#gate').hidden, '11445 登录');
+  check('输入 11445 先查排课账号名，登进开发者账号', cloud.requests.some((r) => r.path === '/auth/v1/token' && r.body.email === 'zcq@privaterelay.appleid.com'));
+  check('同一个号：没有另建 11445@jfdt.app', cloud.users.size === 1);
+  site.w.close();
+}
+
+/* ---------------- 场景七：学生账号、未开通的账号被拦 ---------------- */
+
+{
+  const cloud = createCloud({ confirmEmail: false });
+  const stu = { email: 'stu@example.com', password: 'stu-pass-1' };
+  await cloud.fetch(SUPABASE + '/auth/v1/signup', { method: 'POST', body: JSON.stringify(stu) });
+  cloud.students.add(cloud.byEmail.get(stu.email));
+  await cloud.fetch(SUPABASE + '/auth/v1/signup', { method: 'POST', body: JSON.stringify({ email: 'paike-new@example.com', password: 'new-pass-1' }) });
+  const site = openSite({ cloud });
+  await until(() => site.q('#gate') && !site.q('#gate').hidden, '登录闸门出现');
+  site.q('#loginEmail').value = stu.email;
+  site.q('#loginPassword').value = stu.password;
+  site.q('#btnAccountLogin').click();
+  await until(() => /学生账号/.test(site.q('#gateMsg').textContent), '学生被拒');
+  check('学生账号登录被拒并说明原因', site.w.document.body.classList.contains('gated') && !site.w.localStorage.getItem('jfdt.supabase.session.v1'));
+  site.q('#loginEmail').value = 'paike-new@example.com';
+  site.q('#loginPassword').value = 'new-pass-1';
+  site.q('#btnAccountLogin').click();
+  await until(() => /教师身份/.test(site.q('#gateMsg').textContent), '未开通被拒');
+  check('没开通教师身份的账号被拒', site.w.document.body.classList.contains('gated'));
+  check('被拒的账号没有碰到 jf_ 表', !cloud.requests.some((r) => r.path.startsWith('/rest/v1/jf_')));
+  check('运行期没有前端异常', site.errors.length === 0);
   site.w.close();
 }
 

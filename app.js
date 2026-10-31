@@ -2121,10 +2121,14 @@ function removeMemberAt(cls, g, j) {
   function registerCode() {
     return String((window.JFDT_CONFIG || {}).registerCode || '');
   }
+  /* 华夏工具：新老师用管理员发的教师邀请码（一码一用，由数据库核对） */
+  function hxInvite() {
+    return !!(window.JFDT_CONFIG || {}).hxTeacherGate;
+  }
   function showInviteField() {
     var wrap = $('#regInviteWrap'), hint = $('#accountDomainHint');
     if (hint) hint.textContent = accountDomain();
-    if (wrap) wrap.hidden = !registerCode();
+    if (wrap) wrap.hidden = !registerCode() && !hxInvite();
   }
 
   function gateError(panel, e, prefix) {
@@ -2158,7 +2162,10 @@ function removeMemberAt(cls, g, j) {
     var problem = accountProblem(account, email);
     if (problem) { gateShow('register', problem); return; }
     var needCode = registerCode();
-    if (needCode) {
+    var typedCode = $('#regInvite') ? $('#regInvite').value.trim() : '';
+    if (hxInvite()) {
+      if (!typedCode) { gateShow('register', '请填写管理员给你的教师邀请码。'); return; }
+    } else if (needCode) {
       var typed = $('#regInvite') ? $('#regInvite').value.trim() : '';
       if (!typed) { gateShow('register', '请填写管理员给你的邀请码。'); return; }
       if (typed.toUpperCase() !== needCode.toUpperCase()) { gateShow('register', '邀请码不对，请向管理员确认。'); return; }
@@ -2167,7 +2174,7 @@ function removeMemberAt(cls, g, j) {
     if (password !== confirm) { gateShow('register', '两次输入的密码不一致。'); return; }
     setGateBusy(true);
     gateShow('register', null);
-    CLOUD.register(email, password, $('#regName').value.trim()).then(function (p) {
+    CLOUD.register(email, password, $('#regName').value.trim(), hxInvite() ? typedCode : '').then(function (p) {
       setGateBusy(false);
       $('#regPassword').value = ''; $('#regConfirm').value = '';
       if (p && p.displayName) flash('欢迎，' + p.displayName + '。账号已建好。', true);
